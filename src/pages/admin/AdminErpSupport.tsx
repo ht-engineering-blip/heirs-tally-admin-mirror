@@ -26,7 +26,7 @@ const mockErps: Erp[] = [
   { id: '6', name: 'Microsoft Dynamics 365', version: '2024 Wave 2', status: 'active', tenantCount: 5, lastUpdated: '2025-02-01' },
 ];
 
-export default function ErpSupport() {
+export default function AdminErpSupport() {
   const columns: Column<Erp>[] = [
     {
       key: 'name',
@@ -90,8 +90,7 @@ export default function ErpSupport() {
     </>
   );
 
-  return (
-    <DashboardLayout>
+  return ( 
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
         <div className="page-header">
@@ -141,7 +140,6 @@ export default function ErpSupport() {
           rowActions={rowActions}
           emptyMessage="No ERP systems configured"
         />
-      </div>
-    </DashboardLayout>
+      </div> 
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, DM_Sans } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
+import { DashboardLayout } from '@/components/layout'
 
 const inter = Inter({ subsets: ['latin'] })
 const dmSans = DM_Sans({ subsets: ['latin'] })
@@ -19,8 +20,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={dmSans.className}>
-        <Providers>
-          {children}
+        <Providers> 
+            {children} 
         </Providers>
       </body>
     </html>

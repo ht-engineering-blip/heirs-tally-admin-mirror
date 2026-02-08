@@ -4,14 +4,9 @@ import { useEffect, useState } from 'react';
 import {
   Building2,
   FileText,
-  Users,
-  TrendingUp,
-  AlertTriangle,
   Clock,
   CheckCircle,
-  Activity,
-} from 'lucide-react';
-import { DashboardLayout } from '@/components/layout';
+} from 'lucide-react'; 
 import {
   KpiCard,
   TransactionVolumeChart,
@@ -30,11 +25,14 @@ import {
   mockTenantStatusData,
   mockTransactions,
 } from '@/lib/mockData';
+import { useSession } from '@/hooks/use-session';
 
-export default function Dashboard() {
+export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const { user, isSuperAdmin } = useSession()
 
   useEffect(() => {
     async function fetchData() {
@@ -86,8 +84,12 @@ export default function Dashboard() {
         {/* Header */}
         <div className="page-header">
           <div>
-            <h1 className="page-title">Dashboard</h1>
-            <p className="page-subtitle">Welcome back! Here's an overview of your platform.</p>
+          <h1 className="text-3xl font-bold text-foreground">
+          Welcome back, {user?.name || 'Admin'}
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          Manage your system configuration, tenants, and more from this dashboard.
+        </p>
           </div>
           <div className="text-sm text-muted-foreground">
             Last updated: {new Date().toLocaleTimeString()}

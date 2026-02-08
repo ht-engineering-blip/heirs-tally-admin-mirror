@@ -31,7 +31,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import Image from 'next/image';
+import { Logo } from '@/components/shared/Logo';
 
 interface NavItem {
   title: string;
@@ -90,21 +90,22 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
           aria-hidden="true"
         />
       )}
-      <aside
-        className={cn(
+    <aside
+      className={cn(
           'rounded-r-xl flex flex-col h-screen bg-sidebar/95  transition-all duration-300 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sidebar z-50',
           sidebarWidth,
           mobileClasses,
           isMobile && !isOpen && 'pointer-events-none'
-        )}
-      >
-        {/* Logo */}
+      )}
+    >
+      {/* Logo */}
         <div className="h-16 flex items-center px-4 shrink-0 relative">
           <div className="flex items-center gap-3 flex-1">
-
-            <Link href="/" className="text-base font-semibold tracking-tight text-foreground/70 flex items-center gap-2  flex-row">
-              <Image src="/logo.png" alt="HT E-Invoicing" width={30} height={30} className="w-10 h-10" /> 
-            </Link>
+            <Logo 
+              href="/"
+              alt="HT E-Invoicing"
+              linkClassName="text-base font-semibold tracking-tight text-foreground/70"
+            />
 
             {(!isCollapsed || isMobile) && (
               <div className="animate-fade-in">
@@ -129,36 +130,36 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
         </div>
 
 
-        {/* Navigation */}
+      {/* Navigation */}
         <nav className="flex-1 py-4 px-3 overflow-y-auto overflow-x-hidden min-h-0 z-50">
           <TooltipProvider delayDuration={300} >
-            <div className="space-y-1">
+        <div className="space-y-1">
               {(!isCollapsed || isMobile) && (
-                <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Modules
-                </p>
-              )}
+            </p>
+          )}
               {mainNavItems.map((item) => {
                 const isActive = pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
                 const showTooltip = isCollapsed && !isMobile;
 
                 const linkContent = (
                   <Link
-                    key={item.href}
+              key={item.href}
                     href={item.href}
                     className={cn(
-                      'nav-item',
-                      isActive ? 'nav-item-active' : 'nav-item-inactive',
+                  'nav-item',
+                  isActive ? 'nav-item-active' : 'nav-item-inactive',
                       isCollapsed && !isMobile && 'justify-center px-2'
                     )}
-                  >
-                    <item.icon className="w-5 h-5 flex-shrink-0" />
+            >
+              <item.icon className="w-5 h-5 flex-shrink-0" />
                     {(!isCollapsed || isMobile) && <span>{item.title}</span>}
                     {(!isCollapsed || isMobile) && item.badge && (
-                      <span className="ml-auto bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full">
-                        {item.badge}
-                      </span>
-                    )}
+                <span className="ml-auto bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full">
+                  {item.badge}
+                </span>
+              )}
                   </Link>
                 );
 
@@ -177,31 +178,31 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
 
                 return linkContent;
               })}
-            </div>
+        </div>
 
-            <Separator className="my-4" />
+        <Separator className="my-4" />
 
-            <div className="space-y-1">
+        <div className="space-y-1">
               {(!isCollapsed || isMobile) && (
-                <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  System
-                </p>
-              )}
+            <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              System
+            </p>
+          )}
               {systemNavItems.map((item) => {
                 const isActive = pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
                 const showTooltip = isCollapsed && !isMobile;
 
                 const linkContent = (
                   <Link
-                    key={item.href}
+              key={item.href}
                     href={item.href}
                     className={cn(
-                      'nav-item',
-                      isActive ? 'nav-item-active' : 'nav-item-inactive',
+                  'nav-item',
+                  isActive ? 'nav-item-active' : 'nav-item-inactive',
                       isCollapsed && !isMobile && 'justify-center px-2'
                     )}
-                  >
-                    <item.icon className="w-5 h-5 flex-shrink-0" />
+            >
+              <item.icon className="w-5 h-5 flex-shrink-0" />
                     {(!isCollapsed || isMobile) && <span>{item.title}</span>}
                   </Link>
                 );
@@ -221,9 +222,9 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
 
                 return linkContent;
               })}
-            </div>
+        </div>
           </TooltipProvider>
-        </nav>
+      </nav>
 
 
 
@@ -233,42 +234,42 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
             variant="sidebar"
             showLabel={!isCollapsed || isMobile}
             showTooltip={isCollapsed && !isMobile}
-            size="sm"
+          size="sm"
           />
-        </div>
+      </div>
 
-        {/* User section */}
+      {/* User section */}
         <div className="p-3 shrink-0">
-          <div
-            className={cn(
-              'flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer',
+        <div
+          className={cn(
+            'flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer',
               isCollapsed && !isMobile && 'justify-center'
-            )}
-          >
-            <Avatar className="w-9 h-9">
-              <AvatarImage src="" />
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                JA
-              </AvatarFallback>
-            </Avatar>
+          )}
+        >
+          <Avatar className="w-9 h-9">
+            <AvatarImage src="" />
+            <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+              JA
+            </AvatarFallback>
+          </Avatar>
             {(!isCollapsed || isMobile) && (
-              <div className="flex-1 min-w-0 animate-fade-in">
-                <p className="text-sm font-medium text-foreground truncate">
-                  John Adeyemi
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  Super Admin
-                </p>
-              </div>
-            )}
+            <div className="flex-1 min-w-0 animate-fade-in">
+              <p className="text-sm font-medium text-foreground truncate">
+                John Adeyemi
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                Super Admin
+              </p>
+            </div>
+          )}
             {(!isCollapsed || isMobile) && (
-              <Button variant="ghost" size="icon" className="flex-shrink-0">
-                <LogOut className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
+            <Button variant="ghost" size="icon" className="flex-shrink-0">
+              <LogOut className="w-4 h-4" />
+            </Button>
+          )}
         </div>
-      </aside>
+      </div>
+    </aside>
     </>
   );
 }

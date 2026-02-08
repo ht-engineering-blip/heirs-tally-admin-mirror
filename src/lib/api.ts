@@ -18,6 +18,8 @@ import {
   type ApiKey,
   type DashboardStats,
   type SystemHealth,
+  ErpSyncConfig,
+  mockErpSyncConfig,
 } from './mockData';
 
 // Simulate network delay
@@ -134,6 +136,69 @@ export const tenantApi = {
       tenant.status = status;
     }
     return { success: true, data: tenant! };
+  },
+};
+
+// ERP Sync Config API
+export const erpSyncConfigApi = {
+  async getAll(params?: {
+    page?: number;
+    pageSize?: number;
+    status?: string;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<ApiResponse<ErpSyncConfig[]>> {
+    await delay(300);
+    
+    let filtered = [...mockErpSyncConfig];
+    
+    // Filter by status
+    if (params?.status && params.status !== 'all') {
+      filtered = filtered.filter(t => t.status === params.status);
+    }
+    
+    // Search
+    if (params?.search) {
+      const search = params.search.toLowerCase();
+      filtered = filtered.filter(t => 
+        t.erpType.toLowerCase().includes(search)
+      );
+    }
+    
+    // Sort
+    if (params?.sortBy) {
+      filtered.sort((a, b) => {
+        const aVal = a[params.sortBy as keyof ErpSyncConfig];
+        const bVal = b[params.sortBy as keyof ErpSyncConfig];
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return params.sortOrder === 'desc' 
+            ? bVal.localeCompare(aVal) 
+            : aVal.localeCompare(bVal);
+        }
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return params.sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
+        }
+        return 0;
+      });
+    }
+    
+    // Pagination
+    const page = params?.page || 1;
+    const pageSize = params?.pageSize || 10;
+    const start = (page - 1) * pageSize;
+    const paginatedData = filtered.slice(start, start + pageSize);
+    
+    return {
+      success: true,
+      data: paginatedData,
+      pagination: {
+        page,
+        pageSize,
+        total: filtered.length,
+        totalPages: Math.ceil(filtered.length / pageSize),
+      },
+    };
   },
 };
 
@@ -344,6 +409,7 @@ export const dashboardApi = {
 // Export all APIs
 export const api = {
   tenants: tenantApi,
+  erpSyncConfigs: erpSyncConfigApi,
   transactions: transactionApi,
   users: userApi,
   apiKeys: apiKeyApi,

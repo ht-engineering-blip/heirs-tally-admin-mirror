@@ -20,6 +20,7 @@ out
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+IMPLEMENTATION_PLAN.md
 .idea
 .DS_Store
 *.suo

@@ -1,17 +1,32 @@
 // Mock Data for E-Invoicing Admin Dashboard
 // This file contains all mock data used across the application
 
-export interface Tenant {
+  export interface Tenant {
+    id: string;
+    businessName: string;
+    tin: string;
+    email: string;
+    status: 'active' | 'pending' | 'suspended' | 'inactive';
+    plan: 'starter' | 'professional' | 'enterprise';
+    createdAt: string;
+    lastActivity: string;
+    invoiceCount: number;
+    erpType: string;
+  }
+
+export interface ErpSyncConfig {
   id: string;
-  businessName: string;
-  tin: string;
-  email: string;
-  status: 'active' | 'pending' | 'suspended' | 'inactive';
-  plan: 'starter' | 'professional' | 'enterprise';
-  createdAt: string;
-  lastActivity: string;
-  invoiceCount: number;
+  tenantId: string;
   erpType: string;
+  status: 'active' | 'pending' | 'suspended' | 'inactive';
+  createdAt: string;
+}
+
+export interface ErpSyncActivity {
+  id: string;
+  erpSyncConfigId: string;
+  activity: string;
+  createdAt: string;
 }
 
 export interface Transaction {
@@ -71,6 +86,66 @@ export interface DashboardStats {
   pendingApprovals: number;
   errorCount: number;
 }
+
+// Generate mock erp sync configs
+export const mockErpSyncConfig: ErpSyncConfig[] = [
+  {
+    id: 'erp-sync-config-001',
+    tenantId: 'tenant-001',
+    erpType: 'SAP',
+    status: 'active',
+    createdAt: '2024-01-15T10:30:00Z',
+  },
+  {
+    id: 'erp-sync-config-002',
+    tenantId: 'tenant-002',
+    erpType: 'Oracle',
+    status: 'active',
+    createdAt: '2024-02-20T14:15:00Z',
+  },
+  {
+    id: 'erp-sync-config-003',
+    tenantId: 'tenant-003',
+    erpType: 'Sage',
+    status: 'active',
+    createdAt: '2024-03-05T10:30:00Z',
+  },
+  {
+    id: 'erp-sync-config-004',
+    tenantId: 'tenant-004',
+    erpType: 'SAP',
+    status: 'active',
+    createdAt: '2024-04-15T10:30:00Z',
+  },
+  {
+    id: 'erp-sync-config-005',
+    tenantId: 'tenant-005',
+    erpType: 'Oracle',
+    status: 'active',
+    createdAt: '2024-05-20T14:15:00Z',
+  },
+  {
+    id: 'erp-sync-config-006',
+    tenantId: 'tenant-006',
+    erpType: 'Sage',
+    status: 'active',
+    createdAt: '2024-06-05T10:30:00Z',
+  },
+  {
+    id: 'erp-sync-config-007',
+    tenantId: 'tenant-007',
+    erpType: 'SAP',
+    status: 'active',
+    createdAt: '2024-07-15T10:30:00Z',
+  },
+  {
+    id: 'erp-sync-config-008',
+    tenantId: 'tenant-008',
+    erpType: 'Oracle',
+    status: 'active',
+    createdAt: '2024-08-20T14:15:00Z',
+  },
+];
 
 // Generate mock tenants
 export const mockTenants: Tenant[] = [

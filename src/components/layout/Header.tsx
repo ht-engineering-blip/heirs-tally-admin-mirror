@@ -1,6 +1,7 @@
 'use client'
 
 import { Bell, Settings, LogOut, User, Mail, Menu, ChevronLeft, ChevronRight } from 'lucide-react'
+import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -13,6 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { useSession } from '@/hooks/use-session'
 
 interface HeaderProps {
   isMobile?: boolean
@@ -22,6 +24,8 @@ interface HeaderProps {
 }
 
 export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse }: HeaderProps) {
+  const { user } = useSession()
+  
   // Mock notification data
   const notifications = [
     {
@@ -167,7 +171,7 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse 
                 <Avatar className="h-10 w-10">
                   <AvatarImage src="" alt="User" />
                   <AvatarFallback className="bg-primary text-primary-foreground">
-                    JA
+                    {user?.name?.charAt(0).toUpperCase() || 'A'}
                   </AvatarFallback>
                 </Avatar>
                 <span className="sr-only">User menu</span>
@@ -176,9 +180,9 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse 
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">John Adeyemi</p>
+                  <p className="text-sm font-medium leading-none">{user?.name || 'Admin'}</p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    john.adeyemi@example.com
+                    {user?.email || user?.role?.replace('_', ' ').toLowerCase() || 'Admin'}
                   </p>
                 </div>
               </DropdownMenuLabel>
@@ -196,7 +200,10 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse 
                 <span>Settings</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">
+              <DropdownMenuItem 
+                className="cursor-pointer text-destructive focus:text-destructive"
+                onClick={() => signOut({ callbackUrl: '/auth/super-admin/login' })}
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>
               </DropdownMenuItem>

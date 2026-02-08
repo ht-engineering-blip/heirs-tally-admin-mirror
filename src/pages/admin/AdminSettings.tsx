@@ -12,13 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Bell, Lock, Globe, Palette, Shield, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function Settings() {
+export default function AdminSettings() {
   const handleSave = () => {
     toast.success('Settings saved successfully');
   };
 
-  return (
-    <DashboardLayout>
+  return ( 
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
         <div className="page-header">
@@ -289,7 +288,6 @@ export default function Settings() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </DashboardLayout>
+      </div> 
   );
 }

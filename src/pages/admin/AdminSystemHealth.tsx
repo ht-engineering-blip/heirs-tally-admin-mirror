@@ -8,7 +8,7 @@ import { Activity, Wifi, AlertTriangle, Clock, Gauge, RefreshCw, Server, Databas
 import { mockSystemHealth } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
 
-export default function SystemHealth() {
+export default function AdminSystemHealth() {
   const health = mockSystemHealth;
 
   const services = [
@@ -66,8 +66,7 @@ export default function SystemHealth() {
     }
   };
 
-  return (
-    <DashboardLayout>
+  return ( 
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
         <div className="page-header">
@@ -193,7 +192,6 @@ export default function SystemHealth() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </DashboardLayout>
+      </div> 
   );
 }

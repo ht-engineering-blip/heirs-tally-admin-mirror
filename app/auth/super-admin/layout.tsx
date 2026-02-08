@@ -1,0 +1,33 @@
+'use client'
+
+import { ReactNode, useEffect } from 'react'
+import { ThemeSwitcher } from '@/components/shared/ThemeSwitcher'
+import { useSession } from '@/hooks/use-session'
+import { useRouter } from 'next/navigation'
+
+interface SuperAdminAuthLayoutProps {
+  children: ReactNode
+}
+
+export default function SuperAdminAuthLayout({ children }: SuperAdminAuthLayoutProps) {
+    const { isAuthenticated, isLoading } = useSession()
+    const router = useRouter()
+    // Redirect to login if not authenticated
+    useEffect(() => {
+      if (!isLoading && isAuthenticated) {
+        router.push('/admin')
+      }
+    }, [isAuthenticated, isLoading, router])
+    if (isLoading) {
+        return (
+          <div className="h-screen flex items-center justify-center">
+            <div className="text-muted-foreground">Loading...</div>
+          </div>
+        )
+      }
+  return (
+    <div>
+    {children}
+  </div>
+  )
+}

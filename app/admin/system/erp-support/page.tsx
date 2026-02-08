@@ -1,4 +1,4 @@
-import ErpSupport from '@/pages/ErpSupport'
+import ErpSupport from '@/pages/admin/AdminErpSupport'
 
 export default function ErpSupportPage() {
   return <ErpSupport />

@@ -12,7 +12,7 @@ import type { ApiKey } from '@/lib/mockData';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export default function ApiKeys() {
+export default function AdminApiKeys() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -152,8 +152,7 @@ export default function ApiKeys() {
     </>
   );
 
-  return (
-    <DashboardLayout>
+  return ( 
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
         <div className="page-header">
@@ -187,7 +186,6 @@ export default function ApiKeys() {
           isLoading={isLoading}
           emptyMessage="No API keys found"
         />
-      </div>
-    </DashboardLayout>
+      </div> 
   );
 }

@@ -8,7 +8,7 @@ import { DataTable, Column, FilterOption, StatusBadge } from '@/components/share
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { api } from '@/lib/api';
-import type { Tenant } from '@/lib/mockData';
+import type { ErpSyncConfig, Tenant } from '@/lib/mockData';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
@@ -35,8 +35,8 @@ const tenantFilters: FilterOption[] = [
   },
 ];
 
-export default function Tenants() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+export default function AdminErpSyncConfig() {
+  const [tenants, setTenants] = useState<ErpSyncConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -46,7 +46,7 @@ export default function Tenants() {
   const fetchTenants = async () => {
     setIsLoading(true);
     try {
-      const response = await api.tenants.getAll({
+      const response = await api.erpSyncConfigs.getAll({
         page,
         pageSize: 10,
         search: searchQuery,
@@ -66,7 +66,7 @@ export default function Tenants() {
     fetchTenants();
   }, [page, searchQuery, filters]);
 
-  const handleStatusChange = async (tenant: Tenant, newStatus: Tenant['status']) => {
+  const handleStatusChange = async (tenant: ErpSyncConfig, newStatus: ErpSyncConfig['status']) => {
     try {
       await api.tenants.updateStatus(tenant.id, newStatus);
       toast.success(`Tenant ${newStatus === 'active' ? 'activated' : newStatus}`);
@@ -85,76 +85,51 @@ export default function Tenants() {
     return colors[plan] || 'bg-muted text-muted-foreground';
   };
 
-  const columns: Column<Tenant>[] = [
+  const columns: Column<ErpSyncConfig>[] = [
     {
       key: 'businessName',
       header: 'Business',
       sortable: true,
-      accessor: (tenant) => (
+      accessor: (erpSyncConfig) => (
         <div className="flex items-center gap-3">
           <Avatar className="w-10 h-10">
             <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-              {tenant.businessName.split(' ').map(n => n[0]).join('').substring(0, 2)}
+              {erpSyncConfig.tenantId.split(' ').map(n => n[0]).join('').substring(0, 2)}
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium">{tenant.businessName}</p>
-            <p className="text-sm text-muted-foreground">{tenant.email}</p>
+            <p className="font-medium">{erpSyncConfig.tenantId}</p>
           </div>
         </div>
       ),
     },
-    {
-      key: 'tin',
-      header: 'TIN',
-      accessor: (tenant) => (
-        <span className="font-mono text-sm">{tenant.tin}</span>
-      ),
-    },
-    {
-      key: 'plan',
-      header: 'Plan',
-      accessor: (tenant) => (
-        <Badge className={getPlanBadge(tenant.plan)}>
-          {tenant.plan}
-        </Badge>
-      ),
-    },
+     
     {
       key: 'erpType',
       header: 'ERP',
-      accessor: (tenant) => (
-        <span className="text-sm">{tenant.erpType}</span>
+      accessor: (erpSyncConfig) => (
+        <span className="text-sm">{erpSyncConfig.erpType}</span>
       ),
-    },
-    {
-      key: 'invoiceCount',
-      header: 'Invoices',
-      sortable: true,
-      accessor: (tenant) => (
-        <span className="font-medium">
-          {tenant.invoiceCount.toLocaleString()}
-        </span>
-      ),
-    },
+    }, 
+     
     {
       key: 'status',
       header: 'Status',
-      accessor: (tenant) => <StatusBadge status={tenant.status} />,
+      accessor: (erpSyncConfig) => <StatusBadge status={erpSyncConfig.status} />,
     },
     {
       key: 'lastActivity',
       header: 'Last Activity',
       sortable: true,
-      accessor: (tenant) => (
+      accessor: (erpSyncConfig) => (
         <span className="text-sm text-muted-foreground">
-          {formatDistanceToNow(new Date(tenant.lastActivity), { addSuffix: true })}
+          {formatDistanceToNow(new Date(erpSyncConfig.createdAt), { addSuffix: true })}
         </span>
       ),
     },
   ];
 
-  const rowActions = (tenant: Tenant) => (
+  const rowActions = (erpSyncConfig: ErpSyncConfig) => (
     <>
       <DropdownMenuItem>
         <Eye className="w-4 h-4 mr-2" />
@@ -164,17 +139,17 @@ export default function Tenants() {
         <Edit className="w-4 h-4 mr-2" />
         Edit
       </DropdownMenuItem>
-      {tenant.status === 'active' ? (
+      {erpSyncConfig.status === 'active' ? (
         <DropdownMenuItem
-          onClick={() => handleStatusChange(tenant, 'suspended')}
+          onClick={() => handleStatusChange(erpSyncConfig, 'suspended')}
           className="text-warning"
         >
           <Power className="w-4 h-4 mr-2" />
-          Suspend
+          Activities
         </DropdownMenuItem>
-      ) : tenant.status === 'suspended' ? (
+      ) : erpSyncConfig.status === 'suspended' ? (
         <DropdownMenuItem
-          onClick={() => handleStatusChange(tenant, 'active')}
+          onClick={() => handleStatusChange(erpSyncConfig, 'active')}
           className="text-success"
         >
           <Power className="w-4 h-4 mr-2" />
@@ -193,12 +168,12 @@ export default function Tenants() {
         {/* Header */}
         <div className="page-header">
           <div>
-            <h1 className="page-title">Tenant Management</h1>
+            <h1 className="page-title">ERP Sync Configurations</h1>
             <p className="page-subtitle">Manage all registered tenants on the platform</p>
           </div>
           <Button className="rounded-full">
             <Plus className="w-4 h-4 mr-2" />
-            Add Tenant
+            Add ERP Sync Configuration
           </Button>
         </div>
 
@@ -211,7 +186,7 @@ export default function Tenants() {
               </div>
               <div>
                 <p className="text-2xl font-bold">248</p>
-                <p className="text-sm text-muted-foreground">Total Tenants</p>
+                <p className="text-sm text-muted-foreground">Total ERP Sync Configurations</p>
               </div>
             </div>
           </div>
@@ -254,7 +229,7 @@ export default function Tenants() {
         <DataTable
           data={tenants}
           columns={columns}
-          searchPlaceholder="Search tenants by name, TIN, or email..."
+          searchPlaceholder="Search ERP Sync Configurations..."
           filters={tenantFilters}
           rowActions={rowActions}
           selectable
@@ -264,7 +239,7 @@ export default function Tenants() {
           onPageChange={setPage}
           onSearch={setSearchQuery}
           onFilterChange={setFilters}
-          emptyMessage="No tenants found"
+          emptyMessage="No configuration found"
         />
       </div> 
   );

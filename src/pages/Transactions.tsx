@@ -220,8 +220,7 @@ export default function Transactions() {
     failed: transactions.filter(t => t.status === 'failed').length,
   };
 
-  return (
-    <DashboardLayout>
+  return ( 
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
         <div className="page-header">
@@ -270,7 +269,6 @@ export default function Transactions() {
           onFilterChange={setFilters}
           emptyMessage="No transactions found"
         />
-      </div>
-    </DashboardLayout>
+      </div> 
   );
 }
