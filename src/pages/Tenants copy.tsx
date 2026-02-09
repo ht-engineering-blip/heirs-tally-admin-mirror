@@ -154,6 +154,26 @@ export default function Tenants() {
     },
   ];
 
+  const handleSort = (key: string, order: 'asc' | 'desc') => {
+    const sorted = [...tenants].sort((a, b) => {
+      let aVal: any = a[key as keyof Tenant];
+      let bVal: any = b[key as keyof Tenant];
+      
+      if (key === 'createdAt' || key === 'lastActivity') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      
+      if (aVal < bVal) return order === 'asc' ? -1 : 1;
+      if (aVal > bVal) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+    setTenants(sorted);
+  };
+
   const rowActions = (tenant: Tenant) => (
     <>
       <DropdownMenuItem>
@@ -264,6 +284,7 @@ export default function Tenants() {
           onPageChange={setPage}
           onSearch={setSearchQuery}
           onFilterChange={setFilters}
+          onSort={handleSort}
           emptyMessage="No tenants found"
         />
       </div> 

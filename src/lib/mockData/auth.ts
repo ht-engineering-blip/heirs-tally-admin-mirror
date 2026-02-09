@@ -6,7 +6,7 @@
 export interface AuthUser {
   id: string
   loginKey: string
-  role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN'
+  role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER'
   name: string
   email?: string
 }
@@ -25,6 +25,13 @@ export const validLoginKeys: AuthUser[] = [
     role: 'BUSINESS_ADMIN',
     name: 'Business Admin',
     email: 'businessadmin@heirstally.com',
+  },
+  {
+    id: '3',
+    loginKey: 'business-team-member-key-2024',
+    role: 'BUSINESS_TEAM_MEMBER',
+    name: 'Business Team Member',
+    email: 'teammember@heirstally.com',
   },
 ]
 

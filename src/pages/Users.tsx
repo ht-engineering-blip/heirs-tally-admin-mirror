@@ -139,6 +139,26 @@ export default function Users() {
     },
   ];
 
+  const handleSort = (key: string, order: 'asc' | 'desc') => {
+    const sorted = [...users].sort((a, b) => {
+      let aVal: any = a[key as keyof User];
+      let bVal: any = b[key as keyof User];
+      
+      if (key === 'lastLogin' || key === 'createdAt') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      
+      if (aVal < bVal) return order === 'asc' ? -1 : 1;
+      if (aVal > bVal) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+    setUsers(sorted);
+  };
+
   const rowActions = (user: User) => (
     <>
       <DropdownMenuItem>
@@ -197,6 +217,7 @@ export default function Users() {
           onPageChange={setPage}
           onSearch={setSearchQuery}
           onFilterChange={setFilters}
+          onSort={handleSort}
           emptyMessage="No users found"
         />
       </div>

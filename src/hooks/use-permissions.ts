@@ -43,7 +43,12 @@ const BUSINESS_ADMIN_PERMISSIONS: Permission[] = [
   'erp:view',
 ]
 
-function getPermissionsForRole(role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | undefined): Permission[] {
+const BUSINESS_TEAM_MEMBER_PERMISSIONS: Permission[] = [
+  'tenants:read',
+  'erp:view',
+]
+
+function getPermissionsForRole(role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER' | undefined): Permission[] {
   if (!role) return []
   
   switch (role) {
@@ -51,6 +56,8 @@ function getPermissionsForRole(role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | undefine
       return SUPER_ADMIN_PERMISSIONS
     case 'BUSINESS_ADMIN':
       return BUSINESS_ADMIN_PERMISSIONS
+    case 'BUSINESS_TEAM_MEMBER':
+      return BUSINESS_TEAM_MEMBER_PERMISSIONS
     default:
       return []
   }

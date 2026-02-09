@@ -52,6 +52,7 @@ export default function Transactions() {
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
 
   const fetchTransactions = async () => {
     setIsLoading(true);
@@ -63,6 +64,7 @@ export default function Transactions() {
         ...filters,
       });
       setTransactions(response.data);
+      setAllTransactions(response.data);
       setTotal(response.pagination?.total || response.data.length);
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
@@ -192,6 +194,29 @@ export default function Transactions() {
     },
   ];
 
+  const handleSort = (key: string, order: 'asc' | 'desc') => {
+    const sorted = [...transactions].sort((a, b) => {
+      let aVal: any = a[key as keyof Transaction];
+      let bVal: any = b[key as keyof Transaction];
+      
+      if (key === 'createdAt') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      } else if (key === 'amount') {
+        aVal = Number(aVal);
+        bVal = Number(bVal);
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      
+      if (aVal < bVal) return order === 'asc' ? -1 : 1;
+      if (aVal > bVal) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+    setTransactions(sorted);
+  };
+
   const rowActions = (txn: Transaction) => (
     <>
       <DropdownMenuItem>
@@ -267,6 +292,7 @@ export default function Transactions() {
           onPageChange={setPage}
           onSearch={setSearchQuery}
           onFilterChange={setFilters}
+          onSort={handleSort}
           emptyMessage="No transactions found"
         />
       </div> 

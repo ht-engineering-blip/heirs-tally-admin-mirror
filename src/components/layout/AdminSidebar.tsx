@@ -13,6 +13,8 @@ import {
   Server,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   LogOut,
   X,
   Key,
@@ -42,6 +44,7 @@ interface NavItem {
   href: string
   icon: React.ElementType
   permission?: string
+  children?: NavItem[]
 }
 
 const systemNavItems: NavItem[] = [
@@ -52,10 +55,18 @@ const systemNavItems: NavItem[] = [
 ]
 
 const tenantNavItems: NavItem[] = [
-  { title: 'Tenants', href: '/admin/tenants', icon: Building2, permission: 'tenants:read' },
-  { title: 'ERP Sync Configurations', href: '/admin/tenants/erp-sync-config', icon: CogIcon, permission: 'tenants:read' },
-  { title: 'API Keys', href: '/admin/tenants/api-keys', icon: KeyIcon, permission: 'tenants:read' },
-  { title: 'Transaction Log', href: '/admin/tenants/transactions', icon: ListChecksIcon, permission: 'tenants:read' },
+  {
+    title: 'Tenants',
+    href: '/admin/tenants',
+    icon: Building2,
+    permission: 'tenants:read',
+    children: [
+/*       { title: 'All Tenants', href: '/admin/tenants', icon: Building2, permission: 'tenants:read' }, */
+      { title: 'ERP Sync Configurations', href: '/admin/tenants/erp-sync-config', icon: CogIcon, permission: 'tenants:read' },
+      { title: 'API Keys', href: '/admin/tenants/api-keys', icon: KeyIcon, permission: 'tenants:read' },
+      { title: 'Transaction Log', href: '/admin/tenants/transactions', icon: ListChecksIcon, permission: 'tenants:read' },
+    ],
+  },
 ]
 
 const sandboxNavItem: NavItem = {
@@ -77,18 +88,67 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
   const isMobile = useIsMobile()
   const { user } = useSession()
   const { hasPermission } = usePermissions()
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+
+  // Initialize expanded items based on current pathname
+  useEffect(() => {
+    const newExpanded = new Set<string>()
+    
+    // Check if any tenant child route is active
+    tenantNavItems.forEach((item) => {
+      if (item.children) {
+        const hasActiveChild = item.children.some((child) => {
+          if (child.href === pathname) return true
+          if (pathname?.startsWith(child.href + '/')) return true
+          return false
+        })
+        if (hasActiveChild || pathname?.startsWith(item.href + '/')) {
+          newExpanded.add(item.href)
+        }
+      }
+    })
+
+    setExpandedItems(newExpanded)
+  }, [pathname])
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/auth/super-admin/login' })
   }
 
+  const toggleExpanded = (href: string) => {
+    const newExpanded = new Set(expandedItems)
+    if (newExpanded.has(href)) {
+      newExpanded.delete(href)
+    } else {
+      newExpanded.add(href)
+    }
+    setExpandedItems(newExpanded)
+  }
+
   // Filter nav items based on permissions
-  const filteredSystemNavItems = systemNavItems.filter(
-    (item) => !item.permission || hasPermission(item.permission as any)
-  )
-  const filteredTenantNavItems = tenantNavItems.filter(
-    (item) => !item.permission || hasPermission(item.permission as any)
-  )
+  const filterNavItems = (items: NavItem[]): NavItem[] => {
+    return items
+      .filter((item) => !item.permission || hasPermission(item.permission as any))
+      .map((item) => {
+        if (item.children) {
+          return {
+            ...item,
+            children: filterNavItems(item.children),
+          }
+        }
+        return item
+      })
+      .filter((item) => {
+        // Remove parent items if they have no visible children
+        if (item.children && item.children.length === 0) {
+          return false
+        }
+        return true
+      })
+  }
+
+  const filteredSystemNavItems = filterNavItems(systemNavItems)
+  const filteredTenantNavItems = filterNavItems(tenantNavItems)
   const showSandbox = hasPermission('sandbox:test')
 
   const sidebarWidth = isMobile
@@ -102,6 +162,42 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
         !isOpen && 'pointer-events-none'
       )
     : 'relative'
+
+  // Helper function to check if a route is active (exact match)
+  const isRouteActiveExact = (href: string): boolean => {
+    return pathname === href
+  }
+
+  // Helper function to check if a parent item has an active child
+  const hasActiveChild = (item: NavItem): boolean => {
+    if (!item.children) return false
+    return item.children.some((child) => {
+      // Check exact match
+      if (pathname === child.href) return true
+      // Handle dynamic routes like /admin/tenants/[tenantId]
+      if (pathname?.startsWith(child.href + '/')) return true
+      return false
+    })
+  }
+
+  // Helper function to check if parent should be highlighted (but not as active)
+  const isParentHighlighted = (item: NavItem): boolean => {
+    return hasActiveChild(item) && !isRouteActiveExact(item.href)
+  }
+
+  // Helper function to check if a route is active (including nested routes)
+  const isRouteActive = (href: string, isChild: boolean = false): boolean => {
+    if (isChild) {
+      // For child routes, check exact match or if pathname starts with href
+      if (pathname === href) return true
+      // Handle dynamic routes like /admin/tenants/[tenantId]
+      if (pathname?.startsWith(href + '/')) return true
+      return false
+    } else {
+      // For parent routes, check exact match
+      return pathname === href
+    }
+  }
 
   return (
     <>
@@ -181,7 +277,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                       href={item.href}
                       icon={item.icon}
                       label={item.title}
-                      isActive={pathname === item.href || pathname?.startsWith(item.href + '/')}
+                      isActive={isRouteActive(item.href)}
                       isCollapsed={isCollapsed && !isMobile}
                       isMobile={isMobile}
                     />
@@ -189,7 +285,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                 </>
               )}
 
-              {/* Tenant Management */}
+              {/* Tenant Management - Multi-level */}
               {filteredTenantNavItems.length > 0 && (
                 <>
                   <Separator className="my-4" />
@@ -198,18 +294,51 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                       Management
                     </p>
                   )}
-{/*                   || pathname?.startsWith(item.href + '/') */}
-                  {filteredTenantNavItems.map((item) => (
-                    <NavLink
-                      key={item.href}
-                      href={item.href}
-                      icon={item.icon}
-                      label={item.title}
-                      isActive={pathname === item.href }
-                      isCollapsed={isCollapsed && !isMobile}
-                      isMobile={isMobile}
-                    />
-                  ))}
+                  {filteredTenantNavItems.map((item) => {
+                    const isExpanded = expandedItems.has(item.href)
+                    const isParentActiveExact = isRouteActiveExact(item.href)
+                    const isParentHighlightedState = isParentHighlighted(item)
+                    const hasChildren = item.children && item.children.length > 0
+
+                    return (
+                      <div key={item.href} className="space-y-0">
+                        {/* Parent Item */}
+                        <NavLinkWithChildren
+                          href={item.href}
+                          icon={item.icon}
+                          label={item.title}
+                          isActive={isParentActiveExact}
+                          isHighlighted={isParentHighlightedState}
+                          isExpanded={isExpanded}
+                          hasChildren={hasChildren}
+                          isCollapsed={isCollapsed && !isMobile}
+                          isMobile={isMobile}
+                          onToggle={() => toggleExpanded(item.href)}
+                        />
+                        
+                        {/* Children Items */}
+                        {hasChildren && (!isCollapsed || isMobile) && isExpanded && (
+                          <div className="ml-2 pl-6 border-l-2 border-sidebar-accent/30 space-y-0.5 mt-0.5">
+                            {item.children!.map((child) => {
+                              const isChildActive = isRouteActive(child.href, true)
+                              return (
+                                <NavLink
+                                  key={child.href}
+                                  href={child.href}
+                                  icon={child.icon}
+                                  label={child.title}
+                                  isActive={isChildActive}
+                                  isCollapsed={false}
+                                  isMobile={isMobile}
+                                  isChild={true}
+                                />
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </>
               )}
 
@@ -226,7 +355,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                     href={sandboxNavItem.href}
                     icon={sandboxNavItem.icon}
                     label={sandboxNavItem.title}
-                    isActive={pathname === sandboxNavItem.href || pathname?.startsWith(sandboxNavItem.href + '/')}
+                    isActive={isRouteActive(sandboxNavItem.href)}
                     isCollapsed={isCollapsed && !isMobile}
                     isMobile={isMobile}
                   />
@@ -316,22 +445,103 @@ interface NavLinkProps {
   isCollapsed: boolean
   isMobile: boolean
   onClick?: () => void
+  isChild?: boolean
 }
 
-function NavLink({ href, icon: Icon, label, isActive, isCollapsed, isMobile, onClick }: NavLinkProps) {
+function NavLink({ href, icon: Icon, label, isActive, isCollapsed, isMobile, onClick, isChild }: NavLinkProps) {
   const linkContent = (
     <Link
       href={href}
       className={cn(
         'nav-item',
-        isActive ? 'nav-item-active' : 'nav-item-inactive',
+        isChild ? 'nav-item-child' : '',
+        isActive ? (isChild ? 'nav-item-child-active' : 'nav-item-active') : (isChild ? 'nav-item-child-inactive' : 'nav-item-inactive'),
         isCollapsed && 'justify-center px-2'
       )}
       onClick={onClick}
     >
-      <Icon className="w-5 h-5 flex-shrink-0" />
-      {(!isCollapsed || isMobile) && <span>{label}</span>}
+      <Icon className={cn('flex-shrink-0', isChild ? 'w-4 h-4' : 'w-5 h-5')} />
+      {(!isCollapsed || isMobile) && <span className={cn(isChild && 'text-sm')}>{label}</span>}
     </Link>
+  )
+
+  const showTooltip = isCollapsed && !isMobile
+
+  if (showTooltip) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+        <TooltipContent side="right" sideOffset={10}>
+          <p>{label}</p>
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return linkContent
+}
+
+interface NavLinkWithChildrenProps {
+  href: string
+  icon: React.ElementType
+  label: string
+  isActive: boolean
+  isHighlighted?: boolean
+  isExpanded: boolean
+  hasChildren: boolean
+  isCollapsed: boolean
+  isMobile: boolean
+  onToggle: () => void
+}
+
+function NavLinkWithChildren({
+  href,
+  icon: Icon,
+  label,
+  isActive,
+  isHighlighted = false,
+  isExpanded,
+  hasChildren,
+  isCollapsed,
+  isMobile,
+  onToggle,
+}: NavLinkWithChildrenProps) {
+  const handleChevronClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onToggle()
+  }
+
+  const linkContent = (
+    <div
+      className={cn(
+        'nav-item relative',
+        isActive ? 'nav-item-active' : isHighlighted ? 'nav-item-highlighted' : 'nav-item-inactive',
+        isCollapsed && 'justify-center px-2'
+      )}
+    >
+      <Link href={href} className="flex items-center gap-3 flex-1">
+        <Icon className="w-5 h-5 flex-shrink-0" />
+        {(!isCollapsed || isMobile) && <span className="flex-1">{label}</span>}
+      </Link>
+      {hasChildren && (!isCollapsed || isMobile) && (
+        <button
+          onClick={handleChevronClick}
+          className={cn(
+            'p-1 rounded hover:bg-sidebar-accent/50 transition-colors ml-auto',
+            (isActive || isHighlighted) && 'text-primary-foreground'
+          )}
+          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+          type="button"
+        >
+          {isExpanded ? (
+            <ChevronUp className="w-4 h-4" />
+          ) : (
+            <ChevronDown className="w-4 h-4" />
+          )}
+        </button>
+      )}
+    </div>
   )
 
   const showTooltip = isCollapsed && !isMobile

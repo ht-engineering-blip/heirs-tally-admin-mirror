@@ -12,5 +12,6 @@ export function useSession() {
     isLoading: status === 'loading',
     isSuperAdmin: session?.user?.role === 'SUPER_ADMIN',
     isBusinessAdmin: session?.user?.role === 'BUSINESS_ADMIN',
+    isBusinessTeamMember: session?.user?.role === 'BUSINESS_TEAM_MEMBER',
   }
 }

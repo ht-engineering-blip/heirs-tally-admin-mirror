@@ -1,0 +1,960 @@
+'use client'
+
+import { useState, useEffect } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import { Plus, Eye, Edit, Trash2, Power, Building2, ArrowLeft } from 'lucide-react';
+import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
+import { Button } from '@/components/ui/button';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+import { getAdminApiClient } from '@/lib/api/client';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { SchemaSourceType } from './AdminErpSupport';
+
+interface Tenant {
+  id: string;
+  tenantId: string;
+  businessName: string;
+  tin: string;
+  businessRegistrationNumber?: string;
+  contactEmail: string;
+  contactPhone: string;
+  erpSystem: string;
+  status: 'active' | 'suspended' | 'inactive';
+  createdAt: string;
+  updatedAt?: string;
+  config?: {
+    erpSystem: string;
+    features?: any;
+    limits?: any;
+    webhookUrl?: string;
+    webhookEnabled?: boolean;
+  };
+  onboarding?: {
+    status: 'active' | 'pending' | 'in_progress' | 'testing' | 'rejected';
+    progress?: number;
+    notes?: string;
+    rejectionReason?: string;
+  };
+}
+
+const tenantFilters: FilterOption[] = [
+  {
+    key: 'status',
+    label: 'Status',
+    options: [
+      { value: 'all', label: 'All Statuses' },
+      { value: 'active', label: 'Active' },
+      { value: 'suspended', label: 'Suspended' },
+      { value: 'inactive', label: 'Inactive' },
+    ],
+  },
+];
+
+const ERP_OPTIONS = Object.values(SchemaSourceType).filter(
+  (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
+);
+
+export default function Tenants() {
+  const api = getAdminApiClient();
+  const router = useRouter();
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  
+  // Modal states
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showActivateDialog, setShowActivateDialog] = useState(false);
+  const [showSuspendDialog, setShowSuspendDialog] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Form states
+  const [formData, setFormData] = useState({
+    businessName: '',
+    tin: '',
+    businessRegistrationNumber: '',
+    contactEmail: '',
+    contactPhone: '',
+    erpSystem: '' as string,
+    expectedVolume: undefined as number | undefined,
+  });
+
+  const [onboardingData, setOnboardingData] = useState({
+    status: 'pending' as 'active' | 'pending' | 'in_progress' | 'testing' | 'rejected',
+    notes: '',
+    rejectionReason: '',
+  });
+
+  const fetchTenants = async () => {
+    setIsLoading(true);
+    try {
+      const queryParams: any = {
+        page: page,
+        limit: 10,
+      };
+      
+      if (searchQuery) {
+        queryParams.search = searchQuery;
+      }
+      
+      if (filters.status && filters.status !== 'all') {
+        queryParams.status = filters.status;
+      }
+
+      const response = await api.v1.tenants.get({
+        query: queryParams,
+      });
+
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to fetch tenants';
+        toast.error(errorMessage);
+      } else if (response.data?.data) {
+        const tenantData = response.data.data as any[];
+        const mappedTenants: Tenant[] = tenantData.map((t: any) => ({
+          id: t.id || t._id || t.tenantId,
+          tenantId: t.tenantId || t.id || t._id,
+          businessName: t.businessName,
+          tin: t.tin,
+          businessRegistrationNumber: t.businessRegistrationNumber,
+          contactEmail: t.contactEmail,
+          contactPhone: t.contactPhone,
+          erpSystem: t.config?.erpSystem || t.erpSystem || '',
+          status: t.status || 'inactive',
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+          config: t.config,
+          onboarding: t.onboarding,
+        }));
+        setTenants(mappedTenants);
+        setTotal(response.data.pagination?.total || mappedTenants.length);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to load tenants');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTenants();
+  }, [page, searchQuery, filters]);
+
+  const handleCreate = async () => {
+    if (!formData.businessName || !formData.tin || !formData.contactEmail || !formData.erpSystem) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await api.v1.tenants.post({
+        businessName: formData.businessName,
+        tin: formData.tin,
+        businessRegistrationNumber: formData.businessRegistrationNumber,
+        contactEmail: formData.contactEmail,
+        contactPhone: formData.contactPhone,
+        erpSystem: formData.erpSystem as any,
+        expectedVolume: formData.expectedVolume,
+      });
+
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to create tenant';
+        toast.error(errorMessage);
+      } else if (response.data?.data) {
+        toast.success('Tenant created successfully');
+        setShowCreateModal(false);
+        resetForm();
+        fetchTenants();
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to create tenant');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedTenant) return;
+
+    setSaving(true);
+    try {
+      const response = await api.v1.tenants[':tenantId'].patch({
+        params: { tenantId: selectedTenant.tenantId },
+        body: {
+          businessName: formData.businessName,
+          contactEmail: formData.contactEmail,
+          contactPhone: formData.contactPhone,
+          erpSystem: formData.erpSystem as any,
+        },
+      });
+
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to update tenant';
+        toast.error(errorMessage);
+      } else if (response.data?.data) {
+        toast.success('Tenant updated successfully');
+        setShowEditModal(false);
+        resetForm();
+        fetchTenants();
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update tenant');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedTenant) return;
+
+    setSaving(true);
+    try {
+      const response = await api.v1.tenants[':tenantId'].delete({
+        params: { tenantId: selectedTenant.tenantId },
+      });
+
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to delete tenant';
+        toast.error(errorMessage);
+      } else {
+        toast.success('Tenant deleted successfully');
+        setShowDeleteDialog(false);
+        setSelectedTenant(null);
+        fetchTenants();
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to delete tenant');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    if (!selectedTenant) return;
+
+    setSaving(true);
+    try {
+      const response = await api.v1.tenants[':tenantId'].activate.post({
+        params: { tenantId: selectedTenant.tenantId },
+      });
+
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to activate tenant';
+        toast.error(errorMessage);
+      } else if (response.data?.data) {
+        toast.success('Tenant activated successfully');
+        setShowActivateDialog(false);
+        setSelectedTenant(null);
+        fetchTenants();
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to activate tenant');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSuspend = async () => {
+    if (!selectedTenant) return;
+
+    setSaving(true);
+    try {
+      const response = await api.v1.tenants[':tenantId'].suspend.post({
+        params: { tenantId: selectedTenant.tenantId },
+      });
+
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to suspend tenant';
+        toast.error(errorMessage);
+      } else if (response.data?.data) {
+        toast.success('Tenant suspended successfully');
+        setShowSuspendDialog(false);
+        setSelectedTenant(null);
+        fetchTenants();
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to suspend tenant');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateOnboarding = async () => {
+    if (!selectedTenant) return;
+
+    setSaving(true);
+    try {
+      const response = await api.v1.tenants({tenantId: selectedTenant.tenantId}).onboarding.patch({
+        status: onboardingData.status,
+        notes: onboardingData.notes,
+        rejectionReason: onboardingData.rejectionReason || undefined,
+      });
+
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to update onboarding status';
+        console.log({errorMessage})
+        toast.error(errorMessage);
+      } else if (response.data?.data) {
+        toast.success('Onboarding status updated successfully');
+        setShowOnboardingModal(false);
+        setSelectedTenant(null);
+        resetOnboardingForm();
+        fetchTenants();
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update onboarding status');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      businessName: '',
+      tin: '',
+      businessRegistrationNumber: '',
+      contactEmail: '',
+      contactPhone: '',
+      erpSystem: '',
+      expectedVolume: undefined,
+    });
+  };
+
+  const resetOnboardingForm = () => {
+    setOnboardingData({
+      status: 'pending',
+      notes: '',
+      rejectionReason: '',
+    });
+  };
+
+  const openEditModal = (tenant: Tenant) => {
+    setSelectedTenant(tenant);
+    setFormData({
+      businessName: tenant.businessName,
+      tin: tenant.tin,
+      businessRegistrationNumber: tenant.businessRegistrationNumber || '',
+      contactEmail: tenant.contactEmail,
+      contactPhone: tenant.contactPhone,
+      erpSystem: tenant.config?.erpSystem || tenant.erpSystem || '',
+      expectedVolume: undefined,
+    });
+    setShowEditModal(true);
+  };
+
+  const openOnboardingModal = (tenant: Tenant) => {
+    setSelectedTenant(tenant);
+    setOnboardingData({
+      status: tenant.onboarding?.status || 'pending',
+      notes: tenant.onboarding?.notes || '',
+      rejectionReason: tenant.onboarding?.rejectionReason || '',
+    });
+    setShowOnboardingModal(true);
+  };
+
+  const handleSort = (key: string, order: 'asc' | 'desc') => {
+    const sorted = [...tenants].sort((a, b) => {
+      let aVal: any = a[key as keyof Tenant];
+      let bVal: any = b[key as keyof Tenant];
+      
+      if (key === 'createdAt' || key === 'updatedAt') {
+        aVal = new Date(aVal || 0).getTime();
+        bVal = new Date(bVal || 0).getTime();
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      
+      if (aVal < bVal) return order === 'asc' ? -1 : 1;
+      if (aVal > bVal) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+    setTenants(sorted);
+  };
+
+  const getPlanBadge = (plan: string) => {
+    const colors: Record<string, string> = {
+      starter: 'bg-muted text-muted-foreground',
+      professional: 'bg-info/10 text-info',
+      enterprise: 'bg-primary/10 text-primary',
+    };
+    return colors[plan] || 'bg-muted text-muted-foreground';
+  };
+
+  const columns: Column<Tenant>[] = [
+    {
+      key: 'businessName',
+      header: 'Business',
+      sortable: true,
+      accessor: (tenant) => (
+        <div className="flex items-center gap-3">
+          <Avatar className="w-10 h-10">
+            <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+              {tenant.businessName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="font-medium">{tenant.businessName}</p>
+            <p className="text-sm text-muted-foreground">{tenant.contactEmail}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'tin',
+      header: 'TIN',
+      sortable: true,
+      accessor: (tenant) => (
+        <span className="font-mono text-sm">{tenant.tin}</span>
+      ),
+    },
+    {
+      key: 'erpSystem',
+      header: 'ERP System',
+      sortable: true,
+      accessor: (tenant) => (
+        <Badge variant="outline" className="text-xs">
+          {tenant.config?.erpSystem || tenant.erpSystem}
+        </Badge>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortable: true,
+      accessor: (tenant) => <StatusBadge status={tenant.status} />,
+    },
+    {
+      key: 'onboarding',
+      header: 'Onboarding',
+      accessor: (tenant) => { 
+        const onboardingStatus = tenant.onboarding?.status || 'pending';
+        const statusColors: Record<string, string> = {
+          active: 'bg-success/10 text-success',
+          pending: 'bg-warning/10 text-warning',
+          in_progress: 'bg-info/10 text-info',
+          testing: 'bg-primary/10 text-primary',
+          rejected: 'bg-destructive/10 text-destructive',
+        };
+        return (
+          <Badge className={`${statusColors[onboardingStatus] || 'bg-muted'} capitalize`}>
+            {onboardingStatus.replace('_', ' ')}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'createdAt',
+      header: 'Created',
+      sortable: true,
+      accessor: (tenant) => (
+        <span className="text-sm text-muted-foreground">
+          {new Date(tenant.createdAt).toLocaleDateString()}
+        </span>
+      ),
+    },
+  ];
+
+  const rowActions = (tenant: Tenant) => (
+    <>
+      <DropdownMenuItem onClick={() => router.push(`/admin/tenants/${tenant.tenantId}`)}>
+        <Eye className="w-4 h-4 mr-2" />
+        View Details
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => openEditModal(tenant)}>
+        <Edit className="w-4 h-4 mr-2" />
+        Edit
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => openOnboardingModal(tenant)}>
+        <Edit className="w-4 h-4 mr-2" />
+        Update Onboarding
+      </DropdownMenuItem>
+      {tenant.status === 'active' ? (
+        <DropdownMenuItem
+          onClick={() => {
+            setSelectedTenant(tenant);
+            setShowSuspendDialog(true);
+          }}
+          className="text-warning"
+        >
+          <Power className="w-4 h-4 mr-2" />
+          Suspend
+        </DropdownMenuItem>
+      ) : tenant.status === 'suspended' || tenant.status === 'inactive' ? (
+        <DropdownMenuItem
+          onClick={() => {
+            setSelectedTenant(tenant);
+            setShowActivateDialog(true);
+          }}
+          className="text-success"
+        >
+          <Power className="w-4 h-4 mr-2" />
+          Activate
+        </DropdownMenuItem>
+      ) : null}
+      <DropdownMenuItem
+        onClick={() => {
+          setSelectedTenant(tenant);
+          setShowDeleteDialog(true);
+        }}
+        className="text-destructive"
+      >
+        <Trash2 className="w-4 h-4 mr-2" />
+        Delete
+      </DropdownMenuItem>
+    </>
+  );
+
+  const stats = {
+    total: tenants.length,
+    active: tenants.filter(t => t.status === 'active').length,
+    suspended: tenants.filter(t => t.status === 'suspended').length,
+    inactive: tenants.filter(t => t.status === 'inactive').length,
+  };
+
+  return (
+    <>
+      <div className="space-y-6 animate-fade-in">
+        {/* Header */}
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Tenant Management</h1>
+            <p className="page-subtitle">Manage all registered tenants on the platform</p>
+          </div>
+          <Button 
+            onClick={() => setShowCreateModal(true)}
+            className="rounded-full"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Tenant
+          </Button>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.total}</p>
+                  <p className="text-sm text-muted-foreground">Total Tenants</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-success" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-success">{stats.active}</p>
+                  <p className="text-sm text-muted-foreground">Active</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-warning" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-warning">{stats.suspended}</p>
+                  <p className="text-sm text-muted-foreground">Suspended</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.inactive}</p>
+                  <p className="text-sm text-muted-foreground">Inactive</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Data Table */}
+        <DataTable
+          data={tenants}
+          columns={columns}
+          searchPlaceholder="Search tenants by name, TIN, or email..."
+          filters={tenantFilters}
+          rowActions={rowActions}
+          selectable
+          isLoading={isLoading}
+          currentPage={page}
+          totalItems={total}
+          onPageChange={setPage}
+          onSearch={setSearchQuery}
+          onFilterChange={setFilters}
+          onSort={handleSort}
+          emptyMessage="No tenants found"
+        />
+      </div>
+
+      {/* Create Tenant Modal */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Tenant</DialogTitle>
+            <DialogDescription>
+              Add a new tenant to the platform. All fields marked with * are required.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="businessName">Business Name *</Label>
+              <Input
+                id="businessName"
+                value={formData.businessName}
+                onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                placeholder="Enter business name"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="tin">TIN *</Label>
+                <Input
+                  id="tin"
+                  value={formData.tin}
+                  onChange={(e) => setFormData({ ...formData, tin: e.target.value })}
+                  placeholder="Tax Identification Number"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="businessRegistrationNumber">Registration Number</Label>
+                <Input
+                  id="businessRegistrationNumber"
+                  value={formData.businessRegistrationNumber}
+                  onChange={(e) => setFormData({ ...formData, businessRegistrationNumber: e.target.value })}
+                  placeholder="Business registration number"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contactEmail">Contact Email *</Label>
+                <Input
+                  id="contactEmail"
+                  type="email"
+                  value={formData.contactEmail}
+                  onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                  placeholder="contact@business.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contactPhone">Contact Phone *</Label>
+                <Input
+                  id="contactPhone"
+                  value={formData.contactPhone}
+                  onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                  placeholder="+234 800 000 0000"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="erpSystem">ERP System *</Label>
+                <Select
+                  value={formData.erpSystem}
+                  onValueChange={(value) => setFormData({ ...formData, erpSystem: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select ERP system" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ERP_OPTIONS.map((erp) => (
+                      <SelectItem key={erp} value={erp}>
+                        {erp}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="expectedVolume">Expected Volume (Optional)</Label>
+                <Input
+                  id="expectedVolume"
+                  type="number"
+                  value={formData.expectedVolume || ''}
+                  onChange={(e) => setFormData({ ...formData, expectedVolume: e.target.value ? parseInt(e.target.value) : undefined })}
+                  placeholder="Monthly invoice volume"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowCreateModal(false);
+              resetForm();
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={saving}>
+              {saving ? 'Creating...' : 'Create Tenant'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Tenant Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Tenant</DialogTitle>
+            <DialogDescription>
+              Update tenant information. All fields marked with * are required.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-businessName">Business Name *</Label>
+              <Input
+                id="edit-businessName"
+                value={formData.businessName}
+                onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                placeholder="Enter business name"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-contactEmail">Contact Email *</Label>
+                <Input
+                  id="edit-contactEmail"
+                  type="email"
+                  value={formData.contactEmail}
+                  onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                  placeholder="contact@business.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-contactPhone">Contact Phone *</Label>
+                <Input
+                  id="edit-contactPhone"
+                  value={formData.contactPhone}
+                  onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                  placeholder="+234 800 000 0000"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-erpSystem">ERP System *</Label>
+              <Select
+                value={formData.erpSystem}
+                onValueChange={(value) => setFormData({ ...formData, erpSystem: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select ERP system" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ERP_OPTIONS.map((erp) => (
+                    <SelectItem key={erp} value={erp}>
+                      {erp}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowEditModal(false);
+              resetForm();
+              setSelectedTenant(null);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdate} disabled={saving}>
+              {saving ? 'Updating...' : 'Update Tenant'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Tenant</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{selectedTenant?.businessName}</strong>? 
+              This action will soft-delete the tenant and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSelectedTenant(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={saving}
+            >
+              {saving ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Activate Confirmation Dialog */}
+      <AlertDialog open={showActivateDialog} onOpenChange={setShowActivateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Activate Tenant</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to activate <strong>{selectedTenant?.businessName}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSelectedTenant(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleActivate}
+              className="bg-success text-success-foreground hover:bg-success/90"
+              disabled={saving}
+            >
+              {saving ? 'Activating...' : 'Activate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Suspend Confirmation Dialog */}
+      <AlertDialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suspend Tenant</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to suspend <strong>{selectedTenant?.businessName}</strong>? 
+              The tenant will not be able to use the platform until reactivated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSelectedTenant(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleSuspend}
+              className="bg-warning text-warning-foreground hover:bg-warning/90"
+              disabled={saving}
+            >
+              {saving ? 'Suspending...' : 'Suspend'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Update Onboarding Status Modal */}
+      <Dialog open={showOnboardingModal} onOpenChange={setShowOnboardingModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Update Onboarding Status</DialogTitle>
+            <DialogDescription>
+              Update the onboarding status for <strong>{selectedTenant?.businessName}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="onboarding-status">Onboarding Status *</Label>
+              <Select
+                value={onboardingData.status}
+                onValueChange={(value: any) => setOnboardingData({ ...onboardingData, status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="testing">Testing</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="onboarding-notes">Notes</Label>
+              <Input
+                id="onboarding-notes"
+                value={onboardingData.notes}
+                onChange={(e) => setOnboardingData({ ...onboardingData, notes: e.target.value })}
+                placeholder="Additional notes about onboarding"
+              />
+            </div>
+            {onboardingData.status === 'rejected' && (
+              <div className="space-y-2">
+                <Label htmlFor="rejection-reason">Rejection Reason *</Label>
+                <Input
+                  id="rejection-reason"
+                  value={onboardingData.rejectionReason}
+                  onChange={(e) => setOnboardingData({ ...onboardingData, rejectionReason: e.target.value })}
+                  placeholder="Reason for rejection"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowOnboardingModal(false);
+              resetOnboardingForm();
+              setSelectedTenant(null);
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpdateOnboarding} 
+              disabled={saving || (onboardingData.status === 'rejected' && !onboardingData.rejectionReason)}
+            >
+              {saving ? 'Updating...' : 'Update Status'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

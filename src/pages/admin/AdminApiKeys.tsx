@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Plus, RefreshCw, Trash2, Eye, Copy, Key } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout';
-import { DataTable, Column, StatusBadge } from '@/components/shared';
+import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { api } from '@/lib/api';
@@ -12,9 +12,24 @@ import type { ApiKey } from '@/lib/mockData';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
+const apiKeyFilters: FilterOption[] = [
+  {
+    key: 'status',
+    label: 'Status',
+    options: [
+      { value: 'all', label: 'All Statuses' },
+      { value: 'active', label: 'Active' },
+      { value: 'revoked', label: 'Revoked' },
+      { value: 'expired', label: 'Expired' },
+    ],
+  },
+];
+
 export default function AdminApiKeys() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<Record<string, string>>({});
 
   const fetchApiKeys = async () => {
     setIsLoading(true);
@@ -120,6 +135,7 @@ export default function AdminApiKeys() {
     {
       key: 'expiresAt',
       header: 'Expires',
+      sortable: true,
       accessor: (key) => (
         <span className="text-sm text-muted-foreground">
           {new Date(key.expiresAt).toLocaleDateString()}
@@ -127,6 +143,53 @@ export default function AdminApiKeys() {
       ),
     },
   ];
+
+  const handleSort = (key: string, order: 'asc' | 'desc') => {
+    const sorted = [...apiKeys].sort((a, b) => {
+      let aVal: any = a[key as keyof ApiKey];
+      let bVal: any = b[key as keyof ApiKey];
+      
+      if (key === 'lastUsed' || key === 'expiresAt') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      } else if (key === 'callCount') {
+        aVal = Number(aVal);
+        bVal = Number(bVal);
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      
+      if (aVal < bVal) return order === 'asc' ? -1 : 1;
+      if (aVal > bVal) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+    setApiKeys(sorted);
+  };
+
+  // Filter and search data
+  const filteredApiKeys = apiKeys.filter((key) => {
+    // Search filter
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      if (
+        !key.tenantName.toLowerCase().includes(searchLower) &&
+        !key.tenantId.toLowerCase().includes(searchLower) &&
+        !key.maskedKey.toLowerCase().includes(searchLower)
+      ) {
+        return false;
+      }
+    }
+    
+    // Status filter
+    if (filters.status && filters.status !== 'all') {
+      if (key.status !== filters.status) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
 
   const rowActions = (key: ApiKey) => (
     <>
@@ -179,11 +242,15 @@ export default function AdminApiKeys() {
 
         {/* Data Table */}
         <DataTable
-          data={apiKeys}
+          data={filteredApiKeys}
           columns={columns}
-          searchPlaceholder="Search by tenant..."
+          searchPlaceholder="Search by tenant name, ID, or key..."
+          filters={apiKeyFilters}
           rowActions={rowActions}
           isLoading={isLoading}
+          onSearch={setSearchQuery}
+          onFilterChange={setFilters}
+          onSort={handleSort}
           emptyMessage="No API keys found"
         />
       </div> 

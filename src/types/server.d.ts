@@ -531,6 +531,7 @@ declare const app: Elysia<"", {
                     status?: "active" | "suspended" | "inactive" | undefined;
                     page?: number | undefined;
                     limit?: number | undefined;
+                    onboarding?: boolean | undefined;
                     search?: string | undefined;
                     sortBy?: string | undefined;
                     sortOrder?: "asc" | "desc" | undefined;
@@ -539,7 +540,9 @@ declare const app: Elysia<"", {
                 response: {
                     200: {
                         success: boolean;
-                        data: import("./v1/tenants/models").TenantDocument[];
+                        data: (import("./v1/tenants/models").TenantDocument & {
+                            onboarding?: any;
+                        })[];
                         pagination: {
                             page: number;
                             limit: number;
@@ -578,7 +581,9 @@ declare const app: Elysia<"", {
                     response: {
                         200: {
                             success: boolean;
-                            data: import("./v1/tenants/models").TenantDocument;
+                            data: import("./v1/tenants/models").TenantDocument & {
+                                onboarding?: any;
+                            };
                             error?: undefined;
                             statusCode?: undefined;
                         } | {
@@ -1636,21 +1641,28 @@ declare const app: Elysia<"", {
                         headers: unknown;
                         response: {
                             200: {
-                                success: boolean;
                                 data: {
+                                    status: string;
+                                    id: string;
                                     source_type: string;
-                                    count: number;
-                                    has_default: boolean;
+                                    last_updated: Date;
                                 }[];
+                                success: true;
                                 count: number;
-                                error?: undefined;
-                                statusCode?: undefined;
-                            } | {
-                                success: boolean;
-                                error: any;
-                                statusCode: any;
-                                data?: undefined;
-                                count?: undefined;
+                            };
+                            422: {
+                                type: "validation";
+                                on: string;
+                                summary?: string;
+                                message?: string;
+                                found?: unknown;
+                                property?: string;
+                                expected?: string;
+                            };
+                            500: {
+                                error: string;
+                                success: false;
+                                statusCode: number;
                             };
                         };
                     };

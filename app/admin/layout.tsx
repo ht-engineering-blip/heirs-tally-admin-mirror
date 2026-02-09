@@ -13,18 +13,23 @@ interface AdminLayoutProps {
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const { isAuthenticated, isLoading } = useSession()
+  const { isAuthenticated, isLoading, isSuperAdmin, user } = useSession()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const isMobile = useIsMobile()
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated or not super admin
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/auth/super-admin/login')
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        router.push('/auth/super-admin/login')
+      } else if (!isSuperAdmin) {
+        // Redirect non-super-admin users to their dashboard
+        router.push('/dashboard')
+      }
     }
-  }, [isAuthenticated, isLoading, router])
+  }, [isAuthenticated, isLoading, isSuperAdmin, router])
 
   // Auto-collapse on mobile
   useEffect(() => {
@@ -44,8 +49,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     )
   }
 
-  // Don't render admin content if not authenticated
-  if (!isAuthenticated) {
+  // Don't render admin content if not authenticated or not super admin
+  if (!isAuthenticated || !isSuperAdmin) {
     return null
   }
 
