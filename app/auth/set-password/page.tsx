@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
+import { signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,15 +17,15 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Mail, Lock, User, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { Lock, ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
+import { getTenantApiClient } from '@/lib/api/client'
 
-const registerSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Please enter a valid email address'),
+const setPasswordSchema = z.object({
   password: z.string()
     .min(8, 'Password must be at least 8 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
@@ -36,43 +37,118 @@ const registerSchema = z.object({
   path: ['confirmPassword'],
 })
 
-type RegisterFormValues = z.infer<typeof registerSchema>
+type SetPasswordFormValues = z.infer<typeof setPasswordSchema>
 
-export default function RegisterPage() {
+export default function SetPasswordPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const token = searchParams.get('token')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const form = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
+  const api = getTenantApiClient()
+  const form = useForm<SetPasswordFormValues>({
+    resolver: zodResolver(setPasswordSchema),
     defaultValues: {
-      name: '',
-      email: '',
       password: '',
       confirmPassword: '',
     },
   })
 
-  const onSubmit = async (data: RegisterFormValues) => {
+  const onSubmit = async (data: SetPasswordFormValues) => {
+    if (!token) {
+      setError('Invalid or missing token')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
     try {
-      setError(null)
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/auth/register', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(data),
-      // })
+      // Call set-password endpoint with token in query parameter
+      const setPasswordResponse = await api.v1.auth['set-password'].post({ password: data.password },{
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (setPasswordResponse.error) {
+        const errorMessage = (setPasswordResponse.error as any)?.value?.error || 'Failed to set password'
+        setError(errorMessage)
+        toast.error(errorMessage)
+        setIsLoading(false)
+        return
+      }
+
+      if (!setPasswordResponse.data?.data?.token) {
+        setError('Failed to get authentication token')
+        toast.error('Failed to authenticate')
+        setIsLoading(false)
+        return
+      }
+
+      const authToken = setPasswordResponse.data.data.token
+
+      // Call /me endpoint to get user information 
+      const meResponse = await api.v1.auth.me.get({ headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      }})
+
+      if (meResponse.error || !meResponse.data?.data) {
+        setError('Failed to get user information')
+        toast.error('Failed to authenticate')
+        setIsLoading(false)
+        return
+      }
+
+      const userData = meResponse.data.data
+
+      // Determine user role based on response type
+      let userRole: string = 'BUSINESS_ADMIN'
+      if ('role' in userData) {
+        userRole = userData.role
+      } else if ('type' in userData && userData.type === 'tenant') {
+        userRole = 'BUSINESS_ADMIN'
+      }
+
+      // Sign in with NextAuth, including the auth token
+      const result = await signIn('credentials', {
+        token: authToken, // This will be stored in JWT for API calls
+        email: 'email' in userData ? userData.email : 'id' in userData ? userData.id : '',
+        name: 'firstName' in userData && 'lastName' in userData 
+          ? `${userData.firstName} ${userData.lastName}` 
+          : 'businessName' in userData 
+            ? userData.businessName 
+            : 'User',
+        role: userRole,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError('Failed to sign in. Please try logging in manually.')
+        toast.error('Authentication failed')
+        setIsLoading(false)
+        return
+      }
+
+      toast.success('Password set successfully!')
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      toast.success('Account created successfully!')
-      router.push('/dashboard')
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create account. Please try again.'
+      // Redirect based on role
+      if (userRole === 'SUPER_ADMIN') {
+        router.push('/admin')
+      } else {
+        router.push('/dashboard')
+      }
+      router.refresh()
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Failed to set password. Please try again.'
       setError(errorMessage)
       toast.error(errorMessage)
+      setIsLoading(false)
     }
   }
 
@@ -93,18 +169,54 @@ export default function RegisterPage() {
 
   const passwordStrength = getPasswordStrength(password)
 
+  if (!token) {
+    return (
+      <div className="w-full p-4 min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md shadow-card">
+          <CardHeader className="space-y-1 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-primary-foreground" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold">Invalid Token</CardTitle>
+            <CardDescription>
+              The token is missing or invalid. Please request a new link.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Invalid or missing token. Please request a new password setup link.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+          <CardFooter>
+            <Link href="/auth/login" className="w-full">
+              <Button variant="outline" className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to login
+              </Button>
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
   return (
-    <div className="w-full p-4">
-      <Card className="w-full max-w-md mx-auto shadow-card">
+    <div className="w-full p-4 min-h-screen flex items-center justify-center">
+      <Card className="w-full max-w-md shadow-card">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
-              <FileText className="w-6 h-6 text-primary-foreground" />
+              <Lock className="w-6 h-6 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+          <CardTitle className="text-2xl font-bold">Set your password</CardTitle>
           <CardDescription>
-            Enter your information to get started
+            Create a secure password for your account
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -119,50 +231,6 @@ export default function RegisterPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="text"
-                          placeholder="John Doe"
-                          className="pl-10"
-                          {...field}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="email"
-                          placeholder="name@example.com"
-                          className="pl-10"
-                          {...field}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="password"
                 render={({ field }) => (
                   <FormItem>
@@ -172,7 +240,7 @@ export default function RegisterPage() {
                         <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
                           type={showPassword ? 'text' : 'password'}
-                          placeholder="Create a password"
+                          placeholder="Enter your password"
                           className="pl-10 pr-10"
                           {...field}
                         />
@@ -211,6 +279,9 @@ export default function RegisterPage() {
                         </p>
                       </div>
                     )}
+                    <FormDescription>
+                      Must be at least 8 characters with uppercase, lowercase, and number
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -254,21 +325,30 @@ export default function RegisterPage() {
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={form.formState.isSubmitting}
+                disabled={isLoading}
               >
-                {form.formState.isSubmitting ? 'Creating account...' : 'Create account'}
-                {!form.formState.isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Setting password...
+                  </>
+                ) : (
+                  <>
+                    Set password
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
             </form>
           </Form>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <div className="text-sm text-center text-muted-foreground">
-            Already have an account?{' '}
-            <Link href="/auth/login" className="text-primary hover:underline font-medium">
-              Sign in
-            </Link>
-          </div>
+        <CardFooter>
+          <Link href="/auth/login" className="w-full">
+            <Button variant="ghost" className="w-full">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to login
+            </Button>
+          </Link>
         </CardFooter>
       </Card>
     </div>

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
+import { signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,11 +20,12 @@ import {
   FormDescription,
 } from '@/components/ui/form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Lock, ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { Lock, ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff, Loader2, UserPlus } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
+import { getTenantApiClient } from '@/lib/api/client'
 
-const resetPasswordSchema = z.object({
+const acceptInviteSchema = z.object({
   password: z.string()
     .min(8, 'Password must be at least 8 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
@@ -35,56 +37,140 @@ const resetPasswordSchema = z.object({
   path: ['confirmPassword'],
 })
 
-type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>
+type AcceptInviteFormValues = z.infer<typeof acceptInviteSchema>
 
-export default function ResetPasswordPage() {
+export default function AcceptInvitePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const form = useForm<ResetPasswordFormValues>({
-    resolver: zodResolver(resetPasswordSchema),
+  const api = getTenantApiClient()
+  const form = useForm<AcceptInviteFormValues>({
+    resolver: zodResolver(acceptInviteSchema),
     defaultValues: {
       password: '',
       confirmPassword: '',
     },
   })
 
-  const onSubmit = async (data: ResetPasswordFormValues) => {
+  const onSubmit = async (data: AcceptInviteFormValues) => {
     if (!token) {
-      setError('Invalid or missing reset token')
+      setError('Invalid or missing invite token')
       return
     }
 
+    setIsLoading(true)
+    setError(null)
+
     try {
-      setError(null)
-      const { api } = await import('@/lib/api/client')
-      
-      const response = await api.v1.auth['reset-password'].post({
-        body: {
-          token,
-          password: data.password,
-        },
+      // Call accept-invite endpoint
+      const acceptInviteResponse = await api.v1.team['accept-invite'][':token'].post({
+        params: { token },
+        body: { password: data.password },
       })
 
-      if (response.error) {
-        const errorMessage = (response.error as any)?.value?.error || 'Failed to reset password'
+      if (acceptInviteResponse.error) {
+        const errorMessage = (acceptInviteResponse.error as any)?.value?.error || 'Failed to accept invite'
         setError(errorMessage)
         toast.error(errorMessage)
+        setIsLoading(false)
         return
       }
 
-      if (response.data?.data) {
-        toast.success('Password reset successful!')
-        router.push('/auth/login?reset=success')
+      if (!acceptInviteResponse.data?.data?.token) {
+        setError('Failed to get authentication token')
+        toast.error('Failed to authenticate')
+        setIsLoading(false)
+        return
       }
+
+      const authToken = acceptInviteResponse.data.data.token
+      const userData = acceptInviteResponse.data.data
+
+      // Call /me endpoint to get additional user information
+      // Create a temporary API client with the auth token
+      const { treaty } = await import('@elysiajs/eden')
+      const { default: app } = await import('@/types/server')
+      const API_URL = typeof window !== 'undefined' 
+        ? (process.env.NEXT_PUBLIC_API_URL || `${window.location.origin}/api/v1`)
+        : process.env.NEXT_PUBLIC_API_URL || '/api/v1'
+      
+      const authenticatedApi = treaty<typeof app>(API_URL, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        fetch: {
+          credentials: 'include',
+        },
+      })
+
+      const meResponse = await authenticatedApi.v1.auth.me.get()
+
+      if (meResponse.error || !meResponse.data?.data) {
+        // If /me fails, use data from accept-invite response
+        const userRole = userData.role || 'BUSINESS_TEAM_MEMBER'
+        
+        const result = await signIn('credentials', {
+          token: authToken, // This will be stored in JWT for API calls
+          email: userData.email,
+          name: `${userData.firstName} ${userData.lastName}`,
+          role: userRole,
+          redirect: false,
+        })
+
+        if (result?.error) {
+          setError('Failed to sign in. Please try logging in manually.')
+          toast.error('Authentication failed')
+          setIsLoading(false)
+          return
+        }
+
+        toast.success('Invite accepted successfully!')
+        router.push('/dashboard')
+        router.refresh()
+        return
+      }
+
+      const fullUserData = meResponse.data.data
+      const userRole = 'role' in fullUserData ? fullUserData.role : userData.role || 'BUSINESS_TEAM_MEMBER'
+
+      // Sign in with NextAuth, including the auth token
+      const result = await signIn('credentials', {
+        token: authToken, // This will be stored in JWT for API calls
+        email: 'email' in fullUserData ? fullUserData.email : userData.email,
+        name: 'firstName' in fullUserData && 'lastName' in fullUserData
+          ? `${fullUserData.firstName} ${fullUserData.lastName}`
+          : `${userData.firstName} ${userData.lastName}`,
+        role: userRole,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError('Failed to sign in. Please try logging in manually.')
+        toast.error('Authentication failed')
+        setIsLoading(false)
+        return
+      }
+
+      toast.success('Invite accepted successfully!')
+      
+      // Redirect based on role
+      if (userRole === 'SUPER_ADMIN') {
+        router.push('/admin')
+      } else {
+        router.push('/dashboard')
+      }
+      router.refresh()
     } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to reset password. Please try again.'
+      const errorMessage = err?.message || 'Failed to accept invite. Please try again.'
       setError(errorMessage)
       toast.error(errorMessage)
+      setIsLoading(false)
     }
   }
 
@@ -105,30 +191,57 @@ export default function ResetPasswordPage() {
 
   const passwordStrength = getPasswordStrength(password)
 
+  if (!token) {
+    return (
+      <div className="w-full p-4 min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md shadow-card">
+          <CardHeader className="space-y-1 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-primary-foreground" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold">Invalid Invite</CardTitle>
+            <CardDescription>
+              The invite token is missing or invalid. Please request a new invite.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Invalid or missing invite token. Please contact your administrator for a new invite.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+          <CardFooter>
+            <Link href="/auth/login" className="w-full">
+              <Button variant="outline" className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to login
+              </Button>
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
   return (
-    <div className="w-full p-4">
-      <Card className="w-full max-w-md mx-auto shadow-card">
+    <div className="w-full p-4 min-h-screen flex items-center justify-center">
+      <Card className="w-full max-w-md shadow-card">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
-              <FileText className="w-6 h-6 text-primary-foreground" />
+              <UserPlus className="w-6 h-6 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Reset password</CardTitle>
+          <CardTitle className="text-2xl font-bold">Accept Invitation</CardTitle>
           <CardDescription>
-            Enter your new password below
+            Create a password to accept your team invitation
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!token && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Invalid or missing reset token. Please request a new password reset link.
-              </AlertDescription>
-            </Alert>
-          )}
-
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
@@ -143,13 +256,13 @@ export default function ResetPasswordPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>New Password</FormLabel>
+                    <FormLabel>Password</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
                           type={showPassword ? 'text' : 'password'}
-                          placeholder="Enter new password"
+                          placeholder="Enter your password"
                           className="pl-10 pr-10"
                           {...field}
                         />
@@ -201,13 +314,13 @@ export default function ResetPasswordPage() {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Confirm New Password</FormLabel>
+                    <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
                           type={showConfirmPassword ? 'text' : 'password'}
-                          placeholder="Confirm new password"
+                          placeholder="Confirm your password"
                           className="pl-10 pr-10"
                           {...field}
                         />
@@ -234,27 +347,30 @@ export default function ResetPasswordPage() {
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={form.formState.isSubmitting || !token}
+                disabled={isLoading}
               >
-                {form.formState.isSubmitting ? 'Resetting password...' : 'Reset password'}
-                {!form.formState.isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Accepting invite...
+                  </>
+                ) : (
+                  <>
+                    Accept Invitation
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
             </form>
           </Form>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <Link href="/auth/login">
+        <CardFooter>
+          <Link href="/auth/login" className="w-full">
             <Button variant="ghost" className="w-full">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to login
             </Button>
           </Link>
-          <div className="text-sm text-center text-muted-foreground">
-            Don't have an account?{' '}
-            <Link href="/auth/register" className="text-primary hover:underline font-medium">
-              Sign up
-            </Link>
-          </div>
         </CardFooter>
       </Card>
     </div>

@@ -803,6 +803,436 @@ declare const app: Elysia<"", {
                     };
                 };
             };
+        } & {
+            ":tenantId": {
+                "api-keys": {
+                    post: {
+                        body: {
+                            scopes?: string[] | undefined;
+                            expiresInDays?: number | undefined;
+                            name: string;
+                        };
+                        params: {
+                            tenantId: string;
+                        };
+                        query: unknown;
+                        headers: unknown;
+                        response: {
+                            200: {
+                                success: boolean;
+                                message: string;
+                                data: {
+                                    key: string;
+                                    tenantId: string;
+                                    keyHash: string;
+                                    keyPrefix: string;
+                                    name: string;
+                                    description?: string;
+                                    status: import("./v1/tenants/models").ApiKeyStatus;
+                                    scopes: string[];
+                                    lastUsedAt?: Date;
+                                    usageCount: number;
+                                    expiresAt?: Date;
+                                    createdAt: Date;
+                                    updatedAt: Date;
+                                    revokedAt?: Date;
+                                    revokedBy?: string;
+                                    revokedReason?: string;
+                                    _id: import("mongoose").Types.ObjectId;
+                                    $locals: Record<string, unknown>;
+                                    $op: "save" | "validate" | "remove" | null;
+                                    $where: Record<string, unknown>;
+                                    baseModelName?: string;
+                                    collection: import("mongoose").Collection;
+                                    db: import("mongoose").Connection;
+                                    errors?: import("mongoose").Error.ValidationError;
+                                    isNew: boolean;
+                                    schema: import("mongoose").Schema;
+                                };
+                                error?: undefined;
+                                statusCode?: undefined;
+                            } | {
+                                success: boolean;
+                                error: any;
+                                statusCode: any;
+                                message?: undefined;
+                                data?: undefined;
+                            };
+                            422: {
+                                type: "validation";
+                                on: string;
+                                summary?: string;
+                                message?: string;
+                                found?: unknown;
+                                property?: string;
+                                expected?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        } & {
+            ":tenantId": {
+                "api-keys": {
+                    get: {
+                        body: unknown;
+                        params: {
+                            tenantId: string;
+                        };
+                        query: unknown;
+                        headers: unknown;
+                        response: {
+                            200: {
+                                success: boolean;
+                                data: {
+                                    data: import("./v1/tenants/models").ApiKeyDocument[];
+                                    meta: any;
+                                };
+                                error?: undefined;
+                                statusCode?: undefined;
+                            } | {
+                                success: boolean;
+                                error: any;
+                                statusCode: any;
+                                data?: undefined;
+                            };
+                            422: {
+                                type: "validation";
+                                on: string;
+                                summary?: string;
+                                message?: string;
+                                found?: unknown;
+                                property?: string;
+                                expected?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        } & {
+            ":tenantId": {
+                "api-keys": {
+                    ":keyId": {
+                        delete: {
+                            body: {
+                                reason?: string | undefined;
+                            };
+                            params: {
+                                tenantId: string;
+                                keyId: string;
+                            };
+                            query: unknown;
+                            headers: unknown;
+                            response: {
+                                200: {
+                                    success: boolean;
+                                    message: string;
+                                    error?: undefined;
+                                    statusCode?: undefined;
+                                } | {
+                                    success: boolean;
+                                    error: any;
+                                    statusCode: any;
+                                    message?: undefined;
+                                };
+                                422: {
+                                    type: "validation";
+                                    on: string;
+                                    summary?: string;
+                                    message?: string;
+                                    found?: unknown;
+                                    property?: string;
+                                    expected?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        } & {
+            ":tenantId": {
+                "api-keys": {
+                    ":keyId": {
+                        rotate: {
+                            post: {
+                                body: {
+                                    reason?: string | undefined;
+                                    sendEmail?: boolean | undefined;
+                                };
+                                params: {
+                                    tenantId: string;
+                                    keyId: string;
+                                };
+                                query: unknown;
+                                headers: unknown;
+                                response: {
+                                    200: {
+                                        success: boolean;
+                                        message: string;
+                                        data: {
+                                            key: string;
+                                            emailSent: boolean;
+                                            tenantId: string;
+                                            keyHash: string;
+                                            keyPrefix: string;
+                                            name: string;
+                                            description?: string;
+                                            status: import("./v1/tenants/models").ApiKeyStatus;
+                                            scopes: string[];
+                                            lastUsedAt?: Date;
+                                            usageCount: number;
+                                            expiresAt?: Date;
+                                            createdAt: Date;
+                                            updatedAt: Date;
+                                            revokedAt?: Date;
+                                            revokedBy?: string;
+                                            revokedReason?: string;
+                                            _id: import("mongoose").Types.ObjectId;
+                                            $locals: Record<string, unknown>;
+                                            $op: "save" | "validate" | "remove" | null;
+                                            $where: Record<string, unknown>;
+                                            baseModelName?: string;
+                                            collection: import("mongoose").Collection;
+                                            db: import("mongoose").Connection;
+                                            errors?: import("mongoose").Error.ValidationError;
+                                            isNew: boolean;
+                                            schema: import("mongoose").Schema;
+                                        };
+                                        error?: undefined;
+                                        statusCode?: undefined;
+                                    } | {
+                                        success: boolean;
+                                        error: any;
+                                        statusCode: any;
+                                        message?: undefined;
+                                        data?: undefined;
+                                    };
+                                    422: {
+                                        type: "validation";
+                                        on: string;
+                                        summary?: string;
+                                        message?: string;
+                                        found?: unknown;
+                                        property?: string;
+                                        expected?: string;
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        } & {
+            "api-keys": {
+                get: {
+                    body: unknown;
+                    params: {};
+                    query: {
+                        status?: string | undefined;
+                        tenantId?: string | undefined;
+                        page?: number | undefined;
+                        limit?: number | undefined;
+                    };
+                    headers: unknown;
+                    response: {
+                        200: {
+                            success: boolean;
+                            data: {
+                                keyId: string;
+                                tenantId: string;
+                                businessName: string;
+                                contactEmail: string;
+                                tenantStatus: string;
+                                keyName: string;
+                                keyPrefix: string;
+                                status: string;
+                                scopes: string[];
+                                createdAt: Date;
+                                expiresAt?: Date;
+                                lastUsedAt?: Date;
+                                usageCount: number;
+                            }[];
+                            pagination: {
+                                page: number;
+                                limit: number;
+                                total: number;
+                                totalPages: number;
+                            };
+                            error?: undefined;
+                            statusCode?: undefined;
+                        } | {
+                            success: boolean;
+                            error: any;
+                            statusCode: any;
+                            data?: undefined;
+                            pagination?: undefined;
+                        };
+                        422: {
+                            type: "validation";
+                            on: string;
+                            summary?: string;
+                            message?: string;
+                            found?: unknown;
+                            property?: string;
+                            expected?: string;
+                        };
+                    };
+                };
+            };
+        } & {
+            "erp-configs": {
+                get: {
+                    body: unknown;
+                    params: {};
+                    query: {
+                        erpSystem?: string | undefined;
+                        page?: number | undefined;
+                        limit?: number | undefined;
+                        enabled?: string | undefined;
+                    };
+                    headers: unknown;
+                    response: {
+                        200: {
+                            success: boolean;
+                            data: {
+                                tenantId: string;
+                                businessName: string;
+                                contactEmail: string;
+                                status: string;
+                                erpSystem?: string;
+                                erpSyncConfig?: any;
+                                configuredAt?: Date;
+                            }[];
+                            pagination: {
+                                page: number;
+                                limit: number;
+                                total: number;
+                                totalPages: number;
+                            };
+                            error?: undefined;
+                            statusCode?: undefined;
+                        } | {
+                            success: boolean;
+                            error: any;
+                            statusCode: any;
+                            data?: undefined;
+                            pagination?: undefined;
+                        };
+                        422: {
+                            type: "validation";
+                            on: string;
+                            summary?: string;
+                            message?: string;
+                            found?: unknown;
+                            property?: string;
+                            expected?: string;
+                        };
+                    };
+                };
+            };
+        } & {
+            ":tenantId": {
+                "erp-sync": {
+                    put: {
+                        body: {
+                            headers?: {} | undefined;
+                            description?: string | undefined;
+                            queryParams?: {} | undefined;
+                            bodyTemplate?: string | undefined;
+                            authentication?: {
+                                password?: string | undefined;
+                                token?: string | undefined;
+                                username?: string | undefined;
+                                apiKeyName?: string | undefined;
+                                apiKeyValue?: string | undefined;
+                                apiKeyLocation?: "query" | "header" | undefined;
+                                type: "oauth2" | "bearer" | "none" | "basic" | "api-key";
+                            } | undefined;
+                            timeout?: number | undefined;
+                            retryConfig?: {
+                                retryOn?: number[] | undefined;
+                                maxRetries: number;
+                                retryDelay: number;
+                            } | undefined;
+                            responseMapping?: {} | undefined;
+                            triggerEvents?: ("invoice.validated" | "invoice.signed" | "invoice.transmitted" | "invoice.received" | "invoice.acknowledged")[] | undefined;
+                            name: string;
+                            enabled: boolean;
+                            method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+                            baseUrl: string;
+                            endpoint: string;
+                        };
+                        params: {
+                            tenantId: string;
+                        };
+                        query: unknown;
+                        headers: unknown;
+                        response: {
+                            200: {
+                                success: boolean;
+                                message: string;
+                                data: {
+                                    tenantId: string;
+                                    configName: string;
+                                    enabled: boolean;
+                                };
+                                error?: undefined;
+                                statusCode?: undefined;
+                            } | {
+                                success: boolean;
+                                error: any;
+                                statusCode: any;
+                                message?: undefined;
+                                data?: undefined;
+                            };
+                            422: {
+                                type: "validation";
+                                on: string;
+                                summary?: string;
+                                message?: string;
+                                found?: unknown;
+                                property?: string;
+                                expected?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        } & {
+            ":tenantId": {
+                "erp-sync": {
+                    get: {
+                        body: unknown;
+                        params: {
+                            tenantId: string;
+                        };
+                        query: unknown;
+                        headers: unknown;
+                        response: {
+                            200: {
+                                success: boolean;
+                                data: import("./v1/tenants/services/tenant.service").ERPSyncConfigInput;
+                                error?: undefined;
+                                statusCode?: undefined;
+                            } | {
+                                success: boolean;
+                                error: any;
+                                statusCode: any;
+                                data?: undefined;
+                            };
+                            422: {
+                                type: "validation";
+                                on: string;
+                                summary?: string;
+                                message?: string;
+                                found?: unknown;
+                                property?: string;
+                                expected?: string;
+                            };
+                        };
+                    };
+                };
+            };
         };
     } & {
         tenants: {
@@ -2404,6 +2834,8 @@ declare const app: Elysia<"", {
                                     irn: string;
                                     invoiceNumber: any;
                                     status: import("./v1/workflow/models").OutboundInvoiceStatus;
+                                    qrCode: String;
+                                    erp: import("./v1/workflow/models").SchemaSourceType;
                                     workflowState: import("./v1/workflow/models").IWorkflowState;
                                     customerName: any;
                                     totalAmount: any;
@@ -2721,4 +3153,5 @@ declare const app: Elysia<"", {
         };
     };
 }>;
+export type App = typeof app;
 export default app;

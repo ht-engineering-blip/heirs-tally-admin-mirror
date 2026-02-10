@@ -1,35 +1,65 @@
-import { NextAuthConfig } from 'next-auth'
+import { NextAuthConfig, User } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { validateLoginKey } from '@/lib/mockData/auth'
+import { JWT } from 'next-auth/jwt'
 
 export const authOptions: NextAuthConfig = {
   providers: [
     CredentialsProvider({
-      name: 'Login Key',
+      id: 'credentials',
+      name: 'Credentials',
       credentials: {
         loginKey: {
           label: 'Login Key',
           type: 'text',
           placeholder: 'Enter your login key',
         },
+        token: {
+          label: 'Token',
+          type: 'text',
+        },
+        email: {
+          label: 'Email',
+          type: 'text',
+        },
+        name: {
+          label: 'Name',
+          type: 'text',
+        },
+        role: {
+          label: 'Role',
+          type: 'text',
+        },
       },
-      async authorize(credentials) {
-        if (!credentials?.loginKey) {
-          return null
+      async authorize(credentials): Promise<User | JWT | null> {
+        // Handle login key (for super admin)
+        if (credentials?.loginKey) {
+          const user = validateLoginKey(credentials.loginKey as string)
+          if (!user) {
+            return null
+          }
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          }
         }
 
-        const user = validateLoginKey(credentials?.loginKey as string)
-
-        if (!user) {
-          return null
+        // Handle token-based authentication (for tenant/team members)
+        if (credentials?.token) {
+          // Token is already validated by the calling page
+          // Just return the user data from credentials, including the token
+          return {
+            id: credentials.email as string || credentials.token as string,
+            name: credentials.name as string || 'User',
+            email: credentials.email as string || undefined,
+            role: credentials.role as User['role'] || 'BUSINESS_TEAM_MEMBER',
+            token: credentials.token as string, // Store token for use in API calls
+          }
         }
 
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        }
+        return null
       },
     }),
   ],
@@ -42,12 +72,16 @@ export const authOptions: NextAuthConfig = {
     error: '/auth/super-admin/login',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id
         token.role = user.role
         token.name = user.name
         token.email = user.email
+        // Store the API token if provided during sign-in
+        if (account?.provider === 'credentials' && (user as any).token) {
+          token.token = (user as any).token
+        }
       }
       return token
     },

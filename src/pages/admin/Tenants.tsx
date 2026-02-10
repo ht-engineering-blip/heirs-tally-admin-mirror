@@ -215,14 +215,11 @@ export default function Tenants() {
 
     setSaving(true);
     try {
-      const response = await api.v1.tenants[':tenantId'].patch({
-        params: { tenantId: selectedTenant.tenantId },
-        body: {
-          businessName: formData.businessName,
-          contactEmail: formData.contactEmail,
-          contactPhone: formData.contactPhone,
-          erpSystem: formData.erpSystem as any,
-        },
+      const response = await api.v1.tenants({tenantId: selectedTenant.tenantId}).patch({
+        businessName: formData.businessName,
+        contactEmail: formData.contactEmail,
+        contactPhone: formData.contactPhone,
+        erpSystem: formData.erpSystem as any,
       });
 
       if (response.error) {
@@ -246,9 +243,7 @@ export default function Tenants() {
 
     setSaving(true);
     try {
-      const response = await api.v1.tenants[':tenantId'].delete({
-        params: { tenantId: selectedTenant.tenantId },
-      });
+      const response = await api.v1.tenants({tenantId: selectedTenant.tenantId}).delete();
 
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to delete tenant';
@@ -271,8 +266,7 @@ export default function Tenants() {
 
     setSaving(true);
     try {
-      const response = await api.v1.tenants[':tenantId'].activate.post({
-        params: { tenantId: selectedTenant.tenantId },
+      const response = await api.v1.tenants({tenantId: selectedTenant.tenantId}).activate.post({
       });
 
       if (response.error) {
@@ -296,8 +290,7 @@ export default function Tenants() {
 
     setSaving(true);
     try {
-      const response = await api.v1.tenants[':tenantId'].suspend.post({
-        params: { tenantId: selectedTenant.tenantId },
+      const response = await api.v1.tenants({tenantId: selectedTenant.tenantId}).suspend.post({
       });
 
       if (response.error) {

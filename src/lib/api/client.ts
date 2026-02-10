@@ -22,8 +22,15 @@ export const api = treaty<typeof app>(API_URL, {
 })
 
 // Helper function to get typed API client
-export function getApiClient() {
-  return api
+export function getTenantApiClient() {
+  return treaty<typeof app>(`${API_URL}/tenants`, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    fetch: {
+      credentials: 'include',
+    },
+  })
 }
 export function getAdminApiClient() {
   return treaty<typeof app>(`${API_URL}/admin`, {

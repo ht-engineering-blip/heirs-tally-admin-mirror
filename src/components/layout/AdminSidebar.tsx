@@ -50,8 +50,8 @@ interface NavItem {
 const systemNavItems: NavItem[] = [
   { title: 'FIRS Dictionary', href: '/admin/system/firs-dictionary', icon: FileStack, permission: 'system:view' },
   { title: 'ERP Support', href: '/admin/system/erp-support', icon: Server, permission: 'system:view' },
-  { title: 'System Health', href: '/admin/system/health', icon: Activity, permission: 'system:view' },
-  { title: 'Settings', href: '/admin/system/settings', icon: Settings, permission: 'system:view' },
+/*   { title: 'System Health', href: '/admin/system/health', icon: Activity, permission: 'system:view' },
+  { title: 'Settings', href: '/admin/system/settings', icon: Settings, permission: 'system:view' }, */
 ]
 
 const tenantNavItems: NavItem[] = [
@@ -97,12 +97,19 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
     // Check if any tenant child route is active
     tenantNavItems.forEach((item) => {
       if (item.children) {
+        // Check if pathname exactly matches the parent href
+        const isParentExactMatch = pathname === item.href
+        // Check if pathname starts with parent href (for nested routes)
+        const isParentPath = pathname?.startsWith(item.href + '/')
+        // Check if any child route is active
         const hasActiveChild = item.children.some((child) => {
           if (child.href === pathname) return true
           if (pathname?.startsWith(child.href + '/')) return true
           return false
         })
-        if (hasActiveChild || pathname?.startsWith(item.href + '/')) {
+        
+        // Expand if parent is clicked (exact match) or has active child or is in parent path
+        if (isParentExactMatch || hasActiveChild || isParentPath) {
           newExpanded.add(item.href)
         }
       }
@@ -512,6 +519,13 @@ function NavLinkWithChildren({
     onToggle()
   }
 
+  const handleLinkClick = () => {
+    // Auto-expand when parent link is clicked if not already expanded
+    if (hasChildren && !isExpanded) {
+      onToggle()
+    }
+  }
+
   const linkContent = (
     <div
       className={cn(
@@ -520,7 +534,7 @@ function NavLinkWithChildren({
         isCollapsed && 'justify-center px-2'
       )}
     >
-      <Link href={href} className="flex items-center gap-3 flex-1">
+      <Link href={href} className="flex items-center gap-3 flex-1" onClick={handleLinkClick}>
         <Icon className="w-5 h-5 flex-shrink-0" />
         {(!isCollapsed || isMobile) && <span className="flex-1">{label}</span>}
       </Link>

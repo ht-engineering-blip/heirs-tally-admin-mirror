@@ -19,6 +19,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { FileText, Mail, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
+import { getTenantApiClient } from '@/lib/api/client'
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -29,7 +30,7 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>
 export default function ForgotPasswordPage() {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [submittedEmail, setSubmittedEmail] = useState('')
-
+  const api = getTenantApiClient()
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {

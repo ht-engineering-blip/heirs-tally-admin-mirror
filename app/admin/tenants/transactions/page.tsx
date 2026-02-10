@@ -1,5 +1,5 @@
-import Transactions from '@/pages/Transactions'
+import AdminTransactionLogs from '@/pages/admin/AdminTransactionLogs'
 
 export default function TransactionsPage() {
-  return <Transactions />
+  return <AdminTransactionLogs />
 }

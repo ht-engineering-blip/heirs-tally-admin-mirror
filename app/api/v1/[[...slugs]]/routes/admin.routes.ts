@@ -7,6 +7,7 @@ const adminRoutes = new Elysia({ prefix: '/admin' })
     try {
       // Extract the path after /api/v1/admin
       const apiPath = path.replace('/api/v1/admin', '')
+      console.log({path, apiPath})
       const url = new URL(request.url)
       const searchParams = url.searchParams.toString()
       
@@ -33,8 +34,19 @@ const adminRoutes = new Elysia({ prefix: '/admin' })
         body,
       })
 
-      const data = await response.json()
+      // Get the response text first to handle both JSON and non-JSON responses
+      const responseText = await response.text()
       
+      // Try to parse as JSON, but if it fails, return the raw text
+      let data: any
+      try {
+        data = responseText ? JSON.parse(responseText) : {}
+      } catch {
+        // If parsing fails, return the raw text as the error message
+        data = { error: responseText || 'Unknown error' }
+      }
+      
+      // Return the API response as-is, preserving status code and error structure
       return new Response(JSON.stringify(data), {
         status: response.status,
         headers: {
@@ -42,11 +54,13 @@ const adminRoutes = new Elysia({ prefix: '/admin' })
         },
       })
     } catch (error) {
+      // Only catch actual network/parsing errors, not HTTP error responses
       console.error('Elysia proxy error:', error)
       return new Response(
         JSON.stringify({ 
-          error: 'Internal server error', 
-          message: error instanceof Error ? error.message : 'Unknown error' 
+          error: 'Proxy error', 
+          message: error instanceof Error ? error.message : 'Unknown error',
+          statusCode: 500
         }),
         {
           status: 500,

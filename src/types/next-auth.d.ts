@@ -25,5 +25,6 @@ declare module 'next-auth/jwt' {
     role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER'
     name: string
     email?: string
+    token?: string // API token for tenant/team member authentication
   }
 }
