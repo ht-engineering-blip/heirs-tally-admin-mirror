@@ -64,11 +64,9 @@ export default function ResetPasswordPage() {
       const { api } = await import('@/lib/api/client')
       
       const response = await api.v1.auth['reset-password'].post({
-        body: {
           token,
           password: data.password,
-        },
-      })
+        })
 
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to reset password'
@@ -77,7 +75,7 @@ export default function ResetPasswordPage() {
         return
       }
 
-      if (response.data?.data) {
+      if (response.data?.success) {
         toast.success('Password reset successful!')
         router.push('/auth/login?reset=success')
       }

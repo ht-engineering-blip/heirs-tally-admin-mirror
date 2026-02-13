@@ -10,6 +10,6 @@ export default async function Home() {
     const dashboardRoute = getDashboardRoute(userRole)
     redirect(dashboardRoute)
   } else {
-    redirect('/auth/super-admin/login')
+    redirect('/auth/login')
   }
 }

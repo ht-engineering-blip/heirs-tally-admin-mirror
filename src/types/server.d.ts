@@ -9,6 +9,8 @@ declare const app: Elysia<"", {
     } & {
         teamMemberService: import("./v1/tenants/services/team-member.service").TeamMemberService;
     } & Partial<{}> & {
+        webhookService: import("./v1/webhook/services/webhook.service").WebhookService;
+    } & {
         teamService: import("./v1/tenants/services/team-member.service").TeamMemberService;
     } & {
         configService: import("./v1/admin").SystemConfigService;
@@ -365,6 +367,7 @@ declare const app: Elysia<"", {
                                 createdAt?: undefined;
                                 config?: undefined;
                                 onboarding?: undefined;
+                                metadata?: undefined;
                             };
                             error?: undefined;
                             statusCode?: undefined;
@@ -381,6 +384,11 @@ declare const app: Elysia<"", {
                                 status: import("./v1/tenants/models").TenantStatus;
                                 createdAt: Date;
                                 config: {
+                                    firs: {
+                                        serviceId: any;
+                                        clientId: any;
+                                        publicKey: any;
+                                    };
                                     features: any;
                                     limits: any;
                                     webhookUrl: any;
@@ -392,6 +400,9 @@ declare const app: Elysia<"", {
                                     steps: import("./v1/tenants/models").IOnboardingSteps;
                                     approvedAt: Date | undefined;
                                 } | null;
+                                metadata: {
+                                    [x: string]: any;
+                                };
                                 userId?: undefined;
                                 tenantId?: undefined;
                                 email?: undefined;
@@ -1483,7 +1494,7 @@ declare const app: Elysia<"", {
                                     success: boolean;
                                     message: string;
                                     data: {
-                                        webhookUrl: string;
+                                        webhookUrl: any;
                                         testResult: any;
                                         payload: {};
                                     };
@@ -3094,6 +3105,50 @@ declare const app: Elysia<"", {
                                     property?: string;
                                     expected?: string;
                                 };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+} & {
+    v1: {
+        webhook: {
+            inbound: {
+                ":webhookPath": {
+                    post: {
+                        body: unknown;
+                        params: {
+                            webhookPath: string;
+                        };
+                        query: unknown;
+                        headers: unknown;
+                        response: {
+                            200: {
+                                success: boolean;
+                                error: string;
+                                message?: undefined;
+                                data?: undefined;
+                            } | {
+                                success: boolean;
+                                message: string;
+                                data: {
+                                    eventId: string;
+                                    tenantId: string;
+                                    eventType: any;
+                                    receivedAt: string;
+                                };
+                                error?: undefined;
+                            };
+                            422: {
+                                type: "validation";
+                                on: string;
+                                summary?: string;
+                                message?: string;
+                                found?: unknown;
+                                property?: string;
+                                expected?: string;
                             };
                         };
                     };

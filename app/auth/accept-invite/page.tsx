@@ -114,12 +114,13 @@ export default function AcceptInvitePage() {
       if (meResponse.error || !meResponse.data?.data) {
         // If /me fails, use data from accept-invite response
         const userRole = userData.role || 'BUSINESS_TEAM_MEMBER'
-        
+
         const result = await signIn('credentials', {
-          token: authToken, // This will be stored in JWT for API calls
+          token: authToken,
           email: userData.email,
           name: `${userData.firstName} ${userData.lastName}`,
           role: userRole,
+          tenantId: userData.tenantId,
           redirect: false,
         })
 
@@ -139,14 +140,22 @@ export default function AcceptInvitePage() {
       const fullUserData = meResponse.data.data
       const userRole = 'role' in fullUserData ? fullUserData.role : userData.role || 'BUSINESS_TEAM_MEMBER'
 
-      // Sign in with NextAuth, including the auth token
+      // Extract tenantId from /me response
+      const tenantId = 'tenantId' in fullUserData
+        ? (fullUserData as any).tenantId
+        : 'id' in fullUserData && 'type' in fullUserData && (fullUserData as any).type === 'tenant'
+          ? (fullUserData as any).id
+          : userData.tenantId
+
+      // Sign in with NextAuth, including the auth token and tenantId
       const result = await signIn('credentials', {
-        token: authToken, // This will be stored in JWT for API calls
+        token: authToken,
         email: 'email' in fullUserData ? fullUserData.email : userData.email,
         name: 'firstName' in fullUserData && 'lastName' in fullUserData
           ? `${fullUserData.firstName} ${fullUserData.lastName}`
           : `${userData.firstName} ${userData.lastName}`,
         role: userRole,
+        tenantId: tenantId,
         redirect: false,
       })
 

@@ -115,16 +115,24 @@ export default function SetPasswordPage() {
         userRole = 'BUSINESS_ADMIN'
       }
 
-      // Sign in with NextAuth, including the auth token
+      // Extract tenantId from /me response
+      const tenantId = 'id' in userData && 'type' in userData && (userData as any).type === 'tenant'
+        ? (userData as any).id
+        : 'tenantId' in userData
+          ? (userData as any).tenantId
+          : undefined
+
+      // Sign in with NextAuth, including the auth token and tenantId
       const result = await signIn('credentials', {
-        token: authToken, // This will be stored in JWT for API calls
+        token: authToken,
         email: 'email' in userData ? userData.email : 'id' in userData ? userData.id : '',
-        name: 'firstName' in userData && 'lastName' in userData 
-          ? `${userData.firstName} ${userData.lastName}` 
-          : 'businessName' in userData 
-            ? userData.businessName 
+        name: 'firstName' in userData && 'lastName' in userData
+          ? `${userData.firstName} ${userData.lastName}`
+          : 'businessName' in userData
+            ? userData.businessName
             : 'User',
         role: userRole,
+        tenantId: tenantId,
         redirect: false,
       })
 

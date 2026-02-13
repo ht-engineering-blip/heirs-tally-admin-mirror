@@ -21,6 +21,7 @@ out
 .vscode/*
 !.vscode/extensions.json
 IMPLEMENTATION_PLAN.md
+TENANT_PLAN.md
 .idea
 .DS_Store
 *.suo

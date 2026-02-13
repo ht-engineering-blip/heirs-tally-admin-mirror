@@ -202,7 +202,7 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse 
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 className="cursor-pointer text-destructive focus:text-destructive"
-                onClick={() => signOut({ callbackUrl: '/auth/super-admin/login' })}
+                onClick={() => signOut({ callbackUrl: '/auth/login' })}
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>

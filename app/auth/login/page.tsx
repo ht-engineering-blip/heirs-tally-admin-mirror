@@ -6,9 +6,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
+import { signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -19,8 +19,9 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Mail, Lock, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react'
+import { FileText, Mail, Lock, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
+import { createTenantApi } from '@/lib/api/tenant-api'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -53,18 +54,66 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormValues) => {
     try {
       setError(null)
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/auth/login', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(data),
-      // })
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
+      const tenantApi = createTenantApi()
+
+      // Step 1: Login
+      const loginResponse = await tenantApi.login(data.email, data.password)
+ 
+      if (loginResponse.error || loginResponse.data.error) {
+        const errorMessage = (loginResponse.error as any)?.value?.error || loginResponse.data.error  || 'Invalid credentials'
+        setError(errorMessage)
+        toast.error(errorMessage)
+        return
+      }
+
+      const loginData = (loginResponse.data as any)?.data
+ 
+      if (!loginData?.token) {
+        setError('Failed to authenticate')
+        toast.error('Failed to authenticate')
+        return
+      }
+
+      const authToken = loginData.token
+      const tenantId = loginData.tenant?.id
+
+      // Step 2: Fetch user data from /me
+      const meResponse = await tenantApi.getMeWithToken(authToken)
+
+      let userName = loginData.tenant?.businessName || 'User'
+      let userRole: string = 'BUSINESS_ADMIN'
+
+      if (!meResponse.error && meResponse.data?.data) {
+        const meData = meResponse.data.data as any
+        if ('businessName' in meData) {
+          userName = meData.businessName
+        } else if ('firstName' in meData && 'lastName' in meData) {
+          userName = `${meData.firstName} ${meData.lastName}`
+        }
+        if ('role' in meData) {
+          userRole = meData.role
+        }
+      }
+
+      // Step 3: Sign into NextAuth with tenantId
+      const result = await signIn('credentials', {
+        token: authToken,
+        email: data.email,
+        name: userName,
+        role: userRole,
+        tenantId: tenantId,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError('Failed to complete sign in')
+        toast.error('Authentication failed')
+        return
+      }
+
       toast.success('Login successful!')
       router.push('/dashboard')
+      router.refresh()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in. Please try again.'
       setError(errorMessage)
@@ -157,13 +206,22 @@ export default function LoginPage() {
                 )}
               />
 
-              <Button 
-                type="submit" 
-                className="w-full" 
+              <Button
+                type="submit"
+                className="w-full"
                 disabled={form.formState.isSubmitting}
               >
-                {form.formState.isSubmitting ? 'Signing in...' : 'Sign in'}
-                {!form.formState.isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
+                {form.formState.isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    Sign in
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
             </form>
           </Form>

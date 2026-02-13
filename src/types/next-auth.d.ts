@@ -8,6 +8,7 @@ declare module 'next-auth' {
       role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER'
       name: string
       email?: string
+      tenantId?: string
     } & DefaultSession['user']
   }
 
@@ -26,5 +27,6 @@ declare module 'next-auth/jwt' {
     name: string
     email?: string
     token?: string // API token for tenant/team member authentication
+    tenantId?: string
   }
 }

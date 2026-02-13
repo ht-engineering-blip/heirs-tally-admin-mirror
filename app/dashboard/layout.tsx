@@ -1,9 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { useSession } from '@/hooks/use-session'
-import { DashboardLayout } from '@/components/layout'
+import { useTenant } from '@/hooks/use-tenant'
+import { TenantSidebar } from '@/components/layout/TenantSidebar'
+import { Header } from '@/components/layout/Header'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { cn } from '@/lib/utils'
 
 export default function DashboardLayoutBase({
     children,
@@ -11,21 +15,40 @@ export default function DashboardLayoutBase({
     children: React.ReactNode
 }) {
     const { isAuthenticated, isLoading, isSuperAdmin, isBusinessAdmin, isBusinessTeamMember } = useSession()
+    const { isOnboardingComplete, isLoading: isTenantLoading } = useTenant()
     const router = useRouter()
+    const pathname = usePathname()
+    const isMobile = useIsMobile()
+    const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
+    // Auth redirect
     useEffect(() => {
         if (!isLoading) {
             if (!isAuthenticated) {
                 router.push('/auth/login')
             } else if (isSuperAdmin) {
-                // Super admin should use /admin dashboard
                 router.push('/admin')
             } else if (!isBusinessAdmin && !isBusinessTeamMember) {
-                // Only business admin and team members can access this dashboard
                 router.push('/auth/login')
             }
         }
     }, [isAuthenticated, isLoading, isSuperAdmin, isBusinessAdmin, isBusinessTeamMember, router])
+
+    // Onboarding redirect — if not complete, send to onboarding page
+    useEffect(() => {
+        if (
+            !isLoading &&
+            !isTenantLoading &&
+            isAuthenticated &&
+            (isBusinessAdmin || isBusinessTeamMember) &&
+            !isOnboardingComplete &&
+            pathname &&
+            !pathname.startsWith('/dashboard/onboarding')
+        ) {
+            router.push('/dashboard/onboarding')
+        }
+    }, [isLoading, isTenantLoading, isAuthenticated, isBusinessAdmin, isBusinessTeamMember, isOnboardingComplete, pathname, router])
 
     if (isLoading) {
         return (
@@ -40,8 +63,24 @@ export default function DashboardLayoutBase({
     }
 
     return (
-        <DashboardLayout>
-            {children}
-        </DashboardLayout>
+        <div className="h-screen flex bg-background overflow-hidden">
+            <TenantSidebar
+                isOpen={!isMobile || sidebarOpen}
+                onClose={() => setSidebarOpen(false)}
+                isCollapsed={sidebarCollapsed}
+                onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+            />
+            <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
+                <Header
+                    isMobile={isMobile}
+                    onMenuClick={() => setSidebarOpen(true)}
+                    isCollapsed={sidebarCollapsed}
+                    onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+                />
+                <div className={cn('p-8', isMobile && 'pt-4')}>
+                    {children}
+                </div>
+            </main>
+        </div>
     )
 }

@@ -8,6 +8,7 @@ export function useSession() {
   return {
     session,
     user: session?.user,
+    tenantId: session?.user?.tenantId,
     isAuthenticated: status === 'authenticated',
     isLoading: status === 'loading',
     isSuperAdmin: session?.user?.role === 'SUPER_ADMIN',
