@@ -49,6 +49,46 @@ export function createTenantApi() {
     resendOutboundInvoice: (irn: string) =>
       api.v1.workflow.invoices.outbound({ irn }).resend.post({}),
 
+    // ERP Sync endpoints
+    getErpSyncConfig: (tenantId: string) =>
+      api.v1.tenants({ tenantId })['erp-sync'].get(),
+
+    saveErpSyncConfig: (tenantId: string, config: {
+      name: string;
+      enabled: boolean;
+      method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+      baseUrl: string;
+      endpoint: string;
+      description?: string;
+      headers?: Record<string, string>;
+      queryParams?: Record<string, string>;
+      bodyTemplate?: string;
+      authentication?: {
+        type: 'none' | 'basic' | 'bearer' | 'api-key' | 'oauth2';
+        token?: string;
+        username?: string;
+        password?: string;
+        apiKeyName?: string;
+        apiKeyValue?: string;
+        apiKeyLocation?: 'header' | 'query';
+      };
+      timeout?: number;
+      retryConfig?: { maxRetries: number; retryDelay: number; retryOn?: number[] };
+      responseMapping?: Record<string, string>;
+      triggerEvents?: ('invoice.validated' | 'invoice.signed' | 'invoice.transmitted' | 'invoice.received' | 'invoice.acknowledged')[];
+    }) =>
+      api.v1.tenants({ tenantId })['erp-sync'].put(config),
+
+    // Sandbox / Workflow endpoints
+    sandboxTransform: (invoice: any, sourceType?: string) =>
+      api.v1.workflow.transform.post({ invoice, source_type: sourceType }),
+
+    sandboxOutbound: () =>
+      api.v1.workflow.outbound.post({}),
+
+    sandboxInbound: () =>
+      api.v1.workflow.inbound.post({}),
+
     // Tenant profile update
     updateTenant: (tenantId: string, data: {
       businessName?: string;
