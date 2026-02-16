@@ -140,7 +140,7 @@ export default function AdminErpSyncConfig() {
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
-  
+
   // Modal states
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -271,7 +271,7 @@ export default function AdminErpSyncConfig() {
         // Apply enabled filter
         let filtered = mappedConfigs;
         if (filters.enabled && filters.enabled !== 'all') {
-          filtered = mappedConfigs.filter((c) => 
+          filtered = mappedConfigs.filter((c) =>
             filters.enabled === 'enabled' ? c.enabled : !c.enabled
           );
         }
@@ -348,15 +348,7 @@ export default function AdminErpSyncConfig() {
       };
 
       // Update tenant with ERP sync configuration
-      const response = await api.v1.tenants[':tenantId'].patch({
-        params: { tenantId: formData.tenantId },
-        body: {
-          erpSystem: formData.erpType as any,
-          config: {
-            erpSyncConfig: syncConfig,
-          },
-        },
-      });
+      const response = await api.v1.tenants({ tenantId: formData.tenantId })['erp-sync'].put(syncConfig);
 
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to create ERP sync configuration';
@@ -435,15 +427,7 @@ export default function AdminErpSyncConfig() {
         triggerEvents: formData.triggerEvents.length > 0 ? formData.triggerEvents : undefined,
       };
 
-      const response = await api.v1.tenants[':tenantId'].patch({
-        params: { tenantId: selectedConfig.tenantId },
-        body: {
-          erpSystem: formData.erpType as any,
-          config: {
-            erpSyncConfig: syncConfig,
-          },
-        },
-      });
+      const response = await api.v1.tenants({ tenantId: selectedConfig.tenantId })['erp-sync'].put(syncConfig);
 
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to update ERP sync configuration';
@@ -640,7 +624,7 @@ export default function AdminErpSyncConfig() {
     const sorted = [...configs].sort((a, b) => {
       let aVal: any = a[key as keyof ErpSyncConfig];
       let bVal: any = b[key as keyof ErpSyncConfig];
-      
+
       if (key === 'createdAt' || key === 'updatedAt' || key === 'lastSyncAt') {
         aVal = new Date(aVal || 0).getTime();
         bVal = new Date(bVal || 0).getTime();
@@ -651,7 +635,7 @@ export default function AdminErpSyncConfig() {
         aVal = aVal ? 1 : 0;
         bVal = bVal ? 1 : 0;
       }
-      
+
       if (aVal < bVal) return order === 'asc' ? -1 : 1;
       if (aVal > bVal) return order === 'asc' ? 1 : -1;
       return 0;
@@ -738,7 +722,7 @@ export default function AdminErpSyncConfig() {
       sortable: true,
       accessor: (config) => (
         <span className="text-sm text-muted-foreground">
-          {config.lastSyncAt 
+          {config.lastSyncAt
             ? formatDistanceToNow(new Date(config.lastSyncAt), { addSuffix: true })
             : 'Never'
           }
@@ -841,7 +825,7 @@ export default function AdminErpSyncConfig() {
             <h1 className="page-title">ERP Sync Configurations</h1>
             <p className="page-subtitle">Manage ERP synchronization settings for all tenants</p>
           </div>
-          <Button 
+          <Button
             onClick={() => openConfigModal()}
             className="rounded-full"
           >
@@ -938,13 +922,13 @@ export default function AdminErpSyncConfig() {
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit' : 'Create'} ERP Sync Configuration</DialogTitle>
             <DialogDescription>
-              {isEditMode 
+              {isEditMode
                 ? `Update ERP synchronization settings for ${selectedConfig?.tenantName || selectedConfig?.tenantId}`
                 : 'Set up ERP synchronization for a tenant. All fields marked with * are required.'
               }
             </DialogDescription>
           </DialogHeader>
-          
+
           <Tabs defaultValue="basic" className="w-full">
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="basic">Basic</TabsTrigger>
@@ -1196,8 +1180,8 @@ export default function AdminErpSyncConfig() {
                 <Label htmlFor="authType">Authentication Type *</Label>
                 <Select
                   value={formData.authentication.type}
-                  onValueChange={(value: any) => setFormData({ 
-                    ...formData, 
+                  onValueChange={(value: any) => setFormData({
+                    ...formData,
                     authentication: { ...formData.authentication, type: value }
                   })}
                 >
@@ -1213,7 +1197,7 @@ export default function AdminErpSyncConfig() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {formData.authentication.type === 'bearer' && (
                 <div className="space-y-2">
                   <Label htmlFor="bearerToken">Bearer Token *</Label>
@@ -1221,8 +1205,8 @@ export default function AdminErpSyncConfig() {
                     id="bearerToken"
                     type="password"
                     value={formData.authentication.token}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
+                    onChange={(e) => setFormData({
+                      ...formData,
                       authentication: { ...formData.authentication, token: e.target.value }
                     })}
                     placeholder="Enter bearer token"
@@ -1237,8 +1221,8 @@ export default function AdminErpSyncConfig() {
                     <Input
                       id="username"
                       value={formData.authentication.username}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
+                      onChange={(e) => setFormData({
+                        ...formData,
                         authentication: { ...formData.authentication, username: e.target.value }
                       })}
                       placeholder="Enter username"
@@ -1250,8 +1234,8 @@ export default function AdminErpSyncConfig() {
                       id="password"
                       type="password"
                       value={formData.authentication.password}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
+                      onChange={(e) => setFormData({
+                        ...formData,
                         authentication: { ...formData.authentication, password: e.target.value }
                       })}
                       placeholder="Enter password"
@@ -1267,8 +1251,8 @@ export default function AdminErpSyncConfig() {
                     <Input
                       id="apiKeyName"
                       value={formData.authentication.apiKeyName}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
+                      onChange={(e) => setFormData({
+                        ...formData,
                         authentication: { ...formData.authentication, apiKeyName: e.target.value }
                       })}
                       placeholder="e.g., X-API-Key"
@@ -1280,8 +1264,8 @@ export default function AdminErpSyncConfig() {
                       id="apiKeyValue"
                       type="password"
                       value={formData.authentication.apiKeyValue}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
+                      onChange={(e) => setFormData({
+                        ...formData,
                         authentication: { ...formData.authentication, apiKeyValue: e.target.value }
                       })}
                       placeholder="Enter API key"
@@ -1291,8 +1275,8 @@ export default function AdminErpSyncConfig() {
                     <Label htmlFor="apiKeyLocation">API Key Location *</Label>
                     <Select
                       value={formData.authentication.apiKeyLocation}
-                      onValueChange={(value: any) => setFormData({ 
-                        ...formData, 
+                      onValueChange={(value: any) => setFormData({
+                        ...formData,
                         authentication: { ...formData.authentication, apiKeyLocation: value }
                       })}
                     >
@@ -1319,8 +1303,8 @@ export default function AdminErpSyncConfig() {
                     min={0}
                     max={5}
                     value={formData.retryConfig.maxRetries}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
+                    onChange={(e) => setFormData({
+                      ...formData,
                       retryConfig: { ...formData.retryConfig, maxRetries: parseInt(e.target.value) || 3 }
                     })}
                   />
@@ -1334,8 +1318,8 @@ export default function AdminErpSyncConfig() {
                     min={100}
                     max={10000}
                     value={formData.retryConfig.retryDelay}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
+                    onChange={(e) => setFormData({
+                      ...formData,
                       retryConfig: { ...formData.retryConfig, retryDelay: parseInt(e.target.value) || 1000 }
                     })}
                   />
@@ -1354,8 +1338,8 @@ export default function AdminErpSyncConfig() {
                           const newRetryOn = checked
                             ? [...formData.retryConfig.retryOn, code]
                             : formData.retryConfig.retryOn.filter(c => c !== code);
-                          setFormData({ 
-                            ...formData, 
+                          setFormData({
+                            ...formData,
                             retryConfig: { ...formData.retryConfig, retryOn: newRetryOn }
                           });
                         }}
@@ -1447,8 +1431,8 @@ export default function AdminErpSyncConfig() {
             }}>
               Cancel
             </Button>
-            <Button 
-              onClick={isEditMode ? handleUpdate : handleCreate} 
+            <Button
+              onClick={isEditMode ? handleUpdate : handleCreate}
               disabled={saving || !formData.tenantId || !formData.erpType || !formData.name || !formData.baseUrl || !formData.endpoint}
             >
               {saving ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Configuration' : 'Create Configuration')}
@@ -1639,7 +1623,7 @@ export default function AdminErpSyncConfig() {
           <AlertDialogHeader>
             <AlertDialogTitle>Disable ERP Sync</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to disable ERP synchronization for <strong>{selectedConfig?.tenantName || selectedConfig?.tenantId}</strong>? 
+              Are you sure you want to disable ERP synchronization for <strong>{selectedConfig?.tenantName || selectedConfig?.tenantId}</strong>?
               This will stop automatic synchronization until re-enabled.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1662,7 +1646,7 @@ export default function AdminErpSyncConfig() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete ERP Sync Configuration</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the ERP sync configuration for <strong>{selectedConfig?.tenantName || selectedConfig?.tenantId}</strong>? 
+              Are you sure you want to delete the ERP sync configuration for <strong>{selectedConfig?.tenantName || selectedConfig?.tenantId}</strong>?
               This will remove all sync settings and cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -89,6 +89,57 @@ export function createTenantApi() {
     sandboxInbound: () =>
       api.v1.workflow.inbound.post({}),
 
+    // Team management endpoints
+    getTeamMembers: (tenantId: string, query?: { status?: string; page?: string; limit?: string; role?: string }) =>
+      api.v1.tenants({ tenantId }).team.get({ query: query || {} }),
+
+    getTeamMember: (tenantId: string, userId: string) =>
+      api.v1.tenants({ tenantId }).team({ userId }).get(),
+
+    inviteTeamMember: (tenantId: string, data: {
+      email: string;
+      role: 'admin' | 'member' | 'viewer' | string;
+      firstName: string;
+      lastName: string;
+      permissions?: string[];
+    }) =>
+      api.v1.tenants({ tenantId }).team.post(data),
+
+    updateTeamMember: (tenantId: string, userId: string, data: {
+      role?: 'admin' | 'member' | 'viewer';
+      status?: 'active' | 'suspended';
+      firstName?: string;
+      lastName?: string;
+      permissions?: string[];
+    }) =>
+      api.v1.tenants({ tenantId }).team({ userId }).patch(data),
+
+    removeTeamMember: (tenantId: string, userId: string) =>
+      api.v1.tenants({ tenantId }).team({ userId }).delete(),
+
+    resendInvite: (tenantId: string, userId: string) =>
+      api.v1.tenants({ tenantId }).team({ userId })['resend-invite'].post({}),
+
+    // API Key management
+    getApiKeys: (tenantId: string) =>
+      api.v1.tenants({ tenantId })['api-keys'].get(),
+
+    createApiKey: (tenantId: string, data: {
+      name: string;
+      scopes?: string[];
+      expiresInDays?: number;
+    }) =>
+      api.v1.tenants({ tenantId })['api-keys'].post(data),
+
+    rotateApiKey: (tenantId: string, keyId: string, data?: {
+      reason?: string;
+      sendEmail?: boolean;
+    }) =>
+      api.v1.tenants({ tenantId })['api-keys']({ keyId }).rotate.post(data || {}),
+
+    revokeApiKey: (tenantId: string, keyId: string, reason?: string) =>
+      api.v1.tenants({ tenantId })['api-keys']({ keyId }).delete({ reason }),
+
     // Tenant profile update
     updateTenant: (tenantId: string, data: {
       businessName?: string;

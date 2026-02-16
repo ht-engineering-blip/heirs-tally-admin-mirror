@@ -18,6 +18,16 @@ export type Permission =
   | 'api-keys:rotate'
   | 'api-keys:revoke'
   | 'sandbox:test'
+  | 'team:read'
+  | 'team:invite'
+  | 'team:update'
+  | 'team:remove'
+  | 'settings:read'
+  | 'settings:update'
+  | 'profile:read'
+  | 'profile:update'
+  | 'transactions:read'
+  | 'transactions:resend'
 
 const SUPER_ADMIN_PERMISSIONS: Permission[] = [
   'system:configure',
@@ -35,18 +45,53 @@ const SUPER_ADMIN_PERMISSIONS: Permission[] = [
   'api-keys:rotate',
   'api-keys:revoke',
   'sandbox:test',
+  'team:read',
+  'team:invite',
+  'team:update',
+  'team:remove',
+  'settings:read',
+  'settings:update',
+  'profile:read',
+  'profile:update',
+  'transactions:read',
+  'transactions:resend',
 ]
 
 const BUSINESS_ADMIN_PERMISSIONS: Permission[] = [
   'tenants:read',
-  'api-keys:read',
+  'tenants:update',
+  'erp:configure',
   'erp:view',
+  'api-keys:create',
+  'api-keys:read',
+  'api-keys:rotate',
+  'api-keys:revoke',
+  'sandbox:test',
+  'team:read',
+  'team:invite',
+  'team:update',
+  'team:remove',
+  'settings:read',
+  'settings:update',
+  'profile:read',
+  'profile:update',
+  'transactions:read',
+  'transactions:resend',
 ]
 
-const BUSINESS_TEAM_MEMBER_PERMISSIONS: Permission[] = [
+export const BUSINESS_TEAM_MEMBER_PERMISSIONS: Permission[] = [
   'tenants:read',
   'erp:view',
+  'sandbox:test',
+  'profile:read',
+  'transactions:read',
 ]
+
+export enum MEMBER_ROLES {
+ADMIN = 'admin',
+MEMBER = 'member',
+VIEWER = 'viewer'
+}
 
 function getPermissionsForRole(role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER' | undefined): Permission[] {
   if (!role) return []

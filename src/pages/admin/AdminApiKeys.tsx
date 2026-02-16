@@ -85,7 +85,7 @@ export default function AdminApiKeys() {
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
-  
+
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRotateDialog, setShowRotateDialog] = useState(false);
@@ -140,7 +140,7 @@ export default function AdminApiKeys() {
       } else if (response.data?.data) {
         const apiKeysData = response.data.data as any[];
         const pagination = response.data.pagination;
-        
+
         // Transform API response to our interface
         const transformedKeys: ApiKey[] = apiKeysData.map((key: any) => ({
           keyId: key.keyId || key.id || '',
@@ -200,8 +200,8 @@ export default function AdminApiKeys() {
     setSaving(true);
     try {
       // Create API key for tenant using the proper endpoint
-      const response = await api.v1.tenants({tenantId: formData.tenantId})['api-keys'].post({
-        name: formData.name, 
+      const response = await api.v1.tenants({ tenantId: formData.tenantId })['api-keys'].post({
+        name: formData.name,
         expiresInDays: formData.expiresInDays || undefined,
         scopes: formData.scopes.length > 0 ? formData.scopes : undefined,
       });
@@ -212,12 +212,12 @@ export default function AdminApiKeys() {
       } else if (response.data?.data) {
         const keyData = response.data.data as any;
         const fullKey = keyData.key;
-        
+
         if (fullKey) {
           setNewlyCreatedKey(fullKey);
           setShowKeyDisplayModal(true);
         }
-        
+
         toast.success('API key created successfully');
         setShowCreateModal(false);
         resetForm();
@@ -236,7 +236,7 @@ export default function AdminApiKeys() {
     setSaving(true);
     try {
       // Rotate API key using the proper endpoint
-      const response = await api.v1.tenants({tenantId: selectedKey.tenantId})['api-keys']({keyId: selectedKey.keyId || selectedKey.id || ''}).rotate.post({
+      const response = await api.v1.tenants({ tenantId: selectedKey.tenantId })['api-keys']({ keyId: selectedKey.keyId || selectedKey.id || '' }).rotate.post({
         reason: 'Admin requested rotation',
         sendEmail: true,
       });
@@ -247,12 +247,12 @@ export default function AdminApiKeys() {
       } else if (response.data?.data) {
         const keyData = response.data.data as any;
         const newKey = keyData.key;
-        
+
         if (newKey) {
           setNewlyCreatedKey(newKey);
           setShowKeyDisplayModal(true);
         }
-        
+
         toast.success('API key rotated successfully');
         setShowRotateDialog(false);
         setSelectedKey(null);
@@ -271,15 +271,11 @@ export default function AdminApiKeys() {
     setSaving(true);
     try {
       // Revoke API key using the proper endpoint
-      const response = await api.v1.tenants[':tenantId']['api-keys'][':keyId'].delete({
-        params: { 
-          tenantId: selectedKey.tenantId,
-          keyId: selectedKey.keyId || selectedKey.id || '',
-        },
-        body: {
+      const response = await api.v1.tenants({ tenantId: selectedKey.tenantId })['api-keys']({ keyId: selectedKey.keyId }).delete(
+        {
           reason: 'Admin requested revocation',
-        },
-      });
+        }
+      );
 
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || (response.error as any)?.value?.message || 'Failed to revoke API key';
@@ -316,7 +312,7 @@ export default function AdminApiKeys() {
     const sorted = [...apiKeys].sort((a, b) => {
       let aVal: any = a[key as keyof ApiKey];
       let bVal: any = b[key as keyof ApiKey];
-      
+
       // Handle date fields
       if (key === 'lastUsed' || key === 'lastUsedAt' || key === 'expiresAt' || key === 'createdAt') {
         aVal = new Date(aVal || 0).getTime();
@@ -332,7 +328,7 @@ export default function AdminApiKeys() {
         aVal = aVal.toLowerCase();
         bVal = bVal.toLowerCase();
       }
-      
+
       if (aVal < bVal) return order === 'asc' ? -1 : 1;
       if (aVal > bVal) return order === 'asc' ? 1 : -1;
       return 0;
@@ -434,7 +430,7 @@ export default function AdminApiKeys() {
       </DropdownMenuItem>
       {key.status?.toLowerCase() === 'active' && (
         <>
-          <DropdownMenuItem 
+          <DropdownMenuItem
             onClick={() => {
               setSelectedKey(key);
               setShowRotateDialog(true);
@@ -474,7 +470,7 @@ export default function AdminApiKeys() {
             <h1 className="page-title">API Key Management</h1>
             <p className="page-subtitle">Manage tenant API keys and access</p>
           </div>
-          <Button 
+          <Button
             onClick={() => setShowCreateModal(true)}
             className="rounded-full"
           >
@@ -606,7 +602,7 @@ export default function AdminApiKeys() {
                 placeholder="e.g., Production API Key"
               />
             </div>
-           {/*  <div className="space-y-2">
+            {/*  <div className="space-y-2">
               <Label htmlFor="create-description">Description (Optional)</Label>
               <Input
                 id="create-description"
@@ -692,7 +688,7 @@ export default function AdminApiKeys() {
           <AlertDialogHeader>
             <AlertDialogTitle>Rotate API Key</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to rotate the API key for <strong>{selectedKey?.tenantName || selectedKey?.tenantId}</strong>? 
+              Are you sure you want to rotate the API key for <strong>{selectedKey?.tenantName || selectedKey?.tenantId}</strong>?
               The old key will be invalidated and a new key will be generated. You'll only see the new key once.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -715,7 +711,7 @@ export default function AdminApiKeys() {
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke API Key</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to revoke the API key for <strong>{selectedKey?.tenantName || selectedKey?.tenantId}</strong>? 
+              Are you sure you want to revoke the API key for <strong>{selectedKey?.tenantName || selectedKey?.tenantId}</strong>?
               This action cannot be undone and the key will immediately stop working.
             </AlertDialogDescription>
           </AlertDialogHeader>

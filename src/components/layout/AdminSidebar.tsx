@@ -38,11 +38,13 @@ import {
 } from '@/components/ui/tooltip'
 import { useSession } from '@/hooks/use-session'
 import { usePermissions } from '@/hooks/use-permissions'
+import { Badge } from '../ui/badge'
 
-interface NavItem {
+export interface NavItem {
   title: string
   href: string
   icon: React.ElementType
+  badge?: string
   permission?: string
   children?: NavItem[]
 }
@@ -50,8 +52,8 @@ interface NavItem {
 const systemNavItems: NavItem[] = [
   { title: 'FIRS Dictionary', href: '/admin/system/firs-dictionary', icon: FileStack, permission: 'system:view' },
   { title: 'ERP Support', href: '/admin/system/erp-support', icon: Server, permission: 'system:view' },
-/*   { title: 'System Health', href: '/admin/system/health', icon: Activity, permission: 'system:view' },
-  { title: 'Settings', href: '/admin/system/settings', icon: Settings, permission: 'system:view' }, */
+  /*   { title: 'System Health', href: '/admin/system/health', icon: Activity, permission: 'system:view' },
+    { title: 'Settings', href: '/admin/system/settings', icon: Settings, permission: 'system:view' }, */
 ]
 
 const tenantNavItems: NavItem[] = [
@@ -61,7 +63,7 @@ const tenantNavItems: NavItem[] = [
     icon: Building2,
     permission: 'tenants:read',
     children: [
-/*       { title: 'All Tenants', href: '/admin/tenants', icon: Building2, permission: 'tenants:read' }, */
+      /*       { title: 'All Tenants', href: '/admin/tenants', icon: Building2, permission: 'tenants:read' }, */
       { title: 'ERP Sync Configurations', href: '/admin/tenants/erp-sync-config', icon: CogIcon, permission: 'tenants:read' },
       { title: 'API Keys', href: '/admin/tenants/api-keys', icon: KeyIcon, permission: 'tenants:read' },
       { title: 'Transaction Log', href: '/admin/tenants/transactions', icon: ListChecksIcon, permission: 'tenants:read' },
@@ -93,7 +95,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
   // Initialize expanded items based on current pathname
   useEffect(() => {
     const newExpanded = new Set<string>()
-    
+
     // Check if any tenant child route is active
     tenantNavItems.forEach((item) => {
       if (item.children) {
@@ -107,7 +109,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
           if (pathname?.startsWith(child.href + '/')) return true
           return false
         })
-        
+
         // Expand if parent is clicked (exact match) or has active child or is in parent path
         if (isParentExactMatch || hasActiveChild || isParentPath) {
           newExpanded.add(item.href)
@@ -164,10 +166,10 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
 
   const mobileClasses = isMobile
     ? cn(
-        'fixed left-0 top-0 z-50 transform transition-transform duration-300',
-        isOpen ? 'translate-x-0' : '-translate-x-full',
-        !isOpen && 'pointer-events-none'
-      )
+      'fixed left-0 top-0 z-50 transform transition-transform duration-300',
+      isOpen ? 'translate-x-0' : '-translate-x-full',
+      !isOpen && 'pointer-events-none'
+    )
     : 'relative'
 
   // Helper function to check if a route is active (exact match)
@@ -322,7 +324,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                           isMobile={isMobile}
                           onToggle={() => toggleExpanded(item.href)}
                         />
-                        
+
                         {/* Children Items */}
                         {hasChildren && (!isCollapsed || isMobile) && isExpanded && (
                           <div className="ml-2 pl-6 border-l-2 border-sidebar-accent/30 space-y-0.5 mt-0.5">
@@ -448,6 +450,7 @@ interface NavLinkProps {
   href: string
   icon: React.ElementType
   label: string
+  badge?: string
   isActive: boolean
   isCollapsed: boolean
   isMobile: boolean
@@ -455,7 +458,7 @@ interface NavLinkProps {
   isChild?: boolean
 }
 
-function NavLink({ href, icon: Icon, label, isActive, isCollapsed, isMobile, onClick, isChild }: NavLinkProps) {
+export function NavLink({ href, icon: Icon, label, badge, isActive, isCollapsed, isMobile, onClick, isChild }: NavLinkProps) {
   const linkContent = (
     <Link
       href={href}
@@ -469,6 +472,11 @@ function NavLink({ href, icon: Icon, label, isActive, isCollapsed, isMobile, onC
     >
       <Icon className={cn('flex-shrink-0', isChild ? 'w-4 h-4' : 'w-5 h-5')} />
       {(!isCollapsed || isMobile) && <span className={cn(isChild && 'text-sm')}>{label}</span>}
+      {(!isCollapsed || isMobile) && badge && (
+        <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">
+          {badge}
+        </Badge>
+      )}
     </Link>
   )
 
@@ -501,7 +509,7 @@ interface NavLinkWithChildrenProps {
   onToggle: () => void
 }
 
-function NavLinkWithChildren({
+export function NavLinkWithChildren({
   href,
   icon: Icon,
   label,

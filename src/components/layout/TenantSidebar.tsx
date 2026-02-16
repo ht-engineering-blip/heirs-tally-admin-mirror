@@ -17,6 +17,8 @@ import {
   X,
   TestTube,
   RefreshCcw,
+  KeyIcon,
+  WebhookIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -33,14 +35,17 @@ import {
 } from '@/components/ui/tooltip'
 import { useSession } from '@/hooks/use-session'
 import { useTenant } from '@/hooks/use-tenant'
+import { usePermissions, type Permission } from '@/hooks/use-permissions'
+import { NavItem, NavLink, NavLinkWithChildren } from './AdminSidebar'
 
-interface NavItem {
+/* interface NavItem {
   title: string
   href: string
   icon: React.ElementType
   badge?: string
+  permission?: Permission
 }
-
+ */
 interface TenantSidebarProps {
   isOpen?: boolean
   onClose?: () => void
@@ -53,14 +58,62 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
   const isMobile = useIsMobile()
   const { user } = useSession()
   const { isOnboardingComplete } = useTenant()
+  const { hasPermission } = usePermissions()
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+
+
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/auth/login' })
   }
 
-  const isRouteActive = (href: string): boolean => {
-    if (href === '/dashboard') return pathname === '/dashboard'
-    return pathname === href || (pathname?.startsWith(href + '/') ?? false)
+  // Helper function to check if a route is active (including nested routes)
+  const isRouteActive = (href: string, isChild: boolean = false): boolean => {
+    if (isChild) {
+      // For child routes, check exact match or if pathname starts with href
+      if (pathname === href) return true
+      // Handle dynamic routes like /admin/tenants/[tenantId]
+      if (pathname?.startsWith(href + '/')) return true
+      return false
+    } else {
+      // For parent routes, check exact match
+      return pathname === href
+    }
+  }
+
+
+
+  const toggleExpanded = (href: string) => {
+    const newExpanded = new Set(expandedItems)
+    if (newExpanded.has(href)) {
+      newExpanded.delete(href)
+    } else {
+      newExpanded.add(href)
+    }
+    setExpandedItems(newExpanded)
+  }
+
+
+  // Helper function to check if a parent item has an active child
+  const hasActiveChild = (item: NavItem): boolean => {
+    if (!item.children) return false
+    return item.children.some((child) => {
+      // Check exact match
+      if (pathname === child.href) return true
+      // Handle dynamic routes like /admin/tenants/[tenantId]
+      if (pathname?.startsWith(child.href + '/')) return true
+      return false
+    })
+  }
+
+  // Helper function to check if parent should be highlighted (but not as active)
+  const isParentHighlighted = (item: NavItem): boolean => {
+    return hasActiveChild(item) && !isRouteActiveExact(item.href)
+  }
+
+  // Helper function to check if a route is active (exact match)
+  const isRouteActiveExact = (href: string): boolean => {
+    return pathname === href
   }
 
   const mainNavItems: NavItem[] = [
@@ -68,16 +121,60 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
     ...(!isOnboardingComplete
       ? [{ title: 'Onboarding', href: '/dashboard/onboarding', icon: ClipboardCheck, badge: 'Setup' }]
       : []),
-    { title: 'Transactions', href: '/dashboard/transactions', icon: FileText },
-    { title: 'ERP Sync', href: '/dashboard/erp-sync', icon: RefreshCcw },
-    { title: 'Sandbox', href: '/dashboard/sandbox', icon: TestTube },
+    { title: 'Transactions', href: '/dashboard/transactions', icon: FileText, permission: 'transactions:read' },
+    { title: 'ERP Sync', href: '/dashboard/erp-sync', icon: RefreshCcw, permission: 'erp:view' },
+    { title: 'Sandbox', href: '/dashboard/sandbox', icon: TestTube, permission: 'sandbox:test' },
   ]
 
   const managementNavItems: NavItem[] = [
-    { title: 'Profile', href: '/dashboard/profile', icon: Building2 },
-    { title: 'Team', href: '/dashboard/team', icon: Users },
-    { title: 'Settings', href: '/dashboard/settings', icon: Settings },
+    { title: 'Profile', href: '/dashboard/profile', icon: Building2, permission: 'profile:read' },
+    { title: 'Team', href: '/dashboard/team', icon: Users, permission: 'team:read' },
+    {
+      title: 'Settings',
+      href: '/dashboard/settings',
+      icon: Settings,
+      permission: 'settings:read',
+      children: [
+        { title: 'API Keys', href: '/dashboard/settings/api-keys', icon: KeyIcon, permission: 'settings:read' },
+        { title: 'Webhook', href: '/dashboard/settings/webhook', icon: WebhookIcon, permission: 'settings:read' },
+      ],
+    }
+    /*  { title: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'settings:read' }, */
   ]
+
+ 
+
+  const visibleMainNav = mainNavItems.filter((item: any) => !item.permission || hasPermission(item.permission))
+  const visibleMgmtNav  = managementNavItems.filter((item: any) => !item.permission || hasPermission(item.permission))
+
+    // Initialize expanded items based on current pathname
+    useEffect(() => {
+      const newExpanded = new Set<string>()
+  
+      // Check if any tenant child route is active
+      visibleMgmtNav.forEach((item) => {
+        if (item.children) {
+          // Check if pathname exactly matches the parent href
+          const isParentExactMatch = pathname === item.href
+          // Check if pathname starts with parent href (for nested routes)
+          const isParentPath = pathname?.startsWith(item.href + '/')
+          // Check if any child route is active
+          const hasActiveChild = item.children.some((child) => {
+            if (child.href === pathname) return true
+            if (pathname?.startsWith(child.href + '/')) return true
+            return false
+          })
+  
+          // Expand if parent is clicked (exact match) or has active child or is in parent path
+          if (isParentExactMatch || hasActiveChild || isParentPath) {
+            newExpanded.add(item.href)
+          }
+        }
+      })
+  
+      setExpandedItems(newExpanded)
+    }, [pathname])
+
 
   const sidebarWidth = isMobile
     ? 'w-[260px]'
@@ -85,10 +182,10 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
 
   const mobileClasses = isMobile
     ? cn(
-        'fixed left-0 top-0 z-50 transform transition-transform duration-300',
-        isOpen ? 'translate-x-0' : '-translate-x-full',
-        !isOpen && 'pointer-events-none'
-      )
+      'fixed left-0 top-0 z-50 transform transition-transform duration-300',
+      isOpen ? 'translate-x-0' : '-translate-x-full',
+      !isOpen && 'pointer-events-none'
+    )
     : 'relative'
 
   return (
@@ -145,7 +242,7 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
                   Main
                 </p>
               )}
-              {mainNavItems.map((item) => (
+              {visibleMainNav.map((item) => (
                 <NavLink
                   key={item.href}
                   href={item.href}
@@ -159,14 +256,63 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
               ))}
 
               {/* Management */}
-              <Separator className="my-4" />
-              {(!isCollapsed || isMobile) && (
-                <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Management
-                </p>
+              {visibleMgmtNav.length > 0 && (
+                <>
+                  <Separator className="my-4" />
+                  {(!isCollapsed || isMobile) && (
+                    <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Management
+                    </p>
+                  )}
+                </>
               )}
-              {managementNavItems.map((item) => (
-                <NavLink
+              {visibleMgmtNav.map((item) => {
+                if (item.children) {
+                  const isExpanded = expandedItems.has(item.href)
+                  const isParentActiveExact = isRouteActiveExact(item.href)
+                  const isParentHighlightedState = isParentHighlighted(item)
+                  const hasChildren = item.children && item.children.length > 0
+
+                  return (
+                    <div key={item.href} className="space-y-0">
+                      {/* Parent Item */}
+                      <NavLinkWithChildren
+                        href={item.href}
+                        icon={item.icon}
+                        label={item.title}
+                        isActive={isParentActiveExact}
+                        isHighlighted={isParentHighlightedState}
+                        isExpanded={isExpanded}
+                        hasChildren={hasChildren}
+                        isCollapsed={isCollapsed && !isMobile}
+                        isMobile={isMobile}
+                        onToggle={() => toggleExpanded(item.href)}
+                      />
+
+                      {/* Children Items */}
+                      {hasChildren && (!isCollapsed || isMobile) && isExpanded && (
+                        <div className="ml-2 pl-6 border-l-2 border-sidebar-accent/30 space-y-0.5 mt-0.5">
+                          {item.children!.map((child) => {
+                            const isChildActive = isRouteActive(child.href, true)
+                            return (
+                              <NavLink
+                                key={child.href}
+                                href={child.href}
+                                icon={child.icon}
+                                label={child.title}
+                                isActive={isChildActive}
+                                isCollapsed={false}
+                                isMobile={isMobile}
+                                isChild={true}
+                              />
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+                return <NavLink
                   key={item.href}
                   href={item.href}
                   icon={item.icon}
@@ -175,7 +321,8 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
                   isCollapsed={isCollapsed && !isMobile}
                   isMobile={isMobile}
                 />
-              ))}
+              })}
+
             </div>
           </TooltipProvider>
         </nav>
@@ -262,7 +409,7 @@ interface NavLinkProps {
   isMobile: boolean
 }
 
-function NavLink({ href, icon: Icon, label, badge, isActive, isCollapsed, isMobile }: NavLinkProps) {
+function _NavLink({ href, icon: Icon, label, badge, isActive, isCollapsed, isMobile }: NavLinkProps) {
   const linkContent = (
     <Link
       href={href}
