@@ -327,7 +327,8 @@ export default function AdminErpSupport() {
   // Derive ERP source fields from the invoice JSON
   const erpSourceFields = useMemo(() => {
     try {
-      const parsed = JSON.parse(invoiceJson);
+      let parsedMetaData = JSON.parse(metadataJson)
+      const parsed = (parsedMetaData && parsedMetaData?.source_invoice_sample)? parsedMetaData?.source_invoice_sample : JSON.parse(invoiceJson);
       return flattenObject(parsed);
     } catch {
       return [];
@@ -1036,7 +1037,8 @@ export default function AdminErpSupport() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4">
+                  
+                 {!isEditing && <div className="flex items-center gap-4">
                     <Button
                       variant={!useCustomErp ? 'default' : 'outline'}
                       size="sm"
@@ -1059,7 +1061,7 @@ export default function AdminErpSupport() {
                     >
                       Enter custom name
                     </Button>
-                  </div>
+                  </div> }
 
                   {!useCustomErp ? (
                     <Select

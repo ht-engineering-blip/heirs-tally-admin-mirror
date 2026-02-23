@@ -32,6 +32,18 @@ export function getTenantApiClient() {
     },
   })
 }
+
+export function createTenantWebhookListener(webhookURL: string) {
+  return treaty<typeof app>(`${webhookURL}`, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    fetch: {
+      credentials: 'include',
+    },
+  })
+}
+
 export function getAdminApiClient() {
   return treaty<typeof app>(`${API_URL}/admin`, {
     headers: {

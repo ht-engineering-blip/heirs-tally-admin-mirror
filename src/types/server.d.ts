@@ -45,6 +45,9 @@ declare const app: Elysia<"", {
 } & {
     typebox: {};
     error: {};
+} & {
+    typebox: {};
+    error: {};
 }, {
     schema: {};
     standaloneSchema: {};
@@ -57,6 +60,13 @@ declare const app: Elysia<"", {
     macro: {};
     macroFn: {};
     parser: {};
+} & {
+    schema: {};
+    standaloneSchema: {};
+    macro: {};
+    macroFn: {};
+    parser: {};
+    response: {};
 } & {
     schema: {};
     standaloneSchema: {};
@@ -2153,7 +2163,7 @@ declare const app: Elysia<"", {
                         body: {
                             metadata?: any;
                             invoice: any;
-                            erp: import("./v1/workflow/models").SchemaSourceType;
+                            erp: string;
                         };
                         params: {};
                         query: unknown;
@@ -3114,6 +3124,47 @@ declare const app: Elysia<"", {
     };
 } & {
     v1: {
+        webhook: {};
+    } & {
+        webhook: {
+            listen: {
+                ":webhookPath": {
+                    get: {
+                        body: unknown;
+                        params: {
+                            webhookPath: string;
+                        };
+                        query: unknown;
+                        headers: unknown;
+                        response: {
+                            200: AsyncGenerator<{
+                                readonly event: "connected";
+                                readonly data: {
+                                    readonly tenantId: string;
+                                    readonly webhookPath: string;
+                                    readonly connectedAt: string;
+                                    readonly message: "Listening for inbound webhook events";
+                                };
+                            } | {
+                                readonly id: any;
+                                readonly event: any;
+                                readonly data: any;
+                            }, void, unknown>;
+                            422: {
+                                type: "validation";
+                                on: string;
+                                summary?: string;
+                                message?: string;
+                                found?: unknown;
+                                property?: string;
+                                expected?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    } & {
         webhook: {
             inbound: {
                 ":webhookPath": {
