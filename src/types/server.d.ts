@@ -644,6 +644,7 @@ declare const app: Elysia<"", {
                             monthlyInvoiceLimit?: number | undefined;
                             apiRateLimit?: number | undefined;
                         } | undefined;
+                        metadata?: any;
                     };
                     params: {
                         tenantId: string;
@@ -3187,8 +3188,22 @@ declare const app: Elysia<"", {
                                 data: {
                                     eventId: string;
                                     tenantId: string;
+                                    eventType: import("./v1/webhook/models").WebhookEventType;
+                                    status: import("./v1/webhook/models").WebhookDeliveryStatus.PENDING | import("./v1/webhook/models").WebhookDeliveryStatus.DELIVERED | import("./v1/webhook/models").WebhookDeliveryStatus.RETRY;
+                                    receivedAt: string;
+                                    idempotent: boolean;
+                                };
+                                error?: undefined;
+                            } | {
+                                success: boolean;
+                                message: string;
+                                data: {
+                                    eventId: string;
+                                    tenantId: string;
                                     eventType: any;
                                     receivedAt: string;
+                                    status?: undefined;
+                                    idempotent?: undefined;
                                 };
                                 error?: undefined;
                             };

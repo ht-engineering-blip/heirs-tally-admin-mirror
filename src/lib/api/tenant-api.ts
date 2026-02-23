@@ -150,6 +150,7 @@ export function createTenantApi() {
       webhookEnabled?: boolean;
       features?: { autoFix?: boolean; maxRetries?: number; qrCodeGeneration?: boolean };
       limits?: { monthlyInvoiceLimit?: number; apiRateLimit?: number };
+      metadata?: Record<string, any>;
     }) =>
       api.v1.tenants({ tenantId }).patch(data),
   }

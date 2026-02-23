@@ -69,9 +69,9 @@ const INBOUND_EVENT_TYPES = [
   { value: 'erp.payment.received', label: 'Payment Received', description: 'Payment recorded against an invoice' },
   { value: 'erp.credit_note.created', label: 'Credit Note Created', description: 'Credit/debit note issued' },
   { value: 'erp.invoice.cancelled', label: 'Invoice Cancelled', description: 'Invoice cancelled in the ERP' },
-  { value: 'firs.invoice.received', label: 'FIRS Invoice Received', description: 'Inbound invoice from FIRS' },
+ /*  { value: 'firs.invoice.received', label: 'FIRS Invoice Received', description: 'Inbound invoice from FIRS' },
   { value: 'firs.status.updated', label: 'FIRS Status Updated', description: 'Invoice status change from FIRS' },
-  { value: 'firs.invoice.acknowledged', label: 'FIRS Acknowledged', description: 'Invoice acknowledged by FIRS' },
+  { value: 'firs.invoice.acknowledged', label: 'FIRS Acknowledged', description: 'Invoice acknowledged by FIRS' }, */
 ] as const
 
 const WORKFLOWS = [
@@ -79,6 +79,7 @@ const WORKFLOWS = [
   { value: 'inbound', label: 'Inbound Workflow', description: 'Receive → Validate → Decrypt → Store' },
   { value: 'transform_only', label: 'Transform Only', description: 'Convert ERP format to UBL without submission' },
   { value: 'validate_only', label: 'Validate Only', description: 'Schema validation without processing' },
+  { value: 'transform_validate', label: 'Transform and Validate', description: 'Convert and validate invoice without processing' },
   { value: 'acknowledge', label: 'Acknowledge', description: 'Send acknowledgment back to FIRS' },
 ] as const
 
@@ -227,8 +228,8 @@ export default function WebhookSettingsPage() {
         setEventMappings(metadata.webhookEventMappings)
       } else {
         setEventMappings([
-          { eventType: 'erp.invoice.created', workflow: 'outbound', enabled: true },
-          { eventType: 'firs.invoice.received', workflow: 'inbound', enabled: true },
+          { eventType: 'erp.invoice.created', workflow: 'transform_validate', enabled: true },
+          { eventType: 'erp.invoice.updated', workflow: 'transform_validate', enabled: true },
         ])
       }
 
@@ -434,7 +435,7 @@ export default function WebhookSettingsPage() {
     try {
       const api = createTenantApi()
       const response = await api.updateTenant(tenantId, {
-        features: { webhookEventMappings: validMappings } as any,
+        metadata: { webhookEventMappings: validMappings },
       })
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to save event mappings')
@@ -469,7 +470,7 @@ export default function WebhookSettingsPage() {
     try {
       const api = createTenantApi()
       const response = await api.updateTenant(tenantId, {
-        features: { webhookFieldMappings: mappingData } as any,
+        metadata: { webhookFieldMappings: mappingData },
       })
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to save field mappings')
@@ -899,11 +900,11 @@ export default function WebhookSettingsPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-info flex items-center justify-center">
                       <Settings2 className="w-5 h-5 text-accent" />
                     </div>
                     <div>
-                      <CardTitle>Event Routing</CardTitle>
+                      <CardTitle>Invoice Event Routing</CardTitle>
                       <CardDescription>
                         Map incoming webhook events to the appropriate processing workflow
                       </CardDescription>
