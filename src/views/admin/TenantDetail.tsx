@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useSupportedErps } from '@/hooks/use-supported-erps';
+import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 
 interface Tenant {
   id: string;
@@ -69,7 +69,7 @@ export default function TenantDetail() {
   const router = useRouter();
   const api = getAdminApiClient();
   const tenantId = params?.tenantId as string;
-  const { erpOptions } = useSupportedErps({ includeAll: true, includeFallback: true });
+  const { erpOptions } = useSupportedErps({ includeAll: true });
   const ERP_OPTIONS = erpOptions.filter(
     (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
   );
@@ -390,7 +390,7 @@ export default function TenantDetail() {
                     <Server className="w-5 h-5 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">ERP System</p>
-                      <Badge variant="outline">{tenant.erpSystem}</Badge>
+                      <Badge variant="outline">{formatErpName(tenant.erpSystem)}</Badge>
                     </div>
                   </div>
                 </CardContent>
@@ -641,7 +641,7 @@ export default function TenantDetail() {
                   <SelectContent>
                     {ERP_OPTIONS.map((erp) => (
                       <SelectItem key={erp} value={erp}>
-                        {erp}
+                        {formatErpName(erp)}
                       </SelectItem>
                     ))}
                   </SelectContent>

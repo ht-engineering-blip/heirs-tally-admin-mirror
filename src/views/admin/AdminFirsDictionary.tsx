@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { extractJsonWithMetadata } from '@/lib/schema/firs-extractor';
+import { formatErpName } from '@/hooks/use-supported-erps';
 
 interface Field {
   field_id: string;
@@ -607,7 +608,7 @@ export default function AdminFirsDictionary() {
                 <div>
                   <h3 className="font-semibold">{dictionary.name}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Schema ID: {dictionary.schema_id} • Source Type: {dictionary.source_type}
+                    Schema ID: {dictionary.schema_id} • Source Type: {formatErpName(dictionary.source_type)}
                   </p>
                   {dictionary.description && (
                     <p className="text-sm text-muted-foreground mt-1">{dictionary.description}</p>

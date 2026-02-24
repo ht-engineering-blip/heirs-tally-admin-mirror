@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { extractJsonWithMetadata } from '@/lib/schema/firs-extractor';
 import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
-import { useSupportedErps } from '@/hooks/use-supported-erps';
+import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
@@ -156,7 +156,7 @@ export default function AdminErpSupport() {
   const invoiceEditorRef = useRef<any>(null);
   const metadataEditorRef = useRef<any>(null);
   const payloadEditorRef = useRef<any>(null);
-  const { erpOptions: ERP_TYPES } = useSupportedErps({ includeAll: true, includeFallback: true });
+  const { erpOptions: ERP_TYPES } = useSupportedErps({ includeAll: true });
   const mappingContainerRef = useRef<HTMLDivElement>(null);
 
   const effectiveErp = useCustomErp ? customErpName.toUpperCase() : selectedErp;
@@ -1058,7 +1058,7 @@ export default function AdminErpSupport() {
                       <SelectContent>
                         {ERP_TYPES.map((erp) => (
                           <SelectItem key={erp} value={erp}>
-                            {erp}
+                            {formatErpName(erp)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1250,7 +1250,7 @@ export default function AdminErpSupport() {
             <Server className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="font-medium">{erp.source_type}</p>
+            <p className="font-medium">{formatErpName(erp.source_type)}</p>
           </div>
         </div>
       ),

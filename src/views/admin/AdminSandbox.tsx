@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Editor from '@monaco-editor/react';
-import { useSupportedErps } from '@/hooks/use-supported-erps';
+import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 
 interface TimelineStep {
   id: string;
@@ -34,7 +34,7 @@ interface TestResult {
 
 export default function AdminSandbox() {
   const api = getAdminApiClient();
-  const { erpOptions } = useSupportedErps({ includeAll: true, includeFallback: true });
+  const { erpOptions } = useSupportedErps({ includeAll: true });
   const ERP_OPTIONS = erpOptions.filter(
     (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
   );
@@ -487,7 +487,7 @@ export default function AdminSandbox() {
                     <SelectContent>
                       {ERP_OPTIONS.map((erp) => (
                         <SelectItem key={erp} value={erp}>
-                          {erp}
+                          {formatErpName(erp)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -511,7 +511,7 @@ export default function AdminSandbox() {
                     <SelectContent>
                       {ERP_OPTIONS.map((erp) => (
                         <SelectItem key={erp} value={erp}>
-                          {erp}
+                          {formatErpName(erp)}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -41,7 +41,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { useSupportedErps } from '@/hooks/use-supported-erps';
+import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 import { X, Trash2 as TrashIcon } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -130,7 +130,7 @@ const erpSyncFilters: FilterOption[] = [
 export default function AdminErpSyncConfig() {
   const api = getAdminApiClient();
   const router = useRouter();
-  const { erpOptions } = useSupportedErps({ includeAll: true, includeFallback: true });
+  const { erpOptions } = useSupportedErps({ includeAll: true });
   const ERP_OPTIONS = erpOptions.filter(
     (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
   );
@@ -668,7 +668,7 @@ export default function AdminErpSyncConfig() {
       sortable: true,
       accessor: (config) => (
         <Badge variant="outline" className="text-xs">
-          {config.erpType}
+          {formatErpName(config.erpType)}
         </Badge>
       ),
     },
@@ -978,7 +978,7 @@ export default function AdminErpSyncConfig() {
                     <SelectContent>
                       {ERP_OPTIONS.map((erp) => (
                         <SelectItem key={erp} value={erp}>
-                          {erp}
+                          {formatErpName(erp)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1479,7 +1479,7 @@ export default function AdminErpSyncConfig() {
                   <CardContent className="space-y-2">
                     <div>
                       <p className="text-xs text-muted-foreground">ERP System</p>
-                      <Badge variant="outline">{selectedConfig.erpType}</Badge>
+                      <Badge variant="outline">{formatErpName(selectedConfig.erpType)}</Badge>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Sync Status</p>

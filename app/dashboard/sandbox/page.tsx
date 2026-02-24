@@ -13,6 +13,7 @@ import { toast } from '@/components/ui/sonner'
 import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import Editor from '@monaco-editor/react'
+import { formatErpName } from '@/hooks/use-supported-erps'
 
 const ERP_OPTIONS = [
   'SAP', 'ORACLE', 'ZOHO', 'QUICKBOOKS', 'XERO', 'SAGE',
@@ -330,7 +331,7 @@ export default function SandboxPage() {
                   <Select value={erpType} onValueChange={setErpType}>
                     <SelectTrigger><SelectValue placeholder="Select ERP type" /></SelectTrigger>
                     <SelectContent>
-                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{erp}</SelectItem>)}
+                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{formatErpName(erp)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -345,7 +346,7 @@ export default function SandboxPage() {
                   <Select value={erpType} onValueChange={setErpType}>
                     <SelectTrigger><SelectValue placeholder="Select ERP type" /></SelectTrigger>
                     <SelectContent>
-                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{erp}</SelectItem>)}
+                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{formatErpName(erp)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -357,7 +358,7 @@ export default function SandboxPage() {
                   <Select value={erpType} onValueChange={setErpType}>
                     <SelectTrigger><SelectValue placeholder="Select ERP type" /></SelectTrigger>
                     <SelectContent>
-                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{erp}</SelectItem>)}
+                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{formatErpName(erp)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
