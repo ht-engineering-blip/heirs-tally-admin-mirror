@@ -42,11 +42,6 @@ import { toast } from '@/components/ui/sonner'
 import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
 
-const ERP_TYPES = [
-  'SAP', 'ORACLE', 'ZOHO', 'QUICKBOOKS', 'XERO', 'SAGE',
-  'DYNAMICS', 'NETSUITE', 'ODOO', 'FRESHBOOKS', 'WAVE', 'CUSTOM',
-] as const
-
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
 
 const AUTH_TYPES = ['none', 'basic', 'bearer', 'api-key', 'oauth2'] as const

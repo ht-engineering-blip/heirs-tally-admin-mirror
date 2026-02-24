@@ -41,7 +41,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { SchemaSourceType } from './AdminErpSupport';
+import { useSupportedErps } from '@/hooks/use-supported-erps';
 import { X, Trash2 as TrashIcon } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -85,10 +85,6 @@ interface ErpSyncConfig {
     triggerEvents?: string[];
   };
 }
-
-const ERP_OPTIONS = Object.values(SchemaSourceType).filter(
-  (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
-);
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
@@ -134,6 +130,10 @@ const erpSyncFilters: FilterOption[] = [
 export default function AdminErpSyncConfig() {
   const api = getAdminApiClient();
   const router = useRouter();
+  const { erpOptions } = useSupportedErps({ includeAll: true, includeFallback: true });
+  const ERP_OPTIONS = erpOptions.filter(
+    (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
+  );
   const [configs, setConfigs] = useState<ErpSyncConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);

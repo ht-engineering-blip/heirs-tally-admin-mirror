@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { extractJsonWithMetadata } from '@/lib/schema/firs-extractor';
 import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
+import { useSupportedErps } from '@/hooks/use-supported-erps';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
@@ -75,31 +76,6 @@ interface MappingRule {
 }
 
 /**
- * Supported Schema Types/Sources
- */
-export enum SchemaSourceType {
-  // ERP Systems
-  SAP = 'SAP',
-  ORACLE = 'ORACLE',
-  ZOHO = 'ZOHO',
-  QUICKBOOKS = 'QUICKBOOKS',
-  XERO = 'XERO',
-  SAGE = 'SAGE',
-  DYNAMICS = 'DYNAMICS',
-  NETSUITE = 'NETSUITE',
-  ODOO = 'ODOO',
-  FRESHBOOKS = 'FRESHBOOKS',
-  WAVE = 'WAVE',
-  // Standards
-  FIRS_UBL = 'FIRS_UBL',
-  PEPPOL_BIS = 'PEPPOL_BIS',
-  UBL_2_1 = 'UBL_2_1',
-  // Custom
-  CUSTOM = 'CUSTOM',
-}
-
-
-/**
  * Schema Status
  */
 export enum SchemaStatus {
@@ -108,9 +84,6 @@ export enum SchemaStatus {
   DEPRECATED = 'deprecated',
   ARCHIVED = 'archived',
 }
-
-// Common ERP types
-const ERP_TYPES = Object.values(SchemaSourceType);
 
 // Config steps
 const CONFIG_STEPS = [
@@ -183,6 +156,7 @@ export default function AdminErpSupport() {
   const invoiceEditorRef = useRef<any>(null);
   const metadataEditorRef = useRef<any>(null);
   const payloadEditorRef = useRef<any>(null);
+  const { erpOptions: ERP_TYPES } = useSupportedErps({ includeAll: true, includeFallback: true });
   const mappingContainerRef = useRef<HTMLDivElement>(null);
 
   const effectiveErp = useCustomErp ? customErpName.toUpperCase() : selectedErp;

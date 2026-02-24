@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { SchemaSourceType } from './AdminErpSupport';
+import { useSupportedErps } from '@/hooks/use-supported-erps';
 
 interface Tenant {
   id: string;
@@ -64,15 +64,15 @@ interface Tenant {
   };
 }
 
-const ERP_OPTIONS = Object.values(SchemaSourceType).filter(
-  (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
-);
-
 export default function TenantDetail() {
   const params = useParams();
   const router = useRouter();
   const api = getAdminApiClient();
   const tenantId = params?.tenantId as string;
+  const { erpOptions } = useSupportedErps({ includeAll: true, includeFallback: true });
+  const ERP_OPTIONS = erpOptions.filter(
+    (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
+  );
 
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
