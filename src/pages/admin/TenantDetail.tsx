@@ -110,7 +110,7 @@ export default function TenantDetail() {
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to fetch tenant';
         toast.error(errorMessage);
-        router.push('/admin/tenants');
+        router.push('/admin/tenants/all');
       } else if (response.data?.data) {
         const data = response.data.data as any;
         const tenantData: Tenant = {
@@ -147,7 +147,7 @@ export default function TenantDetail() {
       }
     } catch (error: any) {
       toast.error(error?.message || 'Failed to fetch tenant');
-      router.push('/admin/tenants');
+      router.push('/admin/tenants/all');
     } finally {
       setLoading(false);
     }
@@ -273,7 +273,7 @@ export default function TenantDetail() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => router.push('/admin/tenants')}
+              onClick={() => router.push('/admin/tenants/all')}
               className="rounded-full"
             >
               <ArrowLeft className="w-4 h-4" />
