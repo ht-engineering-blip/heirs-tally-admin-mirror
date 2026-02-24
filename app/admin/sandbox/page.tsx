@@ -1,4 +1,4 @@
-import AdminSandbox from '@/pages/admin/AdminSandbox'
+import AdminSandbox from '@/views/admin/AdminSandbox'
 
 export default function SandboxPage() {
   return <AdminSandbox />

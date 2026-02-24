@@ -1,4 +1,4 @@
-import AdminErpSyncConfig from "@/pages/admin/AdminErpSyncConfig";
+import AdminErpSyncConfig from "@/views/admin/AdminErpSyncConfig";
 
  
 

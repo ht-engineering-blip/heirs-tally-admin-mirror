@@ -1,4 +1,4 @@
-import TenantDetail from '@/pages/admin/TenantDetail'
+import TenantDetail from '@/views/admin/TenantDetail'
 
 export default function TenantDetailPage() {
   return <TenantDetail />

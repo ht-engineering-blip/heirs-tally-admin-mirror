@@ -1,4 +1,4 @@
-import Tenants from '@/pages/admin/Tenants'
+import Tenants from '@/views/admin/Tenants'
 
 export default function TenantsPage() {
   return <Tenants />
