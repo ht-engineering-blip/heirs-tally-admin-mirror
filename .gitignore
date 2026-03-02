@@ -34,4 +34,4 @@ TENANT_PLAN.md
 .env
 
 # Claude
-.claude
+.claude/
