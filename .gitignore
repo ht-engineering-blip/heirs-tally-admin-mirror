@@ -29,3 +29,9 @@ TENANT_PLAN.md
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables
+.env
+
+# Claude
+.claude
