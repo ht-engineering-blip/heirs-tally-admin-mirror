@@ -63,7 +63,7 @@ const tenantNavItems: NavItem[] = [
     icon: Building2,
     permission: 'tenants:read',
     children: [
-      /*       { title: 'All Tenants', href: '/admin/tenants', icon: Building2, permission: 'tenants:read' }, */
+      { title: 'All Tenants', href: '/admin/tenants/all', icon: Building2, permission: 'tenants:read' },
       { title: 'ERP Sync Configurations', href: '/admin/tenants/erp-sync-config', icon: CogIcon, permission: 'tenants:read' },
       { title: 'API Keys', href: '/admin/tenants/api-keys', icon: KeyIcon, permission: 'tenants:read' },
       { title: 'Transaction Log', href: '/admin/tenants/transactions', icon: ListChecksIcon, permission: 'tenants:read' },

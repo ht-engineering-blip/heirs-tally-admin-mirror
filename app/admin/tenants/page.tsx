@@ -1,5 +1,5 @@
-import Tenants from '@/pages/admin/Tenants'
+import { redirect } from 'next/navigation'
 
 export default function TenantsPage() {
-  return <Tenants />
+  redirect('/admin/tenants/all')
 }

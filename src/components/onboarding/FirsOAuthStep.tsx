@@ -18,6 +18,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Mail, Lock, ArrowRight, AlertCircle, Loader2, CheckCircle2, Building2 } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
+import { formatErpName } from '@/hooks/use-supported-erps'
 import { createTenantApi } from '@/lib/api/tenant-api'
 
 const firsOAuthSchema = z.object({
@@ -118,7 +119,7 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
               </div>
               <div>
                 <dt className="text-muted-foreground">ERP System</dt>
-                <dd className="font-medium">{businessInfo.erpSystem}</dd>
+                <dd className="font-medium">{formatErpName(businessInfo.erpSystem)}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Status</dt>

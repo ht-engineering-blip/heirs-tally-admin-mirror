@@ -13,11 +13,7 @@ import { toast } from '@/components/ui/sonner'
 import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import Editor from '@monaco-editor/react'
-
-const ERP_OPTIONS = [
-  'SAP', 'ORACLE', 'ZOHO', 'QUICKBOOKS', 'XERO', 'SAGE',
-  'DYNAMICS', 'NETSUITE', 'ODOO', 'FRESHBOOKS', 'WAVE',
-] as const
+import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps'
 
 interface TimelineStep {
   id: string
@@ -47,6 +43,10 @@ const updateStep = (timeline: TimelineStep[], stepId: string, updates: Partial<T
 export default function SandboxPage() {
   const { tenantData } = useTenant()
   const tenantErp = (tenantData as any)?.erpSystem || ''
+  const { erpOptions } = useSupportedErps({ includeAll: true })
+  const ERP_OPTIONS = erpOptions.filter(
+    (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
+  )
 
   const [activeTab, setActiveTab] = useState<'transform' | 'validate' | 'full'>('transform')
   const [invoiceJson, setInvoiceJson] = useState<string>('{\n  "invoiceNumber": "INV-001",\n  "amount": 1000,\n  "currency": "NGN"\n}')
@@ -330,7 +330,7 @@ export default function SandboxPage() {
                   <Select value={erpType} onValueChange={setErpType}>
                     <SelectTrigger><SelectValue placeholder="Select ERP type" /></SelectTrigger>
                     <SelectContent>
-                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{erp}</SelectItem>)}
+                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{formatErpName(erp)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -345,7 +345,7 @@ export default function SandboxPage() {
                   <Select value={erpType} onValueChange={setErpType}>
                     <SelectTrigger><SelectValue placeholder="Select ERP type" /></SelectTrigger>
                     <SelectContent>
-                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{erp}</SelectItem>)}
+                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{formatErpName(erp)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -357,7 +357,7 @@ export default function SandboxPage() {
                   <Select value={erpType} onValueChange={setErpType}>
                     <SelectTrigger><SelectValue placeholder="Select ERP type" /></SelectTrigger>
                     <SelectContent>
-                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{erp}</SelectItem>)}
+                      {ERP_OPTIONS.map((erp) => <SelectItem key={erp} value={erp}>{formatErpName(erp)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

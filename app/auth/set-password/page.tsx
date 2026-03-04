@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -39,7 +39,15 @@ const setPasswordSchema = z.object({
 
 type SetPasswordFormValues = z.infer<typeof setPasswordSchema>
 
-export default function SetPasswordPage() {
+export default function SetPasswordPageWrapper() {
+  return (
+    <Suspense>
+      <SetPasswordPage />
+    </Suspense>
+  )
+}
+
+function SetPasswordPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')

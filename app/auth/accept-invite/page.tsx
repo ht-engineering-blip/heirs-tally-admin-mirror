@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -39,7 +39,15 @@ const acceptInviteSchema = z.object({
 
 type AcceptInviteFormValues = z.infer<typeof acceptInviteSchema>
 
-export default function AcceptInvitePage() {
+export default function AcceptInvitePageWrapper() {
+  return (
+    <Suspense>
+      <AcceptInvitePage />
+    </Suspense>
+  )
+}
+
+function AcceptInvitePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
@@ -91,25 +99,23 @@ export default function AcceptInvitePage() {
       const authToken = acceptInviteResponse.data.data.token
       const userData = acceptInviteResponse.data.data
 
-      // Call /me endpoint to get additional user information
-      // Create a temporary API client with the auth token
-      const { treaty } = await import('@elysiajs/eden')
-      const { default: app } = await import('@/types/server')
-      const API_URL = typeof window !== 'undefined' 
+      // Call /me endpoint to get additional user information using fetch
+      const API_URL = typeof window !== 'undefined'
         ? (process.env.NEXT_PUBLIC_API_URL || `${window.location.origin}/api/v1`)
         : process.env.NEXT_PUBLIC_API_URL || '/api/v1'
-      
-      const authenticatedApi = treaty<typeof app>(API_URL, {
+
+      const meRes = await fetch(`${API_URL}/v1/auth/me`, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
-        fetch: {
-          credentials: 'include',
-        },
+        credentials: 'include',
       })
-
-      const meResponse = await authenticatedApi.v1.auth.me.get()
+      const meJson = meRes.ok ? await meRes.json() : null
+      const meResponse = {
+        error: !meRes.ok,
+        data: meJson,
+      }
 
       if (meResponse.error || !meResponse.data?.data) {
         // If /me fails, use data from accept-invite response

@@ -18,6 +18,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { formatErpName } from '@/hooks/use-supported-erps'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -219,7 +220,7 @@ export default function TransactionDetailPage() {
                         <p className="text-sm font-medium text-muted-foreground">ERP System</p>
                         <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
                           <Package className="w-5 h-5 text-primary" />
-                          <span className="text-lg font-semibold capitalize">{invoice.erp}</span>
+                          <span className="text-lg font-semibold">{formatErpName(invoice.erp)}</span>
                         </div>
                       </div>
                     )}

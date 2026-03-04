@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -9,7 +9,15 @@ import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { getTenantApiClient } from '@/lib/api/client'
 
-export default function ActivatePage() {
+export default function ActivatePageWrapper() {
+  return (
+    <Suspense>
+      <ActivatePage />
+    </Suspense>
+  )
+}
+
+function ActivatePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const activationToken = searchParams.get('_u')

@@ -53,6 +53,19 @@ export function WebhookGenerateStep({ tenantId, onStepComplete }: WebhookGenerat
 
       setWebhookData(responseData)
       toast.success('Webhook URL generated!')
+
+      // Mark onboarding as complete
+      const activationResponse = await tenantApi.completeOnboading(tenantId, {
+        status: 'active',
+      })
+      if (activationResponse.error) {
+        const activationError = (activationResponse.error as any)?.value?.error || 'Failed to activate account'
+        setError(activationError)
+        toast.error(activationError)
+        setIsGenerating(false)
+        return
+      }
+
       onStepComplete()
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to generate webhook URL'

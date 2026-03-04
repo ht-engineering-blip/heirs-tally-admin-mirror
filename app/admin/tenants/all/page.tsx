@@ -1,5 +1,5 @@
 import Tenants from '@/views/admin/Tenants'
 
-export default function TenantsPage() {
+export default function AllTenantsPage() {
   return <Tenants />
 }

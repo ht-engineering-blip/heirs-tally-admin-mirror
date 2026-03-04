@@ -12,29 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Editor from '@monaco-editor/react';
-
-// ERP Types from AdminErpSupport
-enum SchemaSourceType {
-  SAP = 'SAP',
-  ORACLE = 'ORACLE',
-  ZOHO = 'ZOHO',
-  QUICKBOOKS = 'QUICKBOOKS',
-  XERO = 'XERO',
-  SAGE = 'SAGE',
-  DYNAMICS = 'DYNAMICS',
-  NETSUITE = 'NETSUITE',
-  ODOO = 'ODOO',
-  FRESHBOOKS = 'FRESHBOOKS',
-  WAVE = 'WAVE',
-  FIRS_UBL = 'FIRS_UBL',
-  PEPPOL_BIS = 'PEPPOL_BIS',
-  UBL_2_1 = 'UBL_2_1',
-  CUSTOM = 'CUSTOM',
-}
-
-const ERP_OPTIONS = Object.values(SchemaSourceType).filter(
-  (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
-);
+import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 
 interface TimelineStep {
   id: string;
@@ -56,6 +34,10 @@ interface TestResult {
 
 export default function AdminSandbox() {
   const api = getAdminApiClient();
+  const { erpOptions } = useSupportedErps({ includeAll: true });
+  const ERP_OPTIONS = erpOptions.filter(
+    (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
+  );
   const [activeTab, setActiveTab] = useState<'transform' | 'validate' | 'full'>('transform');
   const [invoiceJson, setInvoiceJson] = useState<string>('{\n  "invoiceNumber": "INV-001",\n  "amount": 1000,\n  "currency": "NGN"\n}');
   const [erpType, setErpType] = useState<string>('');
@@ -505,7 +487,7 @@ export default function AdminSandbox() {
                     <SelectContent>
                       {ERP_OPTIONS.map((erp) => (
                         <SelectItem key={erp} value={erp}>
-                          {erp}
+                          {formatErpName(erp)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -529,7 +511,7 @@ export default function AdminSandbox() {
                     <SelectContent>
                       {ERP_OPTIONS.map((erp) => (
                         <SelectItem key={erp} value={erp}>
-                          {erp}
+                          {formatErpName(erp)}
                         </SelectItem>
                       ))}
                     </SelectContent>

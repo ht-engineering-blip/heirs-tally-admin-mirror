@@ -11,12 +11,11 @@ import {
   FirsOAuthStep,
   FirsCredentialsStep,
   WebhookGenerateStep,
-  WebhookTestStep,
   OnboardingComplete,
 } from '@/components/onboarding'
 import type { OnboardingStep } from '@/components/onboarding'
 
-const STEP_KEYS = ['firs_oauth', 'firs_credentials', 'webhook_generate', 'webhook_test'] as const
+const STEP_KEYS = ['firs_oauth', 'firs_credentials', 'webhook_generate'] as const
 type StepKey = typeof STEP_KEYS[number]
 const KEY_ALIAS = {
   firs_oauth: "firsProvisioning",
@@ -27,7 +26,6 @@ const STEP_META: Record<StepKey, { label: string; description: string }> = {
   firs_oauth: { label: 'FIRS Auth', description: 'Authenticate with FIRS portal' },
   firs_credentials: { label: 'Credentials', description: 'Provide FIRS certificate & key' },
   webhook_generate: { label: 'Webhook', description: 'Generate webhook URL' },
-  webhook_test: { label: 'Test', description: 'Test webhook connection' },
 }
 
 export default function OnboardingPage() {
@@ -181,9 +179,6 @@ export default function OnboardingPage() {
           )}
           {tenantId && activeStepKey === 'webhook_generate' && (
             <WebhookGenerateStep tenantId={tenantId} onStepComplete={handleStepComplete} />
-          )}
-          {tenantId && activeStepKey === 'webhook_test' && (
-            <WebhookTestStep tenantId={tenantId} onStepComplete={handleStepComplete} />
           )}
           {!tenantId && (
             <Alert variant="destructive">

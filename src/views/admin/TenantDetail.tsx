@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { SchemaSourceType } from './AdminErpSupport';
+import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 
 interface Tenant {
   id: string;
@@ -64,15 +64,15 @@ interface Tenant {
   };
 }
 
-const ERP_OPTIONS = Object.values(SchemaSourceType).filter(
-  (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
-);
-
 export default function TenantDetail() {
   const params = useParams();
   const router = useRouter();
   const api = getAdminApiClient();
   const tenantId = params?.tenantId as string;
+  const { erpOptions } = useSupportedErps({ includeAll: true });
+  const ERP_OPTIONS = erpOptions.filter(
+    (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
+  );
 
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,7 +110,7 @@ export default function TenantDetail() {
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to fetch tenant';
         toast.error(errorMessage);
-        router.push('/admin/tenants');
+        router.push('/admin/tenants/all');
       } else if (response.data?.data) {
         const data = response.data.data as any;
         const tenantData: Tenant = {
@@ -147,7 +147,7 @@ export default function TenantDetail() {
       }
     } catch (error: any) {
       toast.error(error?.message || 'Failed to fetch tenant');
-      router.push('/admin/tenants');
+      router.push('/admin/tenants/all');
     } finally {
       setLoading(false);
     }
@@ -273,7 +273,7 @@ export default function TenantDetail() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => router.push('/admin/tenants')}
+              onClick={() => router.push('/admin/tenants/all')}
               className="rounded-full"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -390,7 +390,7 @@ export default function TenantDetail() {
                     <Server className="w-5 h-5 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">ERP System</p>
-                      <Badge variant="outline">{tenant.erpSystem}</Badge>
+                      <Badge variant="outline">{formatErpName(tenant.erpSystem)}</Badge>
                     </div>
                   </div>
                 </CardContent>
@@ -641,7 +641,7 @@ export default function TenantDetail() {
                   <SelectContent>
                     {ERP_OPTIONS.map((erp) => (
                       <SelectItem key={erp} value={erp}>
-                        {erp}
+                        {formatErpName(erp)}
                       </SelectItem>
                     ))}
                   </SelectContent>
