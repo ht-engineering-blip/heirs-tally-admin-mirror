@@ -6,7 +6,11 @@
       "Bash(cd:*)",
       "Bash(cd \"C:/Users/NicholasOkeke/OneDrive - Heirs Technologies/Desktop/projects/frontend/e-invoicing-admin-app\" && yarn build 2>&1)",
       "Bash(cd \"C:/Users/NicholasOkeke/OneDrive - Heirs Technologies/Desktop/projects/frontend/e-invoicing-admin-app\" && rm -rf .next && yarn build 2>&1)",
-      "Bash(cd \"C:/Users/NicholasOkeke/OneDrive - Heirs Technologies/Desktop/projects/frontend/e-invoicing-admin-app\" && yarn dev 2>&1)"
+      "Bash(cd \"C:/Users/NicholasOkeke/OneDrive - Heirs Technologies/Desktop/projects/frontend/e-invoicing-admin-app\" && yarn dev 2>&1)",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:e-invoicing-middleware.vercel.app)",
+      "Bash(npx next:*)",
+      "Bash(find /c/Users/NicholasOkeke/OneDrive\\\\ -\\\\ Heirs\\\\ Technologies/Desktop/projects/frontend/e-invoicing-admin-app -type f \\\\\\( -name \"*middleware*\" -o -name \"*auth*\" \\\\\\) -not -path \"*/node_modules/*\" -not -path \"*/.next/*\" 2>/dev/null | head -20)"
     ]
   }
 }

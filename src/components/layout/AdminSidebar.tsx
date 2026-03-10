@@ -23,6 +23,7 @@ import {
   KeyIcon,
   CogIcon,
   ListChecksIcon,
+  Webhook,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -65,6 +66,7 @@ const tenantNavItems: NavItem[] = [
     children: [
       { title: 'All Tenants', href: '/admin/tenants/all', icon: Building2, permission: 'tenants:read' },
       { title: 'ERP Sync Configurations', href: '/admin/tenants/erp-sync-config', icon: CogIcon, permission: 'tenants:read' },
+      { title: 'Webhook Configurations', href: '/admin/tenants/webhook-config', icon: Webhook, permission: 'tenants:read' },
       { title: 'API Keys', href: '/admin/tenants/api-keys', icon: KeyIcon, permission: 'tenants:read' },
       { title: 'Transaction Log', href: '/admin/tenants/transactions', icon: ListChecksIcon, permission: 'tenants:read' },
     ],

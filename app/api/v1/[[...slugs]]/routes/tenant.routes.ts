@@ -24,7 +24,6 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
       const authHeader = request.headers.get('Authorization') 
       if (authHeader && authHeader.startsWith('Bearer ')) {
         bearerToken = authHeader.replace('Bearer ', '')
-        console.log({bearerToken})
       } else {
         // Try to get token from NextAuth JWT
         try {
@@ -38,7 +37,6 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
             req: nextRequest,
             secret: process.env.NEXTAUTH_SECRET || 'heirs-tally-super-admin-secret-key-change-in-production',
           })
-          console.log({token})
           // If token is stored in the JWT (from set-password or accept-invite flows)
           if (token?.token) {
             bearerToken = token.token as string
@@ -55,12 +53,7 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
         body = await request.text()
       }
       
-      console.log({
-        'Content-Type': 'application/json',
-        // Use Bearer token if available
-        ...(bearerToken && {
-          'Authorization': `Bearer ${bearerToken}`,
-        })})
+    
       // Forward the request to the tenant API
       const response = await fetch(targetUrl, {
         method: request.method,
@@ -86,6 +79,7 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
         data = { error: responseText || 'Unknown error' }
       }
       
+      console.log("Logged datal ", data)
       // Return the API response as-is, preserving status code and error structure
       return new Response(JSON.stringify(data), {
         status: response.status,
