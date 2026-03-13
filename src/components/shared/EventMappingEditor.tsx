@@ -56,6 +56,7 @@ interface WorkflowOption {
   label: string
   description: string
   category?: string
+  order?: number
 }
 
 // ===== Fallback Constants =====
@@ -69,12 +70,12 @@ const FALLBACK_EVENT_TYPES: EventTypeOption[] = [
 ]
 
 const FALLBACK_WORKFLOWS: WorkflowOption[] = [
-  { value: 'outbound', label: 'Outbound Workflow', description: 'Transform → Validate → Sign → Transmit to FIRS' },
-  { value: 'inbound', label: 'Inbound Workflow', description: 'Receive → Validate → Decrypt → Store' },
-  { value: 'transform_only', label: 'Transform Only', description: 'Convert ERP format to UBL without submission' },
-  { value: 'validate_only', label: 'Validate Only', description: 'Schema validation without processing' },
-  { value: 'transform_validate', label: 'Transform and Validate', description: 'Convert and validate invoice without processing' },
-  { value: 'acknowledge', label: 'Acknowledge', description: 'Send acknowledgment back to FIRS' },
+  { value: 'outbound', label: 'Outbound Workflow', description: 'Transform → Validate → Sign → Transmit to FIRS', order: 0 },
+  { value: 'inbound', label: 'Inbound Workflow', description: 'Receive → Validate → Decrypt → Store', order: 1 },
+  { value: 'transform_only', label: 'Transform Only', description: 'Convert ERP format to UBL without submission', order: 2 },
+  { value: 'validate_only', label: 'Validate Only', description: 'Schema validation without processing', order: 3 },
+  { value: 'transform_validate', label: 'Transform and Validate', description: 'Convert and validate invoice without processing', order: 4 },
+  { value: 'acknowledge', label: 'Acknowledge', description: 'Send acknowledgment back to FIRS', order: 5 },
 ]
 
 // ===== Default Mappings =====
@@ -165,10 +166,10 @@ function SearchableSelect({ value, onSelect, options, placeholder, disabled, loa
                       }}
                     >
                       <Check className={cn('mr-2 h-4 w-4', value === option.value ? 'opacity-100' : 'opacity-0')} />
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 group/item">
                         <span className="text-sm">{option.label}</span>
                         {option.description && (
-                          <p className="text-xs text-muted-foreground truncate">{option.description}</p>
+                          <p className="text-xs text-muted-foreground truncate group-hover/item:whitespace-normal group-hover/item:overflow-visible" title={option.description}>{option.description}</p>
                         )}
                       </div>
                     </CommandItem>
@@ -187,10 +188,10 @@ function SearchableSelect({ value, onSelect, options, placeholder, disabled, loa
                     }}
                   >
                     <Check className={cn('mr-2 h-4 w-4', value === option.value ? 'opacity-100' : 'opacity-0')} />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 group/item">
                       <span className="text-sm">{option.label}</span>
                       {option.description && (
-                        <p className="text-xs text-muted-foreground truncate">{option.description}</p>
+                        <p className="text-xs text-muted-foreground truncate group-hover/item:whitespace-normal group-hover/item:overflow-visible" title={option.description}>{option.description}</p>
                       )}
                     </div>
                   </CommandItem>
@@ -218,11 +219,19 @@ interface MultiActionSelectProps {
 function MultiActionSelect({ values, onChange, options, placeholder, disabled, loading }: MultiActionSelectProps) {
   const [open, setOpen] = useState(false)
 
+  const sortByOrder = (vals: string[]) => {
+    return [...vals].sort((a, b) => {
+      const orderA = (options as WorkflowOption[]).find((o) => o.value === a)?.order ?? Infinity
+      const orderB = (options as WorkflowOption[]).find((o) => o.value === b)?.order ?? Infinity
+      return orderA - orderB
+    })
+  }
+
   const toggleAction = (actionValue: string) => {
     if (values.includes(actionValue)) {
       onChange(values.filter((v) => v !== actionValue))
     } else {
-      onChange([...values, actionValue])
+      onChange(sortByOrder([...values, actionValue]))
     }
   }
 
@@ -276,10 +285,10 @@ function MultiActionSelect({ values, onChange, options, placeholder, disabled, l
                         onSelect={() => toggleAction(option.value)}
                       >
                         <Check className={cn('mr-2 h-4 w-4', values.includes(option.value) ? 'opacity-100' : 'opacity-0')} />
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 group/item">
                           <span className="text-sm">{option.label}</span>
                           {option.description && (
-                            <p className="text-xs text-muted-foreground truncate">{option.description}</p>
+                            <p className="text-xs text-muted-foreground truncate group-hover/item:whitespace-normal group-hover/item:overflow-visible" title={option.description}>{option.description}</p>
                           )}
                         </div>
                       </CommandItem>
@@ -295,10 +304,10 @@ function MultiActionSelect({ values, onChange, options, placeholder, disabled, l
                       onSelect={() => toggleAction(option.value)}
                     >
                       <Check className={cn('mr-2 h-4 w-4', values.includes(option.value) ? 'opacity-100' : 'opacity-0')} />
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 group/item">
                         <span className="text-sm">{option.label}</span>
                         {option.description && (
-                          <p className="text-xs text-muted-foreground truncate">{option.description}</p>
+                          <p className="text-xs text-muted-foreground truncate group-hover/item:whitespace-normal group-hover/item:overflow-visible" title={option.description}>{option.description}</p>
                         )}
                       </div>
                     </CommandItem>
@@ -388,6 +397,7 @@ export function EventMappingEditor({
             label: a.name,
             description: a.description || '',
             category: a.category,
+            order: a.order ?? 0,
           }))
           cachedWorkflows = mapped
           setWorkflows(mapped)
@@ -491,27 +501,18 @@ export function EventMappingEditor({
           {mappings.map((mapping, index) => (
             <div
               key={mapping.routeId || index}
-              className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_auto] gap-3 items-start p-3 rounded-lg border bg-card"
+              className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_auto] gap-3 items-center p-3 rounded-lg border bg-card"
             >
-              <div className="space-y-1.5">
-                <SearchableSelect
-                  value={mapping.event}
-                  onSelect={(val) => updateMapping(index, 'event', val)}
-                  options={eventTypes}
-                  placeholder="Select event..."
-                  disabled={readOnly}
-                  loading={loading}
-                />
-                <Input
-                  value={mapping.description || ''}
-                  onChange={(e) => updateMapping(index, 'description', e.target.value)}
-                  placeholder="Description (optional)"
-                  className="text-xs h-8"
-                  disabled={readOnly}
-                />
-              </div>
+              <SearchableSelect
+                value={mapping.event}
+                onSelect={(val) => updateMapping(index, 'event', val)}
+                options={eventTypes}
+                placeholder="Select event..."
+                disabled={readOnly}
+                loading={loading}
+              />
 
-              <div className="hidden md:flex items-center justify-center pt-2.5">
+              <div className="hidden md:flex items-center justify-center">
                 <ArrowRight className="w-4 h-4 text-muted-foreground" />
               </div>
 
@@ -524,12 +525,12 @@ export function EventMappingEditor({
                 loading={loading}
               />
 
-              <div className="flex items-center justify-center pt-2.5">
+              <div className="flex items-center justify-center">
                 <Switch checked={mapping.enabled} onCheckedChange={(val) => updateMapping(index, 'enabled', val)} disabled={readOnly} />
               </div>
 
               {!readOnly && (
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive mt-1" onClick={() => setDeleteIndex(index)}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteIndex(index)}>
                   <Trash2 className="w-4 h-4" />
                 </Button>
               )}
