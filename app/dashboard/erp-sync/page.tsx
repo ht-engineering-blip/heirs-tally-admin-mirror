@@ -82,8 +82,8 @@ export default function ErpSyncPage() {
   const [isLoadingConfig, setIsLoadingConfig] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [triggerEvents, setTriggerEvents] = useState<string[]>([])
-  const [headersText, setHeadersText] = useState('')
+  const [triggerEvents, setTriggerEvents] = useState<string[]>(TRIGGER_EVENTS.map(e => e.value))
+  const [headersText, setHeadersText] = useState(JSON.stringify({ 'Content-Type': 'application/json' }, null, 2))
   const [queryParamsText, setQueryParamsText] = useState('')
 
   const erpSystem = (tenantData as any)?.erpSystem || ''
@@ -98,7 +98,7 @@ export default function ErpSyncPage() {
       baseUrl: '',
       endpoint: '',
       timeout: 30000,
-      bodyTemplate: '',
+      bodyTemplate: '{"invoice": {{invoice}}}',
       authType: 'none',
       authToken: '',
       authUsername: '',
@@ -151,8 +151,8 @@ export default function ErpSyncPage() {
       maxRetries: c.retryConfig?.maxRetries ?? 3,
       retryDelay: c.retryConfig?.retryDelay ?? 1000,
     })
-    setTriggerEvents(c.triggerEvents || [])
-    setHeadersText(c.headers ? JSON.stringify(c.headers, null, 2) : '')
+    setTriggerEvents(c.triggerEvents || TRIGGER_EVENTS.map(e => e.value))
+    setHeadersText(c.headers ? JSON.stringify(c.headers, null, 2) : JSON.stringify({ 'Content-Type': 'application/json' }, null, 2))
     setQueryParamsText(c.queryParams ? JSON.stringify(c.queryParams, null, 2) : '')
   }
 

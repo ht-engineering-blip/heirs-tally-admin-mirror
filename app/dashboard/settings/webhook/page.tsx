@@ -46,7 +46,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { DataTable, Column, StatusBadge } from '@/components/shared'
+import { DataTable, Column, StatusBadge, EventMappingEditor, DEFAULT_EVENT_MAPPINGS, INBOUND_EVENT_TYPES, WORKFLOWS, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared'
 import { toast } from '@/components/ui/sonner'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { createTenantWebhookListener, getAdminApiClient } from '@/lib/api/client'
@@ -61,35 +61,7 @@ import ButterflyDataMapping from 'react-data-mapping';
 import 'react-data-mapping/dist/index.css';
 
 
-// ===== Constants =====
-
-const INBOUND_EVENT_TYPES = [
-  { value: 'erp.invoice.created', label: 'Invoice Created', description: 'New invoice created in the ERP system' },
-  { value: 'erp.invoice.updated', label: 'Invoice Updated', description: 'Existing invoice modified in the ERP' },
-  { value: 'erp.payment.received', label: 'Payment Received', description: 'Payment recorded against an invoice' },
-  { value: 'erp.credit_note.created', label: 'Credit Note Created', description: 'Credit/debit note issued' },
-  { value: 'erp.invoice.cancelled', label: 'Invoice Cancelled', description: 'Invoice cancelled in the ERP' },
- /*  { value: 'firs.invoice.received', label: 'FIRS Invoice Received', description: 'Inbound invoice from FIRS' },
-  { value: 'firs.status.updated', label: 'FIRS Status Updated', description: 'Invoice status change from FIRS' },
-  { value: 'firs.invoice.acknowledged', label: 'FIRS Acknowledged', description: 'Invoice acknowledged by FIRS' }, */
-] as const
-
-const WORKFLOWS = [
-  { value: 'outbound', label: 'Outbound Workflow', description: 'Transform → Validate → Sign → Transmit to FIRS' },
-  { value: 'inbound', label: 'Inbound Workflow', description: 'Receive → Validate → Decrypt → Store' },
-  { value: 'transform_only', label: 'Transform Only', description: 'Convert ERP format to UBL without submission' },
-  { value: 'validate_only', label: 'Validate Only', description: 'Schema validation without processing' },
-  { value: 'transform_validate', label: 'Transform and Validate', description: 'Convert and validate invoice without processing' },
-  { value: 'acknowledge', label: 'Acknowledge', description: 'Send acknowledgment back to FIRS' },
-] as const
-
 // ===== Types =====
-
-interface EventMapping {
-  eventType: string
-  workflow: string
-  enabled: boolean
-}
 
 interface WebhookConfig {
   webhookUrl: string
@@ -174,6 +146,8 @@ export default function WebhookSettingsPage() {
   const [webhookEnabled, setWebhookEnabled] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [loadingConfig, setLoadingConfig] = useState(true)
+  const [secretVisible, setSecretVisible] = useState(false)
+  const [rawSecret, setRawSecret] = useState<string | null>(null)
 
   // Test state
   const [testMode, setTestMode] = useState<'manual' | 'listen'>('manual')
@@ -184,6 +158,7 @@ export default function WebhookSettingsPage() {
 
   // Event mapping state
   const [eventMappings, setEventMappings] = useState<EventMapping[]>([])
+  const [savedMappings, setSavedMappings] = useState<EventMapping[]>([])
   const [savingMappings, setSavingMappings] = useState(false)
 
   // Data mapping state
@@ -205,6 +180,34 @@ export default function WebhookSettingsPage() {
   const [listenedEvents, setListenedEvents] = useState<any[]>([])
   const eventSourceRef = useRef<EventSource | null>(null)
 
+  // Load event routing from the new API
+  const fetchEventRouting = useCallback(async () => {
+    if (!tenantId) return
+    try {
+      const adminApi = getAdminApiClient()
+      const response = await (adminApi as any).v1.admin.tenants[tenantId]['event-routing'].get()
+      if (!response.error && response.data?.data?.routes) {
+        const routes: EventMapping[] = (response.data.data.routes as any[]).map((r: any) => ({
+          routeId: r.routeId,
+          event: typeof r.event === 'object' ? (r.event?.id || '') : (r.event || ''),
+          actions: Array.isArray(r.actions)
+            ? r.actions.map((a: any) => typeof a === 'object' ? (a?.id || '') : a)
+            : [],
+          enabled: r.enabled !== false,
+          description: r.description || '',
+        }))
+        setEventMappings(routes)
+        setSavedMappings(routes)
+      } else {
+        setEventMappings(DEFAULT_EVENT_MAPPINGS)
+        setSavedMappings([])
+      }
+    } catch {
+      setEventMappings(DEFAULT_EVENT_MAPPINGS)
+      setSavedMappings([])
+    }
+  }, [tenantId])
+
   // Load config from tenant data
   useEffect(() => {
     if (tenantData) {
@@ -224,14 +227,8 @@ export default function WebhookSettingsPage() {
         })
       }
 
-      if (metadata?.webhookEventMappings) {
-        setEventMappings(metadata.webhookEventMappings)
-      } else {
-        setEventMappings([
-          { eventType: 'erp.invoice.created', workflow: 'transform_validate', enabled: true },
-          { eventType: 'erp.invoice.updated', workflow: 'transform_validate', enabled: true },
-        ])
-      }
+      // Fetch event routing from new API
+      fetchEventRouting()
 
       if (metadata?.webhookFieldMappings) {
         setMappingData(metadata.webhookFieldMappings)
@@ -239,7 +236,7 @@ export default function WebhookSettingsPage() {
 
       setLoadingConfig(false)
     }
-  }, [tenantData])
+  }, [tenantData, fetchEventRouting])
 
   // Fetch FIRS dictionary for mapping target fields
   const fetchFirsDictionary = useCallback(async () => {
@@ -322,6 +319,8 @@ export default function WebhookSettingsPage() {
       } else {
         const data = (response.data as any)?.data
         if (data?.webhookUrl) {
+          setRawSecret(data.webhookSecret)
+          setSecretVisible(true)
           setWebhookConfig({
             webhookUrl: data.webhookUrl,
             webhookSecret: data.webhookSecret,
@@ -329,7 +328,7 @@ export default function WebhookSettingsPage() {
             webhookEnabled: true,
           })
           setWebhookEnabled(true)
-          toast.success('Webhook URL generated successfully')
+          toast.success('Webhook generated successfully. Copy your secret now — it won\'t be shown again.')
           refetch()
         }
       }
@@ -409,45 +408,69 @@ export default function WebhookSettingsPage() {
     toast.success(`${label} copied to clipboard`)
   }
 
-  // Event mapping handlers
-  const addMapping = () => {
-    setEventMappings([...eventMappings, { eventType: '', workflow: '', enabled: true }])
-  }
-
-  const updateMapping = (index: number, field: keyof EventMapping, value: any) => {
-    const updated = [...eventMappings]
-    updated[index] = { ...updated[index], [field]: value }
-    setEventMappings(updated)
-  }
-
-  const removeMapping = (index: number) => {
-    setEventMappings(eventMappings.filter((_, i) => i !== index))
-  }
-
   const handleSaveMappings = async () => {
     if (!tenantId) return
-    const validMappings = eventMappings.filter((m) => m.eventType && m.workflow)
+    const validMappings = eventMappings.filter((m) => m.event && m.actions.length > 0)
     if (validMappings.length === 0) {
-      toast.error('Please add at least one valid event mapping')
+      toast.error('Please add at least one valid event mapping with actions')
       return
     }
     setSavingMappings(true)
     try {
-      const api = createTenantApi()
-      const response = await api.updateTenant(tenantId, {
-        metadata: { webhookEventMappings: validMappings },
-      })
-      if (response.error) {
-        toast.error((response.error as any)?.value?.error || 'Failed to save event mappings')
+      const adminApi = getAdminApiClient()
+      const routeBase = (adminApi as any).v1.admin.tenants[tenantId]['event-routing'].routes
+
+      // Separate new routes (no routeId) from existing routes (have routeId)
+      const newRoutes = validMappings.filter((m) => !m.routeId)
+      const existingRoutes = validMappings.filter((m) => m.routeId)
+
+      const results = await Promise.all([
+        // POST new routes
+        ...newRoutes.map((m) =>
+          routeBase.post({
+            event: m.event,
+            actions: m.actions,
+            enabled: m.enabled,
+            ...(m.description && { description: m.description }),
+          })
+        ),
+        // PATCH existing routes
+        ...existingRoutes.map((m) =>
+          routeBase[m.routeId!].patch({
+            event: m.event,
+            actions: m.actions,
+            enabled: m.enabled,
+            ...(m.description && { description: m.description }),
+          })
+        ),
+      ])
+
+      const hasError = results.some((r: any) => r.error)
+      if (hasError) {
+        const firstError = results.find((r: any) => r.error)
+        toast.error((firstError as any)?.error?.value?.error || 'Failed to save some event routes')
       } else {
-        toast.success('Event mappings saved successfully')
-        refetch()
+        // Re-fetch to get routeIds assigned to new routes
+        await fetchEventRouting()
+        toast.success('Event routes saved successfully')
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to save event mappings')
+      toast.error(error?.message || 'Failed to save event routes')
     } finally {
       setSavingMappings(false)
     }
+  }
+
+  const handleDeleteRoute = async (routeId: string) => {
+    if (!tenantId) return
+    const adminApi = getAdminApiClient()
+    const response = await (adminApi as any).v1.admin.tenants[tenantId]['event-routing'].routes[routeId].delete()
+    if (response.error) {
+      const errorMessage = (response.error as any)?.value?.error || 'Failed to delete route'
+      toast.error(errorMessage)
+      throw new Error(errorMessage)
+    }
+    toast.success('Route removed')
   }
 
   // Field mapping handlers
@@ -661,12 +684,6 @@ export default function WebhookSettingsPage() {
     }
   }, [])
 
-  const getEventLabel = (value: string) =>
-    INBOUND_EVENT_TYPES.find((e) => e.value === value)?.label || value
-
-  const getWorkflowLabel = (value: string) =>
-    WORKFLOWS.find((w) => w.value === value)?.label || value
-
   // Derived fields for mapping
   const sourceFields = useMemo(() => {
     if (!receivedPayload) return []
@@ -819,30 +836,45 @@ export default function WebhookSettingsPage() {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Webhook Secret</Label>
-                      <div className="flex items-center gap-2">
-                        <Input value={webhookConfig.webhookSecret} readOnly className="font-mono text-xs" type="password" />
-                        <Button variant="outline" size="icon" onClick={() => copyToClipboard(webhookConfig.webhookSecret, 'Webhook Secret')}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      {secretVisible && rawSecret ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Input value={rawSecret} readOnly className="font-mono text-xs" />
+                            <Button variant="outline" size="icon" onClick={() => {
+                              copyToClipboard(rawSecret, 'Webhook Secret')
+                              setSecretVisible(false)
+                              setRawSecret(null)
+                            }}>
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <Alert variant="destructive" className="py-2">
+                            <AlertDescription className="text-xs">
+                              Copy this secret now. Once you navigate away or copy it, it will be hidden and cannot be retrieved again.
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Input value="••••••••••••••••••••••••" readOnly className="font-mono text-xs" type="password" />
+                          <Button variant="outline" size="icon" disabled title="Secret is hidden. Regenerate to get a new one.">
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    {/* {webhookConfig.webhookPath && (
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Webhook Path</Label>
-                        <Input value={webhookConfig.webhookPath} readOnly className="font-mono text-xs" />
-                      </div>
-                    )} */}
                     {canUpdate && (
                       <Button variant="outline" size="sm" onClick={handleGenerate} disabled={isGenerating}>
                         <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
-                        Regenerate URL
+                        Regenerate URL & Secret
                       </Button>
                     )}
                     <Alert>
                       <Globe className="h-4 w-4" />
-                      <AlertDescription className="text-xs">
-                        External systems should send HTTP POST requests to this URL with event payloads.
-                        Include the webhook secret in the <code className="bg-muted px-1 rounded">X-Webhook-Key</code> header for authentication.
+                      <AlertDescription className="text-xs space-y-1">
+                        <p>External systems should send HTTP POST requests to your webhook URL with event payloads.</p>
+                        <p>Include the webhook secret in the <code className="bg-muted px-1 rounded">X-Webhook-Key</code> header for authentication.</p>
+                        <p><strong>Regenerating</strong> will create a new URL and secret, invalidating the previous ones. Update any external systems using the old credentials.</p>
                       </AlertDescription>
                     </Alert>
                   </div>
@@ -910,101 +942,22 @@ export default function WebhookSettingsPage() {
                       </CardDescription>
                     </div>
                   </div>
-                  {canUpdate && (
-                    <Button variant="outline" size="sm" onClick={addMapping}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Mapping
-                    </Button>
-                  )}
                 </div>
               </CardHeader>
               <CardContent>
-                {eventMappings.length === 0 ? (
-                  <div className="text-center py-8">
-                    <ArrowRight className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">
-                      No event mappings configured. Add a mapping to route incoming events to workflows.
-                    </p>
+                <EventMappingEditor
+                  mappings={eventMappings}
+                  onChange={setEventMappings}
+                  savedMappings={savedMappings}
+                  readOnly={!canUpdate}
+                  onDeleteRoute={handleDeleteRoute}
+                />
+                {canUpdate && eventMappings.length > 0 && (
+                  <div className="flex justify-end pt-4">
+                    <Button onClick={handleSaveMappings} disabled={savingMappings}>
+                      {savingMappings ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : 'Save Mappings'}
+                    </Button>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="hidden md:grid md:grid-cols-[1fr_auto_1fr_auto_auto] gap-3 items-center text-xs font-medium text-muted-foreground px-1">
-                      <span>Event Type</span>
-                      <span></span>
-                      <span>Route to Workflow</span>
-                      <span>Active</span>
-                      <span></span>
-                    </div>
-
-                    {eventMappings.map((mapping, index) => (
-                      <div
-                        key={index}
-                        className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_auto] gap-3 items-center p-3 rounded-lg border bg-card"
-                      >
-                        <Select value={mapping.eventType} onValueChange={(val) => updateMapping(index, 'eventType', val)} disabled={!canUpdate}>
-                          <SelectTrigger className="w-full"><SelectValue placeholder="Select event..." /></SelectTrigger>
-                          <SelectContent>
-                            {INBOUND_EVENT_TYPES.map((evt) => (
-                              <SelectItem key={evt.value} value={evt.value}>
-                                <span>{evt.label}</span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <div className="hidden md:flex items-center justify-center">
-                          <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                        </div>
-
-                        <Select value={mapping.workflow} onValueChange={(val) => updateMapping(index, 'workflow', val)} disabled={!canUpdate}>
-                          <SelectTrigger className="w-full"><SelectValue placeholder="Select workflow..." /></SelectTrigger>
-                          <SelectContent>
-                            {WORKFLOWS.map((wf) => (
-                              <SelectItem key={wf.value} value={wf.value}>
-                                <span>{wf.label}</span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <div className="flex items-center justify-center">
-                          <Switch checked={mapping.enabled} onCheckedChange={(val) => updateMapping(index, 'enabled', val)} disabled={!canUpdate} />
-                        </div>
-
-                        {canUpdate && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeMapping(index)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-
-                    {canUpdate && (
-                      <div className="flex justify-end pt-2">
-                        <Button onClick={handleSaveMappings} disabled={savingMappings}>
-                          {savingMappings ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : 'Save Mappings'}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {eventMappings.filter((m) => m.eventType && m.workflow && m.enabled).length > 0 && (
-                  <>
-                    <Separator className="my-4" />
-                    <div>
-                      <p className="text-sm font-medium mb-3">Active Routes Summary</p>
-                      <div className="flex flex-wrap gap-2">
-                        {eventMappings
-                          .filter((m) => m.eventType && m.workflow && m.enabled)
-                          .map((m, i) => (
-                            <Badge key={i} variant="secondary" className="text-xs py-1 px-3">
-                              {getEventLabel(m.eventType)} → {getWorkflowLabel(m.workflow)}
-                            </Badge>
-                          ))}
-                      </div>
-                    </div>
-                  </>
                 )}
               </CardContent>
             </Card>

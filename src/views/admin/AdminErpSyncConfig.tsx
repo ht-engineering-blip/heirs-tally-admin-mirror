@@ -190,9 +190,9 @@ export default function AdminErpSyncConfig() {
     method: 'POST',
     baseUrl: '',
     endpoint: '',
-    headers: {},
+    headers: { 'Content-Type': 'application/json' },
     queryParams: {},
-    bodyTemplate: '',
+    bodyTemplate: '{"invoice": {{invoice}}}',
     authentication: {
       type: 'none',
       token: '',
@@ -209,11 +209,11 @@ export default function AdminErpSyncConfig() {
       retryOn: [500, 502, 503, 504],
     },
     responseMapping: {},
-    triggerEvents: [],
+    triggerEvents: [...TRIGGER_EVENTS],
   });
 
   // Helper states for key-value editors
-  const [headersEntries, setHeadersEntries] = useState<Array<{ key: string; value: string }>>([]);
+  const [headersEntries, setHeadersEntries] = useState<Array<{ key: string; value: string }>>([{ key: 'Content-Type', value: 'application/json' }]);
   const [queryParamsEntries, setQueryParamsEntries] = useState<Array<{ key: string; value: string }>>([]);
   const [responseMappingEntries, setResponseMappingEntries] = useState<Array<{ key: string; value: string }>>([]);
 
@@ -543,9 +543,9 @@ export default function AdminErpSyncConfig() {
       method: 'POST',
       baseUrl: '',
       endpoint: '',
-      headers: {},
+      headers: { 'Content-Type': 'application/json' },
       queryParams: {},
-      bodyTemplate: '',
+      bodyTemplate: '{"invoice": {{invoice}}}',
       authentication: {
         type: 'none',
         token: '',
@@ -562,9 +562,9 @@ export default function AdminErpSyncConfig() {
         retryOn: [500, 502, 503, 504],
       },
       responseMapping: {},
-      triggerEvents: [],
+      triggerEvents: [...TRIGGER_EVENTS],
     });
-    setHeadersEntries([]);
+    setHeadersEntries([{ key: 'Content-Type', value: 'application/json' }]);
     setQueryParamsEntries([]);
     setResponseMappingEntries([]);
   };
@@ -602,9 +602,9 @@ export default function AdminErpSyncConfig() {
           retryOn: syncConfig.retryConfig?.retryOn || [500, 502, 503, 504],
         },
         responseMapping: syncConfig.responseMapping || {},
-        triggerEvents: syncConfig.triggerEvents || [],
+        triggerEvents: syncConfig.triggerEvents || [...TRIGGER_EVENTS],
       });
-      setHeadersEntries(objectToEntries(syncConfig.headers));
+      setHeadersEntries(objectToEntries(syncConfig.headers) || [{ key: 'Content-Type', value: 'application/json' }]);
       setQueryParamsEntries(objectToEntries(syncConfig.queryParams));
       setResponseMappingEntries(objectToEntries(syncConfig.responseMapping));
     } else {
