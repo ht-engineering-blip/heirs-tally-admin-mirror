@@ -19,6 +19,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Building2, AlertCircle, CheckCircle, Pencil, X, Shield, Eye, EyeOff, Copy } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
+import { SectionLoader } from '@/components/shared/SectionLoader'
 import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
 
@@ -78,14 +79,7 @@ export default function ProfilePage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Loading profile...</p>
-        </div>
-      </div>
-    )
+    return <SectionLoader message="Loading profile" />
   }
 
   if (tenantError) {

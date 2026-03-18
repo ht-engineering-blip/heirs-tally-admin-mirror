@@ -14,6 +14,7 @@ import {
   OnboardingComplete,
 } from '@/components/onboarding'
 import type { OnboardingStep } from '@/components/onboarding'
+import { SectionLoader } from '@/components/shared/SectionLoader'
 
 const STEP_KEYS = ['firs_oauth', 'firs_credentials', 'webhook_generate'] as const
 type StepKey = typeof STEP_KEYS[number]
@@ -109,14 +110,7 @@ export default function OnboardingPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Loading onboarding status...</p>
-        </div>
-      </div>
-    )
+    return <SectionLoader message="Loading onboarding" />
   }
 
   if (error) {

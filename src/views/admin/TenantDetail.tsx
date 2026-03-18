@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
+import { SectionLoader } from '@/components/shared/SectionLoader';
 
 interface Tenant {
   id: string;
@@ -227,22 +228,7 @@ export default function TenantDetail() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Loading...</h1>
-          </div>
-        </div>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-center py-8">
-              <span className="text-muted-foreground">Loading tenant details...</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <SectionLoader message="Loading tenant" />;
   }
 
   if (!tenant) {

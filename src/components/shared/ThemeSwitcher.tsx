@@ -15,7 +15,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Sun, Moon, Monitor, Palette } from 'lucide-react'
+import { Sun, Moon, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ThemeSwitcherProps {
@@ -52,6 +52,8 @@ export function ThemeSwitcher({
 }: ThemeSwitcherProps) {
   const { theme, setTheme } = useTheme()
 
+  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
+
   const buttonContent = (
     <Button
       variant="ghost"
@@ -63,7 +65,7 @@ export function ThemeSwitcher({
       )}
       aria-label="Toggle theme"
     >
-      <Palette className="w-4 h-4" />
+      <ThemeIcon className="w-4 h-4" />
       {showLabel && <span className="ml-2">Theme</span>}
     </Button>
   )
@@ -124,7 +126,7 @@ export function ThemeSwitcher({
                   size="sm"
                   className={cn('w-full justify-center px-2', className)}
                 >
-                  <Palette className="w-4 h-4" />
+                  <ThemeIcon className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>

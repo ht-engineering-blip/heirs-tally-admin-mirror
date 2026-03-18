@@ -40,6 +40,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SectionLoader } from '@/components/shared/SectionLoader';
 
 export interface Column<T> {
   key: string;
@@ -267,10 +268,7 @@ export function DataTable<T extends { id: string }>({
                   colSpan={columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0)}
                   className="h-32 text-center"
                 >
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    <span className="text-muted-foreground">Loading...</span>
-                  </div>
+                  <SectionLoader message="Loading" size="sm" />
                 </TableCell>
               </TableRow>
             ) : data.length === 0 ? (

@@ -26,6 +26,7 @@ import {
   mockTransactions,
 } from '@/lib/mockData';
 import { useSession } from '@/hooks/use-session';
+import { SectionLoader } from '@/components/shared/SectionLoader';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -69,14 +70,7 @@ export default function AdminDashboard() {
   };
 
   if (isLoading || !stats || !health) {
-    return ( 
-        <div className="flex items-center justify-center h-96">
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <span className="text-muted-foreground">Loading dashboard...</span>
-          </div>
-        </div> 
-    );
+    return <SectionLoader message="Loading dashboard" />;
   }
 
   return ( 

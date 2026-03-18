@@ -3,6 +3,7 @@
 import { ReactNode, useEffect } from 'react'
 import { ThemeSwitcher } from '@/components/shared/ThemeSwitcher'
 import { useSession } from '@/hooks/use-session'
+import { FullScreenLoader } from '@/components/shared/FullScreenLoader'
 import { useRouter } from 'next/navigation'
 
 interface SuperAdminAuthLayoutProps {
@@ -19,11 +20,7 @@ export default function SuperAdminAuthLayout({ children }: SuperAdminAuthLayoutP
       }
     }, [isAuthenticated, isLoading, router])
     if (isLoading) {
-        return (
-          <div className="h-screen flex items-center justify-center">
-            <div className="text-muted-foreground">Loading...</div>
-          </div>
-        )
+        return <FullScreenLoader />
       }
   return (
     <div>

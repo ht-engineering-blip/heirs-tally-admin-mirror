@@ -49,6 +49,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
+import { SectionLoader } from '@/components/shared/SectionLoader'
 
 interface TeamMemberDetail {
   id: string
@@ -230,14 +231,7 @@ export default function TeamMemberDetailPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Loading member details...</p>
-        </div>
-      </div>
-    )
+    return <SectionLoader message="Loading member" />
   }
 
   if (error || !member) {

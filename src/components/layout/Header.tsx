@@ -1,7 +1,7 @@
 'use client'
 
-import { Bell, Settings, LogOut, User, Mail, Menu, ChevronLeft, ChevronRight } from 'lucide-react'
-import { signOut } from 'next-auth/react'
+import { Bell, Settings, LogOut, User, Mail, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { LogoutDialog } from '@/components/shared/LogoutDialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useSession } from '@/hooks/use-session'
+import { ThemeSwitcher } from '@/components/shared/ThemeSwitcher'
 
 interface HeaderProps {
   isMobile?: boolean
@@ -68,11 +69,9 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse 
                 className="w-full justify-center"
               >
                 {isCollapsed ? (
-                  <ChevronRight className="w-4 h-4" />
+                  <PanelLeftOpen className="w-4 h-4" />
                 ) : (
-                  <>
-                    <ChevronLeft className="w-4 h-4" />
-                  </>
+                  <PanelLeftClose className="w-4 h-4" />
                 )}
               </Button>
             </div>
@@ -95,8 +94,11 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse 
           )}
         </div>
 
-        {/* Right side - notifications and profile */}
+        {/* Right side - theme, notifications and profile */}
         <div className="flex items-center gap-2">
+          {/* Theme Switcher */}
+          <ThemeSwitcher variant="icon" size="icon" />
+
           {/* Notifications Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -200,13 +202,15 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse 
                 <span>Settings</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                className="cursor-pointer text-destructive focus:text-destructive"
-                onClick={() => signOut({ callbackUrl: '/auth/login' })}
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
-              </DropdownMenuItem>
+              <LogoutDialog callbackUrl="/auth/login">
+                <DropdownMenuItem
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </LogoutDialog>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
