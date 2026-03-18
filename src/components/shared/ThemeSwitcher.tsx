@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import {
@@ -51,8 +52,14 @@ export function ThemeSwitcher({
   size = 'icon',
 }: ThemeSwitcherProps) {
   const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
 
-  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Always use Sun as fallback during SSR to avoid hydration mismatch
+  const ThemeIcon = !mounted ? Sun : theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
 
   const buttonContent = (
     <Button
@@ -64,6 +71,7 @@ export function ThemeSwitcher({
         className
       )}
       aria-label="Toggle theme"
+      suppressHydrationWarning
     >
       <ThemeIcon className="w-4 h-4" />
       {showLabel && <span className="ml-2">Theme</span>}
@@ -125,6 +133,7 @@ export function ThemeSwitcher({
                   variant="ghost"
                   size="sm"
                   className={cn('w-full justify-center px-2', className)}
+                  suppressHydrationWarning
                 >
                   <ThemeIcon className="w-4 h-4" />
                 </Button>

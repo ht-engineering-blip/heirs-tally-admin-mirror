@@ -5,143 +5,137 @@ import {
   Building2,
   FileText,
   Clock,
-  CheckCircle,
-} from 'lucide-react'; 
+  Server,
+} from 'lucide-react';
 import {
   KpiCard,
-  TransactionVolumeChart,
-  WeeklyTrendChart,
   ErpDistributionChart,
   TenantStatusChart,
-  SystemHealthCard,
-  RecentTransactions,
 } from '@/components/dashboard';
-import { api } from '@/lib/api';
-import type { DashboardStats, SystemHealth, Transaction } from '@/lib/mockData';
-import {
-  mockTransactionVolumeData,
-  mockWeeklyTrendData,
-  mockErpDistribution,
-  mockTenantStatusData,
-  mockTransactions,
-} from '@/lib/mockData';
+import { getAdminApiClient } from '@/lib/api/client';
 import { useSession } from '@/hooks/use-session';
+import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 import { SectionLoader } from '@/components/shared/SectionLoader';
 
+interface TenantSummary {
+  total: number;
+  active: number;
+  suspended: number;
+  inactive: number;
+  pending: number;
+}
+
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [tenantSummary, setTenantSummary] = useState<TenantSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { user, isSuperAdmin } = useSession()
+  const { user } = useSession();
+  const { erps: supportedErps, isLoading: erpsLoading } = useSupportedErps({ includeAll: true });
 
   useEffect(() => {
-    async function fetchData() {
+    async function fetchTenants() {
       try {
-        const [statsRes, healthRes] = await Promise.all([
-          api.dashboard.getStats(),
-          api.dashboard.getSystemHealth(),
-        ]);
-        setStats(statsRes.data);
-        setHealth(healthRes.data);
+        const api = getAdminApiClient();
+
+        // Fetch all tenants (first page with high limit to get total + statuses)
+        const response = await api.v1.tenants.get({
+          query: { limit: 1000, page: 1 },
+        });
+
+        if (!response.error && response.data?.data) {
+          const tenants = response.data.data as any[];
+          const summary: TenantSummary = {
+            total: (response.data as any).pagination?.total || tenants.length,
+            active: tenants.filter((t: any) => t.status === 'active' || t.onboarding?.status === 'active').length,
+            suspended: tenants.filter((t: any) => t.status === 'suspended').length,
+            inactive: tenants.filter((t: any) => t.status === 'inactive').length,
+            pending: tenants.filter((t: any) => t.onboarding?.status === 'pending' || t.onboarding?.status === 'in_progress').length,
+          };
+          setTenantSummary(summary);
+        }
       } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
+        console.error('Failed to fetch tenant data:', error);
       } finally {
         setIsLoading(false);
       }
     }
-    fetchData();
+    fetchTenants();
   }, []);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  // Build ERP distribution data from real supported ERPs
+  const erpDistributionData = (supportedErps ?? []).map((erp) => ({
+    name: formatErpName(erp.source_type),
+    value: 1,
+    color: '',
+  }));
 
-  const formatNumber = (value: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
+  // Build tenant status chart data from real counts
+  const tenantStatusData = tenantSummary
+    ? [
+        { status: 'Active', count: tenantSummary.active, color: 'hsl(var(--success))' },
+        { status: 'Pending Onboarding', count: tenantSummary.pending, color: 'hsl(var(--warning))' },
+        { status: 'Suspended', count: tenantSummary.suspended, color: 'hsl(var(--destructive))' },
+        { status: 'Inactive', count: tenantSummary.inactive, color: 'hsl(var(--muted-foreground))' },
+      ].filter((s) => s.count > 0)
+    : [];
 
-  if (isLoading || !stats || !health) {
+  if (isLoading) {
     return <SectionLoader message="Loading dashboard" />;
   }
 
-  return ( 
-      <div className="space-y-8 animate-fade-in">
-        {/* Header */}
-        <div className="page-header">
-          <div>
+  return (
+    <div className="space-y-8 animate-fade-in">
+      {/* Header */}
+      <div className="page-header">
+        <div>
           <h1 className="text-3xl font-bold text-foreground">
-          Welcome back, {user?.name || 'Admin'}
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Manage your system configuration, tenants, and more from this dashboard.
-        </p>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            Last updated: {new Date().toLocaleTimeString()}
-          </div>
+            Welcome back, {user?.name || 'Admin'}
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Manage your system configuration, tenants, and more from this dashboard.
+          </p>
         </div>
+      </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <KpiCard
-            title="Total Tenants"
-            value={formatNumber(stats.totalTenants)}
-            icon={Building2}
-            trend={{ value: 12.5, isPositive: true }}
-            subtitle={`${stats.activeTenants} active`}
-          />
-          <KpiCard
-            title="Total Invoices"
-            value={formatNumber(stats.totalInvoices)}
-            icon={FileText}
-            trend={{ value: 8.2, isPositive: true }}
-            subtitle={`${formatNumber(stats.invoicesToday)} today`}
-          />
-          <KpiCard
-            title="Success Rate"
-            value={`${stats.successRate}%`}
-            icon={CheckCircle}
-            trend={{ value: 0.3, isPositive: true }} 
-          />
-          <KpiCard
-            title="Pending Approvals"
-            value={stats.pendingApprovals}
-            icon={Clock}
-            subtitle={`${stats.errorCount} errors`}
-           variant="primary"
-          />
-        </div>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <KpiCard
+          title="Total Tenants"
+          value={tenantSummary?.total ?? 0}
+          icon={Building2}
+          subtitle={`${tenantSummary?.active ?? 0} active`}
+        />
+        <KpiCard
+          title="Active Tenants"
+          value={tenantSummary?.active ?? 0}
+          icon={Building2}
+          subtitle="Currently active"
+          variant="success"
+        />
+        <KpiCard
+          title="Pending Onboarding"
+          value={tenantSummary?.pending ?? 0}
+          icon={Clock}
+          subtitle="Awaiting setup"
+          variant="primary"
+        />
+        <KpiCard
+          title="Supported ERPs"
+          value={supportedErps?.length ?? 0}
+          icon={Server}
+          subtitle="Configured integrations"
+        />
+      </div>
 
-        {/* System Health */}
-        <SystemHealthCard health={health} />
-
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <TransactionVolumeChart data={mockTransactionVolumeData} />
-          </div>
-          <ErpDistributionChart data={mockErpDistribution} />
-        </div>
-
-        {/* Second Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <WeeklyTrendChart data={mockWeeklyTrendData} />
-          </div>
-          <TenantStatusChart data={mockTenantStatusData} />
-        </div>
-
-        {/* Recent Transactions */}
-        <RecentTransactions transactions={mockTransactions} />
-      </div> 
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {tenantStatusData.length > 0 && (
+          <TenantStatusChart data={tenantStatusData} />
+        )}
+        {!erpsLoading && erpDistributionData.length > 0 && (
+          <ErpDistributionChart data={erpDistributionData} />
+        )}
+      </div>
+    </div>
   );
 }
