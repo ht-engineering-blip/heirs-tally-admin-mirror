@@ -22,9 +22,10 @@ interface HeaderProps {
   onMenuClick?: () => void
   onCollapse?: () => void
   isCollapsed?: boolean
+  logoutCallbackUrl?: string
 }
 
-export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse }: HeaderProps) {
+export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse, logoutCallbackUrl = '/auth/login' }: HeaderProps) {
   const { user } = useSession()
 
   return (
@@ -108,7 +109,7 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse 
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <LogoutDialog callbackUrl="/auth/login">
+              <LogoutDialog callbackUrl={logoutCallbackUrl}>
                 <DropdownMenuItem
                   className="cursor-pointer text-destructive focus:text-destructive"
                   onSelect={(e) => e.preventDefault()}

@@ -19,7 +19,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Mail, Lock, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { FileText, Mail, Lock, ArrowRight, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { createTenantApi } from '@/lib/api/tenant-api'
 
@@ -43,6 +43,7 @@ function LoginPage() {
   const searchParams = useSearchParams()
   const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -202,11 +203,24 @@ function LoginPage() {
                       <div className="relative">
                         <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
-                          type="password"
+                          type={showPassword ? 'text' : 'password'}
                           placeholder="Enter your password"
-                          className="pl-10"
+                          className="pl-10 pr-10"
                           {...field}
                         />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
                       </div>
                     </FormControl>
                     <FormMessage />

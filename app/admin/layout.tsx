@@ -65,6 +65,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           onMenuClick={() => setSidebarOpen(true)}
           isCollapsed={sidebarCollapsed}
           onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          logoutCallbackUrl="/auth/super-admin/login"
         />
         <div className={cn('p-8', isMobile && 'pt-4')}>{children}</div>
       </main>
