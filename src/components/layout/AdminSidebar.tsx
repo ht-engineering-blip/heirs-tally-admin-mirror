@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { signOut } from 'next-auth/react'
+import { LogoutDialog } from '@/components/shared/LogoutDialog'
 import {
   LayoutDashboard,
   Building2,
@@ -11,8 +11,6 @@ import {
   Shield,
   FileStack,
   Server,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   LogOut,
@@ -30,7 +28,6 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { ThemeSwitcher } from '@/components/shared/ThemeSwitcher'
 import {
   Tooltip,
   TooltipContent,
@@ -121,10 +118,6 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
 
     setExpandedItems(newExpanded)
   }, [pathname])
-
-  const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/auth/super-admin/login' })
-  }
 
   const toggleExpanded = (href: string) => {
     const newExpanded = new Set(expandedItems)
@@ -376,37 +369,6 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
           </TooltipProvider>
         </nav>
 
-        {/* Collapse button - hidden on mobile */}
-        {!isMobile && onCollapse && (
-          <div className="px-3 py-2 shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onCollapse}
-              className="w-full justify-center"
-            >
-              {isCollapsed ? (
-                <ChevronRight className="w-4 h-4" />
-              ) : (
-                <>
-                  <ChevronLeft className="w-4 h-4 mr-2" />
-                  <span>Collapse</span>
-                </>
-              )}
-            </Button>
-          </div>
-        )}
-
-        {/* Theme Switcher */}
-        <div className="px-3 py-2 shrink-0">
-          <ThemeSwitcher
-            variant="sidebar"
-            showLabel={!isCollapsed || isMobile}
-            showTooltip={isCollapsed && !isMobile}
-            size="sm"
-          />
-        </div>
-
         {/* User section */}
         <div className="p-3 shrink-0">
           <div
@@ -432,14 +394,15 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
               </div>
             )}
             {(!isCollapsed || isMobile) && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="flex-shrink-0"
-                onClick={handleSignOut}
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
+              <LogoutDialog callbackUrl="/auth/super-admin/login">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="flex-shrink-0"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </LogoutDialog>
             )}
           </div>
         </div>

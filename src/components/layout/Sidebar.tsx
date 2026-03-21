@@ -24,7 +24,6 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { ThemeSwitcher } from '@/components/shared/ThemeSwitcher';
 import {
   Tooltip,
   TooltipContent,
@@ -227,16 +226,6 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
       </nav>
 
 
-
-        {/* Theme Switcher */}
-        <div className="px-3 py-2 shrink-0">
-          <ThemeSwitcher
-            variant="sidebar"
-            showLabel={!isCollapsed || isMobile}
-            showTooltip={isCollapsed && !isMobile}
-          size="sm"
-          />
-      </div>
 
       {/* User section */}
         <div className="p-3 shrink-0">

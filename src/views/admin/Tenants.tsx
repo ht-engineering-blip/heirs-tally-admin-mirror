@@ -537,7 +537,7 @@ export default function Tenants() {
 
   const stats = {
     total: tenants.length,
-    active: tenants.filter(t => t.status === 'active').length,
+    active: tenants.filter(t => t.status === 'active' || t.onboarding?.status === 'active').length,
     suspended: tenants.filter(t => t.status === 'suspended').length,
     inactive: tenants.filter(t => t.status === 'inactive').length,
   };

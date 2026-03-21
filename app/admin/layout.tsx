@@ -7,6 +7,7 @@ import { AdminSidebar } from '@/components/layout/AdminSidebar'
 import { Header } from '@/components/layout/Header'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { FullScreenLoader } from '@/components/shared/FullScreenLoader'
 
 interface AdminLayoutProps {
   children: ReactNode
@@ -42,11 +43,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   // Show loading state or nothing while checking auth
   if (isLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    )
+    return <FullScreenLoader />
   }
 
   // Don't render admin content if not authenticated or not super admin
@@ -68,6 +65,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           onMenuClick={() => setSidebarOpen(true)}
           isCollapsed={sidebarCollapsed}
           onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          logoutCallbackUrl="/auth/super-admin/login"
         />
         <div className={cn('p-8', isMobile && 'pt-4')}>{children}</div>
       </main>

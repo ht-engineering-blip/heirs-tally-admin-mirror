@@ -8,6 +8,7 @@ import { TenantSidebar } from '@/components/layout/TenantSidebar'
 import { Header } from '@/components/layout/Header'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { FullScreenLoader } from '@/components/shared/FullScreenLoader'
 
 export default function DashboardLayoutBase({
     children,
@@ -50,12 +51,8 @@ export default function DashboardLayoutBase({
         }
     }, [isLoading, isTenantLoading, isAuthenticated, isBusinessAdmin, isBusinessTeamMember, isOnboardingComplete, pathname, router])
 
-    if (isLoading) {
-        return (
-            <div className="h-screen flex items-center justify-center">
-                <div className="text-muted-foreground">Loading...</div>
-            </div>
-        )
+    if (isLoading || isTenantLoading) {
+        return <FullScreenLoader />
     }
 
     if (!isAuthenticated || isSuperAdmin || (!isBusinessAdmin && !isBusinessTeamMember)) {

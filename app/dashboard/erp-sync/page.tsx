@@ -41,6 +41,7 @@ import {
 import { toast } from '@/components/ui/sonner'
 import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
+import { SectionLoader } from '@/components/shared/SectionLoader'
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
 
@@ -244,14 +245,7 @@ export default function ErpSyncPage() {
   const authType = form.watch('authType')
 
   if (tenantLoading || isLoadingConfig) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Loading ERP sync configuration...</p>
-        </div>
-      </div>
-    )
+    return <SectionLoader message="Loading ERP sync" />
   }
 
   return (

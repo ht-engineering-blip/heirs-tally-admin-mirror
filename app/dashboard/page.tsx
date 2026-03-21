@@ -11,6 +11,7 @@ import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
+import { SectionLoader } from '@/components/shared/SectionLoader'
 
 export default function DashboardPage() {
   const { tenantData, isOnboardingComplete, onboardingProgress, onboardingStatus } = useTenant()
@@ -135,16 +136,16 @@ export default function DashboardPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold">Recent Outbound Invoices</CardTitle>
-              <Link href="/dashboard/transactions" className="text-sm text-primary hover:underline">
-                View all →
-              </Link>
+              {recentOutbound.length > 0 && (
+                <Link href="/dashboard/transactions" className="text-sm text-primary hover:underline">
+                  View all →
+                </Link>
+              )}
             </div>
           </CardHeader>
           <CardContent>
             {outboundLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <p className="text-sm text-muted-foreground">Loading transactions...</p>
-              </div>
+              <SectionLoader message="Loading transactions" size="sm" />
             ) : recentOutbound.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <FileText className="h-10 w-10 text-muted-foreground/50 mb-2" />

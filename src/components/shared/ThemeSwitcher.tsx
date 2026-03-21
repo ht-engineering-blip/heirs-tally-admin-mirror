@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,7 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Sun, Moon, Monitor, Palette } from 'lucide-react'
+import { Sun, Moon, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ThemeSwitcherProps {
@@ -51,6 +52,14 @@ export function ThemeSwitcher({
   size = 'icon',
 }: ThemeSwitcherProps) {
   const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Always use Sun as fallback during SSR to avoid hydration mismatch
+  const ThemeIcon = !mounted ? Sun : theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
 
   const buttonContent = (
     <Button
@@ -62,8 +71,9 @@ export function ThemeSwitcher({
         className
       )}
       aria-label="Toggle theme"
+      suppressHydrationWarning
     >
-      <Palette className="w-4 h-4" />
+      <ThemeIcon className="w-4 h-4" />
       {showLabel && <span className="ml-2">Theme</span>}
     </Button>
   )
@@ -123,8 +133,9 @@ export function ThemeSwitcher({
                   variant="ghost"
                   size="sm"
                   className={cn('w-full justify-center px-2', className)}
+                  suppressHydrationWarning
                 >
-                  <Palette className="w-4 h-4" />
+                  <ThemeIcon className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>
