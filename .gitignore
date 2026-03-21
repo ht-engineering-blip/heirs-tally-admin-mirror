@@ -32,6 +32,7 @@ TENANT_PLAN.md
 
 # Environment variables
 .env
+.env.*
 
 # Claude
 .claude/
