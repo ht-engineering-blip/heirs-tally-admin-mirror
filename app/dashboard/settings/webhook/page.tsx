@@ -1,44 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import {
-  Webhook,
-  Zap,
-  Copy,
-  RefreshCw,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  ArrowRight,
-  Plus,
-  Trash2,
-  Settings2,
-  Activity,
-  Globe,
-  Server,
-  FileJson,
-  Link2,
-  Unlink,
-  Radio,
-  StopCircle,
-} from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
+import { Column, DEFAULT_EVENT_MAPPINGS, DataTable, EventMappingEditor, StatusBadge, type EventMapping } from '@/components/shared'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -46,20 +12,44 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { DataTable, Column, StatusBadge, EventMappingEditor, DEFAULT_EVENT_MAPPINGS, INBOUND_EVENT_TYPES, WORKFLOWS, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/sonner'
-import { createTenantApi } from '@/lib/api/tenant-api'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createTenantWebhookListener, getAdminApiClient } from '@/lib/api/client'
+import { createTenantApi } from '@/lib/api/tenant-api'
+import {
+  Activity,
+  ArrowRight,
+  CheckCircle2,
+  Copy,
+  FileJson,
+  Globe,
+  Link2,
+  Loader2,
+  Radio,
+  RefreshCw,
+  Server,
+  Settings2,
+  StopCircle,
+  Trash2,
+  Unlink,
+  Webhook,
+  XCircle,
+  Zap
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { getTenantApiClient } from '@/lib/api/client'
-import { useTenant } from '@/hooks/use-tenant'
-import { usePermissions } from '@/hooks/use-permissions'
-import { cn } from '@/lib/utils'
-import { formatDistanceToNow, format } from 'date-fns'
 import { SectionLoader } from '@/components/shared/SectionLoader'
+import { usePermissions } from '@/hooks/use-permissions'
+import { useTenant } from '@/hooks/use-tenant'
+import { getTenantApiClient } from '@/lib/api/client'
+import { cn } from '@/lib/utils'
+import { format, formatDistanceToNow } from 'date-fns'
 
-import ButterflyDataMapping from 'react-data-mapping';
-import 'react-data-mapping/dist/index.css';
+import 'react-data-mapping/dist/index.css'
 
 
 // ===== Types =====
@@ -160,7 +150,7 @@ export default function WebhookSettingsPage() {
   // Event mapping state
   const [eventMappings, setEventMappings] = useState<EventMapping[]>([])
   const [savedMappings, setSavedMappings] = useState<EventMapping[]>([])
-  const [savingMappings, setSavingMappings] = useState(false)
+  const [savingMappings, setSavingMappings] = useState(false)  
 
   // Data mapping state
   const [firsFields, setFirsFields] = useState<FirsDictionaryField[]>([])

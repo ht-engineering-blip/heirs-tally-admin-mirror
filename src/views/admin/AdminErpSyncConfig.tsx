@@ -1443,7 +1443,7 @@ export default function AdminErpSyncConfig() {
 
       {/* View Configuration Modal */}
       <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>ERP Sync Configuration Details</DialogTitle>
             <DialogDescription>
