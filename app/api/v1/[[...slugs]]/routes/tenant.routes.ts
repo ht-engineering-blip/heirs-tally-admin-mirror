@@ -16,36 +16,44 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
       // Build the target URL to the tenant API
       const targetUrl = `${API_BASE_URL}${apiPath}${searchParams ? `?${searchParams}` : ''}`
       
-      // Get Bearer token - check if it's stored in the JWT token or in the Authorization header
+      // Get Bearer token from available sources
       let bearerToken: string | undefined
-     
-      
-      // First, check if Authorization header is already present in the request
-      const authHeader = request.headers.get('Authorization') 
+
+      // 1. Check Authorization header
+      const authHeader = request.headers.get('Authorization')
       if (authHeader && authHeader.startsWith('Bearer ')) {
         bearerToken = authHeader.replace('Bearer ', '')
-      } else {
-        // Try to get token from NextAuth JWT
+      }
+
+      // 2. Check access_token cookie (set during login)
+      if (!bearerToken) {
+        const cookieHeader = request.headers.get('Cookie') || ''
+        const accessTokenMatch = cookieHeader.match(/(?:^|;\s*)access_token=([^;]+)/)
+        if (accessTokenMatch) {
+          bearerToken = accessTokenMatch[1]
+        }
+      }
+
+      // 3. Fallback: try NextAuth JWT
+      if (!bearerToken) {
         try {
-          // Create a NextRequest from the Elysia request for getToken
           const nextRequest = new NextRequest(request.url, {
             method: request.method,
             headers: new Headers(request.headers),
           })
-          
+
           const token = await getToken({
             req: nextRequest,
             secret: process.env.NEXTAUTH_SECRET || 'heirs-tally-super-admin-secret-key-change-in-production',
           })
-          // If token is stored in the JWT (from set-password or accept-invite flows)
           if (token?.token) {
             bearerToken = token.token as string
           }
         } catch (error) {
-          // If we can't get the token from NextAuth, continue without it
           console.warn('Failed to get token from NextAuth:', error)
         }
       }
+
 
       // Get request body if present
       let body: string | undefined

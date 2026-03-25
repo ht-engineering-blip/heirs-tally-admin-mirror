@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react';
+import { usePersistedTab } from '@/hooks/use-persisted-tab';
 import { formatDistanceToNow, format } from 'date-fns';
 import {
   Eye,
@@ -109,7 +110,7 @@ export default function AdminTransactionLogs() {
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<'all' | 'inbound' | 'outbound'>('all');
+  const [activeTab, setActiveTab] = usePersistedTab('all');
   
   // Modal states
   const [showDetailModal, setShowDetailModal] = useState(false);

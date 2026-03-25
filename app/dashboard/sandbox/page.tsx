@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { usePersistedTab } from '@/hooks/use-persisted-tab'
 import { Play, CheckCircle, XCircle, Clock, Loader2, Code2, FileCheck, Workflow } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,7 +49,7 @@ export default function SandboxPage() {
     (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
   )
 
-  const [activeTab, setActiveTab] = useState<'transform' | 'validate' | 'full'>('transform')
+  const [activeTab, setActiveTab] = usePersistedTab('transform')
   const [invoiceJson, setInvoiceJson] = useState<string>('{\n  "invoiceNumber": "INV-001",\n  "amount": 1000,\n  "currency": "NGN"\n}')
   const [erpType, setErpType] = useState<string>(tenantErp)
   const [testing, setTesting] = useState(false)
@@ -319,9 +320,9 @@ export default function SandboxPage() {
           <CardContent className="space-y-6">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
               <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="transform"><Code2 className="w-4 h-4 mr-2" />Transform</TabsTrigger>
-                <TabsTrigger value="validate"><FileCheck className="w-4 h-4 mr-2" />Validate</TabsTrigger>
-                <TabsTrigger value="full"><Workflow className="w-4 h-4 mr-2" />Full Workflow</TabsTrigger>
+                <TabsTrigger value="transform" className="text-xs sm:text-sm"><Code2 className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">Transform</span></TabsTrigger>
+                <TabsTrigger value="validate" className="text-xs sm:text-sm"><FileCheck className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">Validate</span></TabsTrigger>
+                <TabsTrigger value="full" className="text-xs sm:text-sm"><Workflow className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">Full Workflow</span></TabsTrigger>
               </TabsList>
 
               <TabsContent value="transform" className="space-y-4 mt-4">

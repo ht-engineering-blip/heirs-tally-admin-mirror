@@ -96,17 +96,17 @@ export default function ProfilePage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Building2 className="h-6 w-6" />
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Building2 className="h-5 w-5 sm:h-6 sm:w-6" />
             Business Profile
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             View and manage your business information.
           </p>
         </div>
-        <Badge variant={tenant?.status === 'active' ? 'default' : 'secondary'}>
+        <Badge variant={tenant?.status === 'active' ? 'default' : 'secondary'} className="w-fit">
           {tenant?.status || 'N/A'}
         </Badge>
       </div>
@@ -304,10 +304,10 @@ function ProfileField({
   onCopy?: () => void
 }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b last:border-0">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 py-2 border-b last:border-0">
       <span className="text-sm text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-right max-w-[300px] truncate">
+        <span className="text-sm font-medium text-left sm:text-right max-w-full sm:max-w-[300px] truncate">
           {value || 'N/A'}
         </span>
         {copyable && onCopy && (

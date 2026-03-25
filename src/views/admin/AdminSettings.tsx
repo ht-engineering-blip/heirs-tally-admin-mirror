@@ -11,8 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bell, Lock, Globe, Palette, Shield, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePersistedTab } from '@/hooks/use-persisted-tab';
 
 export default function AdminSettings() {
+  const [settingsTab, setSettingsTab] = usePersistedTab('general');
   const handleSave = () => {
     toast.success('Settings saved successfully');
   };
@@ -31,7 +33,7 @@ export default function AdminSettings() {
           </Button>
         </div>
 
-        <Tabs defaultValue="general" className="space-y-6">
+        <Tabs value={settingsTab} onValueChange={setSettingsTab} className="space-y-6">
           <TabsList>
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>

@@ -48,6 +48,7 @@ export interface Column<T> {
   accessor: (item: T) => React.ReactNode;
   sortable?: boolean;
   width?: string;
+  className?: string;
 }
 
 export interface FilterOption {
@@ -237,7 +238,7 @@ export function DataTable<T extends { id: string }>({
                 <TableHead
                   key={column.key}
                   style={{ width: column.width }}
-                  className={cn(column.sortable && 'cursor-pointer select-none')}
+                  className={cn(column.sortable && 'cursor-pointer select-none', column.className)}
                   onClick={() => column.sortable && handleSort(column.key)}
                 >
                   <div className="flex items-center gap-2">
@@ -302,7 +303,7 @@ export function DataTable<T extends { id: string }>({
                     </TableCell>
                   )}
                   {columns.map((column) => (
-                    <TableCell key={column.key}>{column.accessor(item)}</TableCell>
+                    <TableCell key={column.key} className={column.className}>{column.accessor(item)}</TableCell>
                   ))}
                   {rowActions && (
                     <TableCell onClick={(e) => e.stopPropagation()}>

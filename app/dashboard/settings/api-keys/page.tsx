@@ -382,8 +382,8 @@ export default function ApiKeysPage() {
         {/* Header */}
         <div className="page-header">
           <div>
-            <h1 className="text-2xl font-bold">API Keys</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold">API Keys</h1>
+            <p className="text-sm text-muted-foreground">
               Manage your API keys for programmatic access
             </p>
           </div>

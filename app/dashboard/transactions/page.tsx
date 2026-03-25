@@ -1,31 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { formatDistanceToNow, format } from 'date-fns'
-import {
-  Eye,
-  RefreshCw,
-  ArrowUpRight,
-  ArrowDownLeft,
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  FileText,
-  QrCode,
-  Package,
-} from 'lucide-react'
-import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared'
-import { Button } from '@/components/ui/button'
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
-import { Card, CardContent } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Column, DataTable, FilterOption, StatusBadge } from '@/components/shared'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,12 +11,38 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/sonner'
-import { cn } from '@/lib/utils'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usePersistedTab } from '@/hooks/use-persisted-tab'
 import { createTenantApi } from '@/lib/api/tenant-api'
+import { cn } from '@/lib/utils'
+import { format, formatDistanceToNow } from 'date-fns'
+import {
+  AlertCircle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  CheckCircle,
+  Clock,
+  Eye,
+  FileText,
+  Package,
+  QrCode,
+  RefreshCw,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface Invoice {
   id: string
@@ -90,7 +91,10 @@ export default function TransactionsPage() {
   const [total, setTotal] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
-  const [activeTab, setActiveTab] = useState<'all' | 'outbound' | 'inbound'>('all')
+  const [activeTab, setActiveTab] = usePersistedTab('all')
+
+  console.log('Transactions: ', invoices);
+  
 
   // Modal states
   const [showDetailModal, setShowDetailModal] = useState(false)
@@ -114,11 +118,13 @@ export default function TransactionsPage() {
             limit: '50',
             ...(filters.status && filters.status !== 'all' && { status: filters.status }),
           })
-
+          console.log('Outbound response: ', outboundResponse);
+          
+          
           if (outboundResponse.data?.data) {
             const outboundData = outboundResponse.data.data as any[]
             const pagination = outboundResponse.data.pagination
-
+            
             outboundData.forEach((invoice: any) => {
               allInvoices.push({
                 id: invoice.irn,
@@ -137,14 +143,14 @@ export default function TransactionsPage() {
                 erp: invoice.erp,
               })
             })
-
+            
             totalCount += pagination?.total || 0
           }
         } catch (error) {
           console.error('Failed to fetch outbound invoices:', error)
         }
       }
-
+      
       if (activeTab === 'all' || activeTab === 'inbound') {
         try {
           const inboundResponse = await api.getInboundInvoices({
@@ -152,7 +158,8 @@ export default function TransactionsPage() {
             limit: '50',
             ...(filters.status && filters.status !== 'all' && { status: filters.status }),
           })
-
+          console.log('inbound response: ', inboundResponse);
+          
           if (inboundResponse.data?.data) {
             const inboundData = inboundResponse.data.data as any[]
             const pagination = inboundResponse.data.pagination
@@ -348,6 +355,7 @@ export default function TransactionsPage() {
     {
       key: 'qrCode',
       header: 'QR Code',
+      className: 'hidden lg:table-cell',
       accessor: (inv) => {
         if (inv.qrCode) {
           return (
@@ -378,6 +386,7 @@ export default function TransactionsPage() {
     {
       key: 'paymentStatus',
       header: 'Payment',
+      className: 'hidden md:table-cell',
       accessor: (inv) => {
         if (inv.type === 'inbound' && inv.paymentStatus) {
           return <StatusBadge status={inv.paymentStatus} />
@@ -389,6 +398,7 @@ export default function TransactionsPage() {
       key: 'createdAt',
       header: 'Date',
       sortable: true,
+      className: 'hidden sm:table-cell',
       accessor: (inv) => (
         <div className="text-sm">
           <p className="text-muted-foreground">
@@ -463,68 +473,68 @@ export default function TransactionsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-primary" />
+            <CardContent className="p-4 sm:pt-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.total}</p>
-                  <p className="text-sm text-muted-foreground">Total</p>
+                <div className="min-w-0">
+                  <p className="text-xl sm:text-2xl font-bold">{stats.total}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Total</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <ArrowUpRight className="w-5 h-5 text-primary" />
+            <CardContent className="p-4 sm:pt-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.outbound}</p>
-                  <p className="text-sm text-muted-foreground">Outbound</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <ArrowDownLeft className="w-5 h-5 text-accent" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.inbound}</p>
-                  <p className="text-sm text-muted-foreground">Inbound</p>
+                <div className="min-w-0">
+                  <p className="text-xl sm:text-2xl font-bold">{stats.outbound}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Outbound</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-warning" />
+            <CardContent className="p-4 sm:pt-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                  <ArrowDownLeft className="w-4 h-4 sm:w-5 sm:h-5 text-accent" />
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.pending}</p>
-                  <p className="text-sm text-muted-foreground">Pending</p>
+                <div className="min-w-0">
+                  <p className="text-xl sm:text-2xl font-bold">{stats.inbound}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Inbound</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                  <AlertCircle className="w-5 h-5 text-destructive" />
+            <CardContent className="p-4 sm:pt-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-warning" />
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.failed}</p>
-                  <p className="text-sm text-muted-foreground">Failed</p>
+                <div className="min-w-0">
+                  <p className="text-xl sm:text-2xl font-bold">{stats.pending}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Pending</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="col-span-2 sm:col-span-1">
+            <CardContent className="p-4 sm:pt-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xl sm:text-2xl font-bold">{stats.failed}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Failed</p>
                 </div>
               </div>
             </CardContent>
@@ -560,7 +570,7 @@ export default function TransactionsPage() {
 
       {/* Invoice Details Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Invoice Details</DialogTitle>
             <DialogDescription>
@@ -574,12 +584,12 @@ export default function TransactionsPage() {
           ) : invoiceDetails ? (
             <ScrollArea className="max-h-[60vh]">
               <Tabs defaultValue="overview" className="w-full">
-                <TabsList>
-                  <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="data">Invoice Data</TabsTrigger>
-                  <TabsTrigger value="history">Status History</TabsTrigger>
+                <TabsList className="w-full flex overflow-x-auto">
+                  <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+                  <TabsTrigger value="data" className="text-xs sm:text-sm">Invoice Data</TabsTrigger>
+                  <TabsTrigger value="history" className="text-xs sm:text-sm">History</TabsTrigger>
                   {selectedInvoice?.type === 'outbound' && (
-                    <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
+                    <TabsTrigger value="webhooks" className="text-xs sm:text-sm">Webhooks</TabsTrigger>
                   )}
                 </TabsList>
 
@@ -613,10 +623,10 @@ export default function TransactionsPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">IRN</p>
-                      <p className="font-mono text-sm">{invoiceDetails.invoice?.irn || selectedInvoice?.irn}</p>
+                      <p className="font-mono text-xs sm:text-sm break-all">{invoiceDetails.invoice?.irn || selectedInvoice?.irn}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Status</p>
@@ -746,10 +756,11 @@ export default function TransactionsPage() {
               </Tabs>
             </ScrollArea>
           ) : null}
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             {selectedInvoice?.type === 'outbound' && selectedInvoice && isFailed(selectedInvoice.status) && (
               <Button
                 variant="outline"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setShowDetailModal(false)
                   setShowResendDialog(true)
@@ -759,7 +770,7 @@ export default function TransactionsPage() {
                 Resend
               </Button>
             )}
-            <Button variant="outline" onClick={() => setShowDetailModal(false)}>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setShowDetailModal(false)}>
               Close
             </Button>
           </DialogFooter>

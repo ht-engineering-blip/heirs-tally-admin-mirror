@@ -159,20 +159,20 @@ export default function DashboardPage() {
                 {recentOutbound.map((tx: any) => (
                   <div
                     key={tx.irn}
-                    className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors"
+                    className="flex items-center gap-3 sm:gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors"
                   >
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary/10">
-                      <ArrowUpRight className="w-5 h-5 text-primary" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center bg-primary/10 shrink-0">
+                      <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium truncate">{tx.invoiceNumber || tx.irn}</p>
+                        <p className="font-medium truncate text-sm sm:text-base">{tx.invoiceNumber || tx.irn}</p>
                       </div>
-                      <p className="text-sm text-muted-foreground truncate">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
                         {tx.customerName || 'N/A'}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right hidden sm:block">
                       <p className="font-semibold">
                         {tx.totalAmount ? formatAmount(Number(tx.totalAmount), tx.currency || 'NGN') : 'N/A'}
                       </p>
@@ -182,7 +182,7 @@ export default function DashboardPage() {
                         </p>
                       )}
                     </div>
-                    <Badge className={getStatusBadge(tx.status)}>
+                    <Badge className={cn(getStatusBadge(tx.status), 'text-xs')}>
                       {tx.status}
                     </Badge>
                   </div>

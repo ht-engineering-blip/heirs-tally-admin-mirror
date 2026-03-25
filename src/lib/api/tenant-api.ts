@@ -24,8 +24,8 @@ export function createTenantApi() {
     getOnboarding: (tenantId: string) =>
       api.v1.tenants({ tenantId }).onboarding.get(),
 
-    generateWebhook: (tenantId: string) =>
-      api.v1.tenants({ tenantId }).webhook.generate.post({}),
+    generateWebhook: (tenantId: string, invoiceIdKey?: string) =>
+      api.v1.tenants({ tenantId }).webhook.generate.post({ ...(invoiceIdKey ? { invoiceIdKey } : {}) }),
 
     testWebhook: (tenantId: string, testPayload?: Record<string, unknown>) =>
       api.v1.tenants({ tenantId }).webhook.test.post({ testPayload: testPayload || {} }),

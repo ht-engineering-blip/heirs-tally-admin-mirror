@@ -86,6 +86,9 @@ function LoginPage() {
       const authToken = loginData.token
       const tenantId = loginData.tenant?.id
 
+      // Set access_token cookie so the API proxy can read it directly
+      document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+
       // Step 2: Fetch user data from /me
       const meResponse = await tenantApi.getMeWithToken(authToken)
 
@@ -114,15 +117,15 @@ function LoginPage() {
         redirect: false,
       })
 
-      if (result?.error) {
-        setError('Failed to complete sign in')
-        toast.error('Authentication failed')
+      if (!result?.ok) {
+        const errorMsg = result?.error || 'Failed to complete sign in'
+        setError(errorMsg)
+        toast.error(errorMsg)
         return
       }
 
       toast.success('Login successful!')
-      router.push('/dashboard')
-      router.refresh()
+      window.location.href = '/dashboard'
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in. Please try again.'
       setError(errorMessage)

@@ -99,6 +99,8 @@ function SetPasswordPage() {
       }
 
       const authToken = setPasswordResponse.data.data.token
+      // Set access_token cookie so the API proxy can read it directly
+      document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
 
       // Call /me endpoint to get user information 
       const meResponse = await api.v1.auth.me.get({ headers: {
@@ -152,14 +154,9 @@ function SetPasswordPage() {
       }
 
       toast.success('Password set successfully!')
-      
+
       // Redirect based on role
-      if (userRole === 'SUPER_ADMIN') {
-        router.push('/admin')
-      } else {
-        router.push('/dashboard')
-      }
-      router.refresh()
+      window.location.href = userRole === 'SUPER_ADMIN' ? '/admin' : '/dashboard'
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to set password. Please try again.'
       setError(errorMessage)

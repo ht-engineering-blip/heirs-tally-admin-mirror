@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { usePersistedTab } from '@/hooks/use-persisted-tab';
 import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -69,6 +70,7 @@ export default function TenantDetail() {
   const params = useParams();
   const router = useRouter();
   const api = getAdminApiClient();
+  const [detailTab, setDetailTab] = usePersistedTab('overview');
   const tenantId = params?.tenantId as string;
   const { erpOptions } = useSupportedErps({ includeAll: true });
   const ERP_OPTIONS = erpOptions.filter(
@@ -335,7 +337,7 @@ export default function TenantDetail() {
         </Card>
 
         {/* Details Tabs */}
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-6">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="configuration">Configuration</TabsTrigger>

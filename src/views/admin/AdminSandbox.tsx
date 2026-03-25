@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react';
+import { usePersistedTab } from '@/hooks/use-persisted-tab';
 import { Play, CheckCircle, XCircle, Clock, Loader2, Code2, FileCheck, Workflow } from 'lucide-react';
 import { getAdminApiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
@@ -38,7 +39,7 @@ export default function AdminSandbox() {
   const ERP_OPTIONS = erpOptions.filter(
     (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
   );
-  const [activeTab, setActiveTab] = useState<'transform' | 'validate' | 'full'>('transform');
+  const [activeTab, setActiveTab] = usePersistedTab('transform');
   const [invoiceJson, setInvoiceJson] = useState<string>('{\n  "invoiceNumber": "INV-001",\n  "amount": 1000,\n  "currency": "NGN"\n}');
   const [erpType, setErpType] = useState<string>('');
   const [testing, setTesting] = useState(false);
