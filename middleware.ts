@@ -30,7 +30,9 @@ export default auth((request) => {
 
   if (isProtectedRoute) {
     if (!session || !userRole) {
-      const loginRoute = getLoginRoute(userRole)
+      const loginRoute = pathname.startsWith('/admin')
+        ? '/auth/super-admin/login'
+        : '/auth/login'
       return NextResponse.redirect(new URL(loginRoute, request.url))
     }
 

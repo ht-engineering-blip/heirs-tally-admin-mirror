@@ -1,12 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -15,11 +11,15 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Mail, Lock, ArrowRight, AlertCircle, Loader2, CheckCircle2, Building2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/sonner'
 import { formatErpName } from '@/hooks/use-supported-erps'
 import { createTenantApi } from '@/lib/api/tenant-api'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertCircle, ArrowRight, Building2, CheckCircle2, Loader2, Lock, Mail } from 'lucide-react'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import * as z from 'zod'
 
 const firsOAuthSchema = z.object({
   email: z.string().email('Valid FIRS email required'),
@@ -58,7 +58,7 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
 
     try {
       const tenantApi = createTenantApi()
-      const response = await tenantApi.firsOAuth(data.email, data.password, true)
+      const response = await tenantApi.firsOAuth(data.email, data.password, true)    //add toggle button to switch the mock value between true and false
       if (response.error || response.data.error) {
         const errorMessage = (response.error as any)?.value?.error || response.data.error  || 'FIRS authentication failed'
         setError(errorMessage)

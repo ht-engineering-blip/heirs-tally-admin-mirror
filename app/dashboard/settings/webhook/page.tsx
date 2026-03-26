@@ -33,12 +33,11 @@ import { createTenantWebhookListener, getAdminApiClient } from '@/lib/api/client
 import { createTenantApi } from '@/lib/api/tenant-api'
 import {
   Activity,
+  AlertCircle,
   ArrowRight,
   CheckCircle2,
-  AlertCircle,
   Copy,
   FileJson,
-  Globe,
   Link2,
   Loader2,
   Radio,
@@ -62,6 +61,7 @@ import { getTenantApiClient } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 import { format, formatDistanceToNow } from 'date-fns'
 
+import { stripTrailingSlash } from '@/lib/helpers'
 import 'react-data-mapping/dist/index.css'
 
 
@@ -573,7 +573,9 @@ export default function WebhookSettingsPage() {
         toast.error('No webhook path configured. Generate a webhook URL first.')
         return
       }
-      const listenerURL = webhookConfig?.webhookUrl.replace("inbound", "listen")
+      const listenerURL = stripTrailingSlash(webhookConfig?.webhookUrl.replace("inbound", "listen"))
+      console.log('listener: ', listenerURL);
+      
       setIsListening(true)
       setListenerConnected(false)
       setListenedEvents([])
@@ -782,13 +784,13 @@ export default function WebhookSettingsPage() {
               <Webhook className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Configuration</span>
             </TabsTrigger>
-            <TabsTrigger value="routing" className="text-xs sm:text-sm px-2 sm:px-3">
-              <Settings2 className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Event Routing</span>
-            </TabsTrigger>
             <TabsTrigger value="test" className="text-xs sm:text-sm px-2 sm:px-3">
               <Zap className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Test & Map</span>
+            </TabsTrigger>
+            <TabsTrigger value="routing" className="text-xs sm:text-sm px-2 sm:px-3">
+              <Settings2 className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Event Routing</span>
             </TabsTrigger>
             <TabsTrigger value="history" className="text-xs sm:text-sm px-2 sm:px-3" onClick={() => {
               if (webhookHistory.length === 0 && !historyLoading) fetchWebhookHistory()

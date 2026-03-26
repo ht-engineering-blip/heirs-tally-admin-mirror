@@ -29,20 +29,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePersistedTab } from '@/hooks/use-persisted-tab'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { cn } from '@/lib/utils'
-import { format, formatDistanceToNow } from 'date-fns'
+import { format } from 'date-fns'
 import {
   AlertCircle,
   ArrowDownLeft,
   ArrowUpRight,
   CheckCircle,
   Clock,
+  Copy,
   Eye,
   FileText,
   Package,
   QrCode,
   RefreshCw,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Invoice {
   id: string
@@ -103,6 +104,13 @@ export default function TransactionsPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [invoiceDetails, setInvoiceDetails] = useState<any>(null)
   const [resending, setResending] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  // Auto-refresh table every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => setRefreshTrigger(n => n + 1), 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const fetchInvoices = async () => {
     setIsLoading(true)
@@ -214,7 +222,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetchInvoices()
-  }, [page, searchQuery, filters, activeTab])
+  }, [page, searchQuery, filters, activeTab, refreshTrigger])
 
   const fetchInvoiceDetails = async (invoice: Invoice) => {
     setDetailLoading(true)
@@ -314,7 +322,7 @@ export default function TransactionsPage() {
         <div className="flex items-center gap-3">
           <div
             className={cn(
-              'w-10 h-10 rounded-lg flex items-center justify-center',
+              'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
               inv.type === 'outbound' ? 'bg-primary/10' : 'bg-accent/10'
             )}
           >
@@ -324,8 +332,22 @@ export default function TransactionsPage() {
               <ArrowDownLeft className="w-5 h-5 text-accent" />
             )}
           </div>
-          <div>
-            <p className="font-mono font-medium">{inv.invoiceNumber || inv.irn}</p>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="font-mono font-medium text-sm truncate max-w-[120px]" title={inv.invoiceNumber || inv.irn}>
+                {(inv.invoiceNumber || inv.irn).slice(0, 12)}…
+              </p>
+              <button
+                className="text-muted-foreground hover:text-foreground shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigator.clipboard.writeText(inv.irn)
+                  toast.success('IRN copied')
+                }}
+              >
+                <Copy className="w-3 h-3" />
+              </button>
+            </div>
             <p className="text-xs text-muted-foreground capitalize">{inv.type}</p>
           </div>
         </div>
@@ -401,12 +423,8 @@ export default function TransactionsPage() {
       className: 'hidden sm:table-cell',
       accessor: (inv) => (
         <div className="text-sm">
-          <p className="text-muted-foreground">
-            {formatDistanceToNow(new Date(inv.createdAt), { addSuffix: true })}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {format(new Date(inv.createdAt), 'MMM dd, yyyy')}
-          </p>
+          <p className="font-medium">{format(new Date(inv.createdAt), 'MMM dd, yyyy')}</p>
+          <p className="text-xs text-muted-foreground">{format(new Date(inv.createdAt), 'hh:mm a')}</p>
         </div>
       ),
     },
@@ -467,9 +485,15 @@ export default function TransactionsPage() {
     <>
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold">Transactions</h1>
-          <p className="text-muted-foreground">View and manage your inbound and outbound invoices</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Transactions</h1>
+            <p className="text-muted-foreground">View and manage your inbound and outbound invoices</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setRefreshTrigger(n => n + 1)} disabled={isLoading}>
+            <RefreshCw className={cn('w-4 h-4 mr-2', isLoading && 'animate-spin')} />
+            Refresh
+          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -564,6 +588,7 @@ export default function TransactionsPage() {
           onSearch={setSearchQuery}
           onFilterChange={setFilters}
           onSort={handleSort}
+          onRowClick={handleViewDetails}
           emptyMessage="No transactions found"
         />
       </div>
@@ -574,7 +599,7 @@ export default function TransactionsPage() {
           <DialogHeader>
             <DialogTitle>Invoice Details</DialogTitle>
             <DialogDescription>
-              {selectedInvoice?.type === 'outbound' ? 'Outbound' : 'Inbound'} Invoice - {selectedInvoice?.invoiceNumber}
+              {selectedInvoice?.type === 'outbound' ? 'Outbound' : 'Inbound'} Invoice — {selectedInvoice?.invoiceNumber || selectedInvoice?.irn}
             </DialogDescription>
           </DialogHeader>
           {detailLoading ? (
@@ -582,7 +607,7 @@ export default function TransactionsPage() {
               <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : invoiceDetails ? (
-            <ScrollArea className="max-h-[60vh]">
+            <ScrollArea className="max-h-[65vh]">
               <Tabs defaultValue="overview" className="w-full">
                 <TabsList className="w-full flex overflow-x-auto">
                   <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
@@ -593,163 +618,469 @@ export default function TransactionsPage() {
                   )}
                 </TabsList>
 
-                <TabsContent value="overview" className="space-y-4">
-                  {/* QR Code and ERP Section */}
-                  {(invoiceDetails.invoice?.qrCode || selectedInvoice?.qrCode || invoiceDetails.invoice?.erp || selectedInvoice?.erp) && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg border">
-                      {(invoiceDetails.invoice?.qrCode || selectedInvoice?.qrCode) && (
-                        <div className="flex flex-col items-center gap-2">
-                          <p className="text-sm font-medium text-muted-foreground">QR Code</p>
-                          <div className="p-3 bg-white rounded-lg border">
-                            <img
-                              src={(invoiceDetails.invoice?.qrCode || selectedInvoice?.qrCode || '').toString()}
-                              alt="QR Code"
-                              className="w-[150px] h-[150px]"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {(invoiceDetails.invoice?.erp || selectedInvoice?.erp) && (
-                        <div className="flex flex-col justify-center gap-2">
-                          <p className="text-sm font-medium text-muted-foreground">ERP System</p>
-                          <div className="flex items-center gap-2 p-3 bg-background rounded-lg border">
-                            <Package className="w-5 h-5 text-primary" />
-                            <span className="text-lg font-semibold capitalize">
-                              {invoiceDetails.invoice?.erp || selectedInvoice?.erp}
-                            </span>
-                          </div>
-                        </div>
-                      )}
+                {/* ── OVERVIEW ── */}
+                <TabsContent value="overview" className="space-y-4 mt-4">
+
+                  {/* Workflow State Pipeline */}
+                  {invoiceDetails.invoice?.workflowState && (
+                    <div className="p-4 bg-muted/50 rounded-lg border">
+                      <p className="text-xs font-medium text-muted-foreground mb-3">Workflow Progress</p>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {(['transformed', 'validated', 'signed', 'transmitted', 'delivered'] as const).map((step, idx, arr) => {
+                          const done = !!invoiceDetails.invoice.workflowState[step]
+                          return (
+                            <div key={step} className="flex items-center gap-1">
+                              <div className={cn(
+                                'flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium',
+                                done ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'
+                              )}>
+                                {done
+                                  ? <CheckCircle className="w-3 h-3" />
+                                  : <Clock className="w-3 h-3" />}
+                                <span className="capitalize">{step}</span>
+                              </div>
+                              {idx < arr.length - 1 && (
+                                <div className={cn('h-px w-4', done ? 'bg-success/40' : 'bg-border')} />
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">IRN</p>
-                      <p className="font-mono text-xs sm:text-sm break-all">{invoiceDetails.invoice?.irn || selectedInvoice?.irn}</p>
+                  {/* QR Code */}
+                  {(invoiceDetails.invoice?.qrCode || selectedInvoice?.qrCode) && (
+                    <div className="flex flex-col items-center gap-2 p-4 bg-muted/50 rounded-lg border w-fit">
+                      <p className="text-xs font-medium text-muted-foreground">QR Code</p>
+                      <div className="p-2 bg-white rounded border">
+                        <img
+                          src={(invoiceDetails.invoice?.qrCode || selectedInvoice?.qrCode || '').toString()}
+                          alt="QR Code"
+                          className="w-[140px] h-[140px]"
+                        />
+                      </div>
                     </div>
+                  )}
+
+                  {/* Core fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">Status</p>
+                      <p className="text-xs text-muted-foreground">IRN</p>
+                      <p className="font-mono text-xs break-all">{invoiceDetails.invoice?.irn || selectedInvoice?.irn}</p>
+                    </div>
+                    {invoiceDetails.invoice?.erpInvoiceId && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">ERP Invoice ID</p>
+                        <p className="font-mono text-xs break-all">{invoiceDetails.invoice.erpInvoiceId}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs text-muted-foreground">Status</p>
                       <StatusBadge status={invoiceDetails.invoice?.status || selectedInvoice?.status || ''} />
                     </div>
-                    {selectedInvoice?.type === 'inbound' && invoiceDetails.invoice?.paymentStatus && (
+                    {invoiceDetails.invoice?.paymentStatus && (
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Payment Status</p>
+                        <p className="text-xs text-muted-foreground">Payment Status</p>
                         <StatusBadge status={invoiceDetails.invoice.paymentStatus} />
                       </div>
                     )}
-                    {selectedInvoice?.type === 'inbound' && (
-                      <>
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">Supplier</p>
-                          <p className="text-sm">{invoiceDetails.invoice?.supplierName || selectedInvoice?.supplierName || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">Supplier TIN</p>
-                          <p className="text-sm font-mono">{invoiceDetails.invoice?.supplierTIN || selectedInvoice?.supplierTIN || 'N/A'}</p>
-                        </div>
-                      </>
-                    )}
-                    {selectedInvoice?.type === 'outbound' && selectedInvoice?.customerName && (
+                    {invoiceDetails.invoice?.erpSystem && (
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Customer</p>
-                        <p className="text-sm">{selectedInvoice.customerName}</p>
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Total Amount</p>
-                      <p className="font-semibold">
-                        {formatAmount(
-                          invoiceDetails.invoice?.totalAmount || selectedInvoice?.totalAmount || 0,
-                          invoiceDetails.invoice?.currency || selectedInvoice?.currency || 'NGN'
-                        )}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Created</p>
-                      <p className="text-sm">
-                        {format(new Date(invoiceDetails.invoice?.createdAt || selectedInvoice?.createdAt || Date.now()), 'PPpp')}
-                      </p>
-                    </div>
-                  </div>
-
-                  {selectedInvoice?.type === 'outbound' &&
-                    invoiceDetails.invoice?.validationErrors &&
-                    invoiceDetails.invoice.validationErrors.length > 0 && (
-                      <div className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                        <p className="font-medium text-destructive mb-2">Validation Errors</p>
-                        <ul className="list-disc list-inside space-y-1 text-sm">
-                          {invoiceDetails.invoice.validationErrors.map((error: any, idx: number) => (
-                            <li key={idx}>{error.message || JSON.stringify(error)}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                </TabsContent>
-
-                <TabsContent value="data" className="space-y-4">
-                  <div className="p-4 bg-muted rounded-lg">
-                    <pre className="text-xs overflow-auto whitespace-pre-wrap">
-                      {JSON.stringify(
-                        invoiceDetails.invoice?.invoiceData ||
-                          invoiceDetails.invoice?.decryptedData ||
-                          invoiceDetails.invoice ||
-                          {},
-                        null,
-                        2
-                      )}
-                    </pre>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="history" className="space-y-4">
-                  {invoiceDetails.statusHistory && invoiceDetails.statusHistory.length > 0 ? (
-                    <div className="space-y-2">
-                      {invoiceDetails.statusHistory.map((history: any, idx: number) => (
-                        <div key={idx} className="flex items-start gap-3 p-3 border rounded-lg">
-                          <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-                          <div className="flex-1">
-                            <p className="font-medium">{history.status || 'Status Change'}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {format(new Date(history.timestamp || Date.now()), 'PPpp')}
-                            </p>
-                            {history.details && (
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {typeof history.details === 'string' ? history.details : JSON.stringify(history.details)}
-                              </p>
-                            )}
-                          </div>
+                        <p className="text-xs text-muted-foreground">ERP System</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Package className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-medium capitalize">{invoiceDetails.invoice.erpSystem.replace(/_/g, ' ')}</span>
                         </div>
-                      ))}
+                      </div>
+                    )}
+                    {invoiceDetails.invoice?.source && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Source</p>
+                        <p className="text-sm capitalize">{invoiceDetails.invoice.source}</p>
+                      </div>
+                    )}
+                    {invoiceDetails.invoice?.validationAttempts !== undefined && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Validation Attempts</p>
+                        <p className="text-sm font-medium">{invoiceDetails.invoice.validationAttempts}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs text-muted-foreground">Created</p>
+                      <p className="text-sm">{format(new Date(invoiceDetails.invoice?.createdAt || selectedInvoice?.createdAt || Date.now()), 'PPpp')}</p>
                     </div>
-                  ) : (
-                    <p className="text-muted-foreground text-center py-8">No status history available</p>
+                    {invoiceDetails.invoice?.updatedAt && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Last Updated</p>
+                        <p className="text-sm">{format(new Date(invoiceDetails.invoice.updatedAt), 'PPpp')}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Validation Errors */}
+                  {invoiceDetails.invoice?.validationErrors?.length > 0 && (
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <p className="text-sm font-medium text-destructive mb-2">Validation Errors</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs text-foreground">
+                        {invoiceDetails.invoice.validationErrors.map((err: any, idx: number) => (
+                          <li key={idx}>{err.message || err.error || JSON.stringify(err)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Last Job Error */}
+                  {invoiceDetails.invoice?.lastJobError && Object.keys(invoiceDetails.invoice.lastJobError).length > 0 && (
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <p className="text-sm font-medium text-destructive mb-1">Last Job Error</p>
+                      <pre className="text-xs text-foreground overflow-auto whitespace-pre-wrap">
+                        {JSON.stringify(invoiceDetails.invoice.lastJobError, null, 2)}
+                      </pre>
+                    </div>
                   )}
                 </TabsContent>
 
+                {/* ── INVOICE DATA ── */}
+                <TabsContent value="data" className="space-y-4 mt-4">
+                  {(() => {
+                    const payload = invoiceDetails.webhookEvents?.[0]?.payload?.data
+                    const rawData = payload || invoiceDetails.invoice || {}
+                    const rawJson = JSON.stringify(rawData, null, 2)
+
+                    if (!payload) {
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex justify-end">
+                            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied') }}>
+                              <Copy className="w-3.5 h-3.5 mr-1.5" />
+                              Copy Raw
+                            </Button>
+                          </div>
+                          <div className="p-4 bg-muted rounded-lg">
+                            <pre className="text-xs overflow-auto whitespace-pre-wrap">{rawJson}</pre>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex justify-end">
+                          <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied') }}>
+                            <Copy className="w-3.5 h-3.5 mr-1.5" />
+                            Copy Raw
+                          </Button>
+                        </div>
+                        {/* Invoice header */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-muted/50 rounded-lg border">
+                          {payload.invoice_number && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Invoice Number</p>
+                              <p className="text-sm font-mono font-medium">{payload.invoice_number}</p>
+                            </div>
+                          )}
+                          {payload.invoice_type_code && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Type</p>
+                              <p className="text-sm capitalize">{payload.invoice_type_code}</p>
+                            </div>
+                          )}
+                          {payload.document_currency_code && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Currency</p>
+                              <p className="text-sm font-medium">{payload.document_currency_code}</p>
+                            </div>
+                          )}
+                          {payload.issue_date && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Issue Date</p>
+                              <p className="text-sm">{format(new Date(payload.issue_date), 'PP')}</p>
+                            </div>
+                          )}
+                          {payload.due_date && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Due Date</p>
+                              <p className="text-sm">{format(new Date(payload.due_date), 'PP')}</p>
+                            </div>
+                          )}
+                          {payload.nrs_validated !== undefined && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">NRS Validated</p>
+                              <p className="text-sm">{payload.nrs_validated ? 'Yes' : 'No'}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Monetary totals */}
+                        {payload.legal_monetary_total && (
+                          <div className="p-4 bg-muted/50 rounded-lg border">
+                            <p className="text-xs font-medium text-muted-foreground mb-3">Monetary Totals</p>
+                            <div className="grid grid-cols-2 gap-3">
+                              {[
+                                ['Payable Amount', payload.legal_monetary_total.payable_amount],
+                                ['Tax Exclusive', payload.legal_monetary_total.tax_exclusive_amount],
+                                ['Tax Inclusive', payload.legal_monetary_total.tax_inclusive_amount],
+                                ['Line Extension', payload.legal_monetary_total.line_extension_amount],
+                              ].map(([label, val]) => val !== undefined && (
+                                <div key={label as string}>
+                                  <p className="text-xs text-muted-foreground">{label}</p>
+                                  <p className="text-sm font-semibold">
+                                    {formatAmount(Number(val), payload.document_currency_code || 'NGN')}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Parties */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {payload.accounting_supplier_party && (
+                            <div className="p-4 border rounded-lg space-y-2">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Supplier</p>
+                              <p className="text-sm font-medium">{payload.accounting_supplier_party.party_name}</p>
+                              {payload.accounting_supplier_party.tin && <p className="text-xs text-muted-foreground">TIN: <span className="font-mono text-foreground">{payload.accounting_supplier_party.tin}</span></p>}
+                              {payload.accounting_supplier_party.email && <p className="text-xs text-muted-foreground">Email: {payload.accounting_supplier_party.email}</p>}
+                              {payload.accounting_supplier_party.telephone && <p className="text-xs text-muted-foreground">Phone: {payload.accounting_supplier_party.telephone}</p>}
+                              {payload.accounting_supplier_party.postal_address && (
+                                <p className="text-xs text-muted-foreground">
+                                  {[
+                                    payload.accounting_supplier_party.postal_address.street_name,
+                                    payload.accounting_supplier_party.postal_address.city_name,
+                                    payload.accounting_supplier_party.postal_address.country,
+                                  ].filter(Boolean).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {payload.accounting_customer_party && (
+                            <div className="p-4 border rounded-lg space-y-2">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer</p>
+                              <p className="text-sm font-medium">{payload.accounting_customer_party.party_name}</p>
+                              {payload.accounting_customer_party.tin && <p className="text-xs text-muted-foreground">TIN: <span className="font-mono text-foreground">{payload.accounting_customer_party.tin}</span></p>}
+                              {payload.accounting_customer_party.email && <p className="text-xs text-muted-foreground">Email: {payload.accounting_customer_party.email}</p>}
+                              {payload.accounting_customer_party.telephone && <p className="text-xs text-muted-foreground">Phone: {payload.accounting_customer_party.telephone}</p>}
+                              {payload.accounting_customer_party.postal_address && (
+                                <p className="text-xs text-muted-foreground">
+                                  {[
+                                    payload.accounting_customer_party.postal_address.street_name,
+                                    payload.accounting_customer_party.postal_address.city_name,
+                                    payload.accounting_customer_party.postal_address.country,
+                                  ].filter(Boolean).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Line items */}
+                        {payload.invoice_line?.length > 0 && (
+                          <div className="border rounded-lg overflow-hidden">
+                            <p className="text-xs font-medium text-muted-foreground px-4 py-2 bg-muted/50 border-b">Line Items</p>
+                            <div className="divide-y">
+                              {payload.invoice_line.map((line: any, idx: number) => (
+                                <div key={idx} className="px-4 py-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                  <div>
+                                    <p className="text-muted-foreground">Item</p>
+                                    <p className="font-medium">{line.item?.name || '—'}</p>
+                                    {line.item?.description && <p className="text-muted-foreground">{line.item.description}</p>}
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground">Qty</p>
+                                    <p className="font-medium">{line.invoiced_quantity}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground">Unit Price</p>
+                                    <p className="font-medium">{formatAmount(Number(line.price?.price_amount || 0), payload.document_currency_code || 'NGN')}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground">Line Total</p>
+                                    <p className="font-semibold">{formatAmount(Number(line.line_extension_amount || 0), payload.document_currency_code || 'NGN')}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </TabsContent>
+
+                {/* ── HISTORY ── */}
+                <TabsContent value="history" className="space-y-3 mt-4">
+                  {invoiceDetails.statusHistory?.length > 0 ? (
+                    <div className="relative">
+                      {/* vertical timeline line */}
+                      <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
+                      <div className="space-y-4">
+                        {invoiceDetails.statusHistory.map((entry: any, idx: number) => (
+                          <div key={idx} className="flex items-start gap-3 pl-1">
+                            {/* dot */}
+                            <div className={cn(
+                              'w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center shrink-0 bg-background z-10',
+                              entry.status === 'failed'
+                                ? 'border-destructive'
+                                : 'border-success'
+                            )}>
+                              <div className={cn(
+                                'w-2 h-2 rounded-full',
+                                entry.status === 'failed' ? 'bg-destructive' : 'bg-success'
+                              )} />
+                            </div>
+
+                            {/* content card */}
+                            <div className={cn(
+                              'flex-1 p-3 border rounded-lg space-y-2 mb-1',
+                              entry.status === 'failed' ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-muted/20'
+                            )}>
+                              {/* step + status */}
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <p className="text-sm font-semibold capitalize">
+                                  {`Step ${idx + 1}: ${(entry.step || 'status change').replace(/_/g, ' ')}`}
+                                </p>
+                                <StatusBadge status={entry.status || 'unknown'} />
+                              </div>
+
+                              {/* metadata grid */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                {entry.at && (
+                                  <div>
+                                    <span className="text-muted-foreground">Time: </span>
+                                    <span>{format(new Date(entry.at), 'MMM dd, yyyy · hh:mm:ss a')}</span>
+                                  </div>
+                                )}
+                                {entry.eventType && (
+                                  <div>
+                                    <span className="text-muted-foreground">Event Type: </span>
+                                    <span className="font-mono">{entry.eventType}</span>
+                                  </div>
+                                )}
+                                {entry.eventId && (
+                                  <div className="sm:col-span-2">
+                                    <span className="text-muted-foreground">Event ID: </span>
+                                    <span className="font-mono break-all">{entry.eventId}</span>
+                                  </div>
+                                )}
+                                {entry.jobChainId && (
+                                  <div className="sm:col-span-2">
+                                    <span className="text-muted-foreground">Job Chain ID: </span>
+                                    <span className="font-mono break-all">{entry.jobChainId}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* error */}
+                              {entry.error && (
+                                <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs text-foreground">
+                                  <span className="font-medium text-destructive">Error: </span>
+                                  {entry.error}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8 text-sm">No status history available</p>
+                  )}
+                </TabsContent>
+
+                {/* ── WEBHOOKS ── */}
                 {selectedInvoice?.type === 'outbound' && (
-                  <TabsContent value="webhooks" className="space-y-4">
-                    {invoiceDetails.webhookEvents && invoiceDetails.webhookEvents.length > 0 ? (
-                      <div className="space-y-2">
+                  <TabsContent value="webhooks" className="space-y-4 mt-4">
+                    {invoiceDetails.webhookEvents?.length > 0 ? (
+                      <div className="space-y-4">
                         {invoiceDetails.webhookEvents.map((event: any, idx: number) => (
-                          <div key={idx} className="p-3 border rounded-lg">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="font-medium">{event.eventType || 'Webhook Event'}</p>
+                          <div key={idx} className={cn(
+                            'border rounded-lg overflow-hidden',
+                            event.status === 'failed' ? 'border-destructive/30' : 'border-border'
+                          )}>
+                            {/* Event header */}
+                            <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b flex-wrap gap-2">
+                              <div className="space-y-0.5">
+                                <p className="text-sm font-medium">{event.eventType || 'Webhook Event'}</p>
+                                {event.eventId && <p className="text-xs font-mono text-muted-foreground">{event.eventId}</p>}
+                              </div>
                               <StatusBadge status={event.status || 'pending'} />
                             </div>
-                            <p className="text-sm text-muted-foreground">
-                              {format(new Date(event.createdAt || Date.now()), 'PPpp')}
-                            </p>
-                            {event.response && (
-                              <pre className="text-xs mt-2 p-2 bg-muted rounded overflow-auto">
-                                {JSON.stringify(event.response, null, 2)}
-                              </pre>
-                            )}
+
+                            <div className="px-4 py-3 space-y-3">
+                              {/* Timestamps */}
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                                {event.receivedAt && (
+                                  <div>
+                                    <p className="text-muted-foreground">Received</p>
+                                    <p>{format(new Date(event.receivedAt), 'PPpp')}</p>
+                                  </div>
+                                )}
+                                {event.deliveredAt && (
+                                  <div>
+                                    <p className="text-muted-foreground">Delivered</p>
+                                    <p>{format(new Date(event.deliveredAt), 'PPpp')}</p>
+                                  </div>
+                                )}
+                                {event.failedAt && (
+                                  <div>
+                                    <p className="text-muted-foreground">Failed At</p>
+                                    <p className="text-destructive font-medium">{format(new Date(event.failedAt), 'PPpp')}</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Failure reason */}
+                              {event.failureReason && (
+                                <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs">
+                                  <p className="font-medium text-destructive mb-0.5">Failure Reason</p>
+                                  <p className="text-foreground">{event.failureReason}</p>
+                                </div>
+                              )}
+
+                              {/* Routing */}
+                              {event.routing?.length > 0 && (
+                                <div>
+                                  <p className="text-xs font-medium text-muted-foreground mb-1.5">Routing</p>
+                                  <div className="space-y-1">
+                                    {event.routing.map((route: any, rIdx: number) => (
+                                      <div key={rIdx} className="flex items-center gap-2 flex-wrap text-xs">
+                                        <span className="font-mono text-muted-foreground">{route.routeId}</span>
+                                        <span className="text-muted-foreground">→</span>
+                                        {route.actions?.map((action: string) => (
+                                          <span key={action} className="px-1.5 py-0.5 bg-muted rounded font-mono">{action}</span>
+                                        ))}
+                                        <StatusBadge status={route.enabled ? 'active' : 'disabled'} />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Job errors */}
+                              {event.jobErrors?.length > 0 && (
+                                <div>
+                                  <p className="text-xs font-medium text-destructive mb-1.5">Job Errors</p>
+                                  <div className="space-y-2">
+                                    {event.jobErrors.map((jobErr: any, jIdx: number) => (
+                                      <div key={jIdx} className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs space-y-1">
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                          <span className="font-medium text-foreground">Step {jobErr.step}: {jobErr.action}</span>
+                                          {jobErr.failedAt && (
+                                            <span className="text-muted-foreground">{format(new Date(jobErr.failedAt), 'PPpp')}</span>
+                                          )}
+                                        </div>
+                                        <p className="text-foreground">{jobErr.error}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-muted-foreground text-center py-8">No webhook events available</p>
+                      <p className="text-muted-foreground text-center py-8 text-sm">No webhook events available</p>
                     )}
                   </TabsContent>
                 )}

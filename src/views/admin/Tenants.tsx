@@ -177,8 +177,12 @@ export default function Tenants() {
   }, [page, searchQuery, filters]);
 
   const handleCreate = async () => {
-    if (!formData.businessName || !formData.tin || !formData.contactEmail || !formData.erpSystem) {
+    if (!formData.businessName || !formData.tin || !formData.contactEmail || !formData.erpSystem || !formData.businessRegistrationNumber) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    if (!/^RC-?\d{4,7}$/i.test(formData.businessRegistrationNumber.trim())) {
+      toast.error('Registration number must be in the format RC-XXXXXX (e.g. RC-123456)');
       return;
     }
 
@@ -443,7 +447,7 @@ export default function Tenants() {
       header: 'ERP System',
       sortable: true,
       accessor: (tenant) => (
-        <Badge variant="outline" className="text-xs">
+        <Badge variant="outline" className="text-xs whitespace-nowrap">
           {formatErpName(tenant.config?.erpSystem || tenant.erpSystem)}
         </Badge>
       ),
@@ -467,7 +471,7 @@ export default function Tenants() {
           rejected: 'bg-destructive/10 text-destructive',
         };
         return (
-          <Badge className={`${statusColors[onboardingStatus] || 'bg-muted'} capitalize`}>
+          <Badge className={`${statusColors[onboardingStatus] || 'bg-muted'} capitalize whitespace-nowrap`}>
             {onboardingStatus.replace('_', ' ')}
           </Badge>
         );
@@ -665,18 +669,19 @@ export default function Tenants() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="businessRegistrationNumber">Registration Number</Label>
+                <Label htmlFor="businessRegistrationNumber">Registration Number *</Label>
                 <Input
                   id="businessRegistrationNumber"
                   value={formData.businessRegistrationNumber}
                   onChange={(e) => setFormData({ ...formData, businessRegistrationNumber: e.target.value })}
-                  placeholder="Business registration number"
+                  placeholder="RC-123456"
                 />
+                <p className="text-xs text-muted-foreground">Nigerian CAC number (e.g. RC-123456)</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="contactEmail">Contact Email *</Label>
+                <Label htmlFor="contactEmail">Email *</Label>
                 <Input
                   id="contactEmail"
                   type="email"
@@ -715,7 +720,7 @@ export default function Tenants() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="expectedVolume">Expected Volume (Optional)</Label>
+                <Label htmlFor="expectedVolume">Monthly Invoice Volume (Optional)</Label>
                 <Input
                   id="expectedVolume"
                   type="number"
@@ -761,7 +766,7 @@ export default function Tenants() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-contactEmail">Contact Email *</Label>
+                <Label htmlFor="edit-contactEmail">Email *</Label>
                 <Input
                   id="edit-contactEmail"
                   type="email"

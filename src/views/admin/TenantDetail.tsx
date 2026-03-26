@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePersistedTab } from '@/hooks/use-persisted-tab';
-import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw, Webhook, Copy, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -30,6 +42,7 @@ import {
 } from '@/components/ui/select';
 import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 import { SectionLoader } from '@/components/shared/SectionLoader';
+import { createTenantApi } from '@/lib/api/tenant-api';
 
 interface Tenant {
   id: string;
@@ -82,6 +95,14 @@ export default function TenantDetail() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [invoiceIdKey, setInvoiceIdKey] = useState('');
+  const [generatedWebhook, setGeneratedWebhook] = useState<{
+    webhookUrl: string;
+    webhookSecret: string;
+    invoiceIdKey?: string;
+  } | null>(null);
+  const [secretVisible, setSecretVisible] = useState(false);
 
   const [formData, setFormData] = useState({
     businessName: '',
@@ -226,6 +247,39 @@ export default function TenantDetail() {
       toast.error(error?.message || 'Failed to update onboarding status');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard`);
+  };
+
+  const handleGenerateWebhook = async () => {
+    if (!tenant) return;
+    setIsGenerating(true);
+    try {
+      const tenantApi = createTenantApi();
+      const response = await tenantApi.generateWebhook(tenant.tenantId, invoiceIdKey || undefined);
+      if (response.error) {
+        toast.error((response.error as any)?.value?.error || 'Failed to generate webhook URL');
+      } else {
+        const data = (response.data as any)?.data;
+        if (data?.webhookUrl) {
+          setGeneratedWebhook({
+            webhookUrl: data.webhookUrl,
+            webhookSecret: data.webhookSecret,
+            invoiceIdKey: data.invoiceIdKey || invoiceIdKey || undefined,
+          });
+          setSecretVisible(true);
+          toast.success("Webhook generated. Copy your secret now — it won't be shown again.");
+          fetchTenant();
+        }
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to generate webhook');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -437,75 +491,211 @@ export default function TenantDetail() {
           </TabsContent>
 
           <TabsContent value="configuration">
-            <Card>
-              <CardHeader>
-                <CardTitle>Configuration</CardTitle>
-                <CardDescription>Tenant-specific settings and limits</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {tenant.config?.webhookUrl && (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Webhook URL</p>
-                    <code className="px-3 py-2 bg-muted rounded text-sm block">
-                      {tenant.config.webhookUrl}
-                    </code>
-                    <Badge className="mt-2">
-                      {tenant.config.webhookEnabled ? 'Enabled' : 'Disabled'}
-                    </Badge>
-                  </div>
-                )}
-                
-                {tenant.config?.features && (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Features</p>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Auto Fix</span>
-                        <Badge variant={tenant.config.features.autoFix ? 'default' : 'outline'}>
-                          {tenant.config.features.autoFix ? 'Enabled' : 'Disabled'}
+            <div className="space-y-6">
+              {/* Webhook Generation */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Webhook className="w-5 h-5" />
+                    Webhook
+                  </CardTitle>
+                  <CardDescription>Generate or view the webhook URL for this tenant</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Existing webhook URL */}
+                  {tenant.config?.webhookUrl && !generatedWebhook && (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Current Webhook URL</Label>
+                        <div className="flex items-center gap-2">
+                          <Input value={tenant.config.webhookUrl} readOnly className="font-mono text-xs" />
+                          <Button variant="outline" size="icon" onClick={() => copyToClipboard(tenant.config!.webhookUrl!, 'Webhook URL')}>
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <Badge variant={tenant.config.webhookEnabled ? 'default' : 'outline'}>
+                          {tenant.config.webhookEnabled ? 'Enabled' : 'Disabled'}
                         </Badge>
                       </div>
-                      {tenant.config.features.maxRetries !== undefined && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">Max Retries</span>
-                          <span className="font-medium">{tenant.config.features.maxRetries}</span>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Webhook Secret</Label>
+                        <div className="flex items-center gap-2">
+                          <Input value="••••••••••••••••••••••••" readOnly className="font-mono text-xs" type="password" />
+                          <Button variant="outline" size="icon" disabled title="Secret is hidden. Regenerate to get a new one.">
+                            <Copy className="h-4 w-4" />
+                          </Button>
                         </div>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">QR Code Generation</span>
-                        <Badge variant={tenant.config.features.qrCodeGeneration ? 'default' : 'outline'}>
-                          {tenant.config.features.qrCodeGeneration ? 'Enabled' : 'Disabled'}
-                        </Badge>
+                        <p className="text-xs text-muted-foreground">Secret is not retrievable. Regenerate to get a new one.</p>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {tenant.config?.limits && (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Limits</p>
-                    <div className="space-y-2">
-                      {tenant.config.limits.monthlyInvoiceLimit !== undefined && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">Monthly Invoice Limit</span>
-                          <span className="font-medium">
-                            {tenant.config.limits.monthlyInvoiceLimit.toLocaleString()}
-                          </span>
+                  {/* Newly generated webhook result */}
+                  {generatedWebhook && (
+                    <div className="space-y-3 p-3 border rounded-lg bg-muted/40">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Webhook URL</Label>
+                        <div className="flex items-center gap-2">
+                          <Input value={generatedWebhook.webhookUrl} readOnly className="font-mono text-xs" />
+                          <Button variant="outline" size="icon" onClick={() => copyToClipboard(generatedWebhook.webhookUrl, 'Webhook URL')}>
+                            <Copy className="h-4 w-4" />
+                          </Button>
                         </div>
-                      )}
-                      {tenant.config.limits.apiRateLimit !== undefined && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">API Rate Limit</span>
-                          <span className="font-medium">
-                            {tenant.config.limits.apiRateLimit.toLocaleString()} / hour
-                          </span>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">
+                          Webhook Secret <span className="text-destructive">(copy now — won't be shown again)</span>
+                        </Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={secretVisible ? generatedWebhook.webhookSecret : '••••••••••••••••'}
+                            readOnly
+                            className="font-mono text-xs"
+                          />
+                          <Button variant="outline" size="icon" onClick={() => setSecretVisible(!secretVisible)}>
+                            {secretVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                          <Button variant="outline" size="icon" onClick={() => copyToClipboard(generatedWebhook.webhookSecret, 'Webhook secret')}>
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {generatedWebhook.invoiceIdKey && (
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
+                          <p className="font-mono text-xs">{generatedWebhook.invoiceIdKey}</p>
                         </div>
                       )}
                     </div>
+                  )}
+
+                  {/* Generate controls */}
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label htmlFor="invoiceIdKey" className="text-xs text-muted-foreground">
+                      Invoice ID Key <span className="text-muted-foreground">(optional)</span>
+                    </Label>
+                    <Input
+                      id="invoiceIdKey"
+                      value={invoiceIdKey}
+                      onChange={(e) => setInvoiceIdKey(e.target.value)}
+                      placeholder="e.g. invoice.documentId"
+                      className="font-mono text-xs"
+                    />
+                    {tenant.config?.webhookUrl ? (
+                      <>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm" disabled={isGenerating}>
+                              <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
+                              Regenerate URL &amp; Secret
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Regenerate Webhook?</AlertDialogTitle>
+                              <AlertDialogDescription asChild>
+                                <div className="text-sm text-muted-foreground space-y-2">
+                                  <p>This action is <strong>irreversible</strong> and will:</p>
+                                  <ul className="list-disc list-inside space-y-1 text-sm">
+                                    <li>Generate a new webhook URL and secret for <strong>{tenant.businessName}</strong></li>
+                                    <li>Immediately invalidate the existing webhook URL and secret</li>
+                                    <li>Disconnect any currently connected ERP or external system</li>
+                                  </ul>
+                                  <p>You will need to share the new webhook URL and secret with the tenant so they can update their connected systems.</p>
+                                </div>
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={handleGenerateWebhook}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Yes, Regenerate
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                        <Alert variant="destructive" className="mt-2">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription className="text-xs space-y-1">
+                            <p><strong>Warning:</strong> Regenerating will create a new URL and secret, invalidating the previous ones and revoking all configurations tied to them.</p>
+                            <p>Ensure the tenant updates any external systems using the old credentials before regenerating.</p>
+                          </AlertDescription>
+                        </Alert>
+                      </>
+                    ) : (
+                      <Button onClick={handleGenerateWebhook} disabled={isGenerating} className="w-full sm:w-auto">
+                        {isGenerating ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating...</>
+                        ) : (
+                          <><Webhook className="mr-2 h-4 w-4" />Generate Webhook URL</>
+                        )}
+                      </Button>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              {/* Features & Limits */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Configuration</CardTitle>
+                  <CardDescription>Tenant-specific settings and limits</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {tenant.config?.features && (
+                    <div>
+                      <p className="text-sm font-medium mb-2">Features</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm">Auto Fix</span>
+                          <Badge variant={tenant.config.features.autoFix ? 'default' : 'outline'}>
+                            {tenant.config.features.autoFix ? 'Enabled' : 'Disabled'}
+                          </Badge>
+                        </div>
+                        {tenant.config.features.maxRetries !== undefined && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">Max Retries</span>
+                            <span className="font-medium">{tenant.config.features.maxRetries}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm">QR Code Generation</span>
+                          <Badge variant={tenant.config.features.qrCodeGeneration ? 'default' : 'outline'}>
+                            {tenant.config.features.qrCodeGeneration ? 'Enabled' : 'Disabled'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {tenant.config?.limits && (
+                    <div>
+                      <p className="text-sm font-medium mb-2">Limits</p>
+                      <div className="space-y-2">
+                        {tenant.config.limits.monthlyInvoiceLimit !== undefined && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">Monthly Invoice Limit</span>
+                            <span className="font-medium">
+                              {tenant.config.limits.monthlyInvoiceLimit.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                        {tenant.config.limits.apiRateLimit !== undefined && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">API Rate Limit</span>
+                            <span className="font-medium">
+                              {tenant.config.limits.apiRateLimit.toLocaleString()} / hour
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="onboarding">
