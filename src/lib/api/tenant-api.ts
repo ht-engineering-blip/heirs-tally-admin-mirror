@@ -15,11 +15,11 @@ export function createTenantApi() {
         headers: { Authorization: `Bearer ${token}` },
       }),
 
-    firsOAuth: (email: string, password: string, mock = false) =>
-      api.v1.auth.oauth.firs.post({ email, password, mock }),
+    nrsOAuth: (email: string, password: string, mock = false) =>
+      api.v1.auth.oauth.nrs.post({ email, password, mock }),
 
-    putFirsCredentials: (tenantId: string, certificate: string, publicKey: string) =>
-      api.v1.tenants({ tenantId })['firs-credentials'].put({ certificate, publicKey }),
+    putNrsCredentials: (tenantId: string, certificate: string, publicKey: string) =>
+      api.v1.tenants({ tenantId })['nrs-credentials'].put({ certificate, publicKey }),
 
     getOnboarding: (tenantId: string) =>
       api.v1.tenants({ tenantId }).onboarding.get(),

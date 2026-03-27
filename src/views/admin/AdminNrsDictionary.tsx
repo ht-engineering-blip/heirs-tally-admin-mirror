@@ -1,15 +1,8 @@
 'use client'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileJson, Save, Loader2, Edit, Settings, Calendar, Clock, ArrowLeft } from 'lucide-react';
-import { getAdminApiClient } from '@/lib/api/client';
-import { usePathname } from 'next/navigation';
-import { toast } from 'sonner';
-import { useEffect, useState, useRef } from 'react';
-import Editor from '@monaco-editor/react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -18,8 +11,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { extractJsonWithMetadata } from '@/lib/schema/firs-extractor';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatErpName } from '@/hooks/use-supported-erps';
+import { getAdminApiClient } from '@/lib/api/client';
+import { extractJsonWithMetadata } from '@/lib/schema/firs-extractor';
+import Editor from '@monaco-editor/react';
+import { ArrowLeft, Calendar, Clock, Edit, FileJson, Loader2, Save, Settings } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 interface Field {
   field_id: string;
@@ -35,7 +35,7 @@ interface Field {
   mapping_hints: any[];
 }
 
-interface FirsDictionary {
+interface NrsDictionary {
   _id?: string;
   schema_id: string;
   name: string;
@@ -50,12 +50,12 @@ interface FirsDictionary {
   updatedAt?: string;
 }
 
-export default function AdminFirsDictionary() {
+export default function AdminNrsDictionary() {
   const api = getAdminApiClient();
   const pathname = usePathname();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [dictionary, setDictionary] = useState<FirsDictionary | null>(null);
+  const [dictionary, setDictionary] = useState<NrsDictionary | null>(null);
   const [fieldsJson, setFieldsJson] = useState<string>('[]');
   const [metadataJson, setMetadataJson] = useState<string>('{}');
   const [fieldsError, setFieldsError] = useState<string | null>(null);
@@ -69,10 +69,10 @@ export default function AdminFirsDictionary() {
   const metadataEditorRef = useRef<any>(null);
   const payloadEditorRef = useRef<any>(null);
 
-  const fetchFirsDictionary = async () => {
+  const fetchNrsDictionary = async () => {
     setLoading(true);
     try {
-      const response = await api.v1.admin.config['firs-dictionary'].get();
+      const response = await api.v1.admin.config['nrs-dictionary'].get();
       
       if (response.error) {
         // Check if it's a 404 or not found error
@@ -85,12 +85,12 @@ export default function AdminFirsDictionary() {
           setShowConfig(false);
           setIsEditing(false);
         } else {
-          const errorMessage = errorValue?.error || 'Failed to fetch FIRS dictionary';
+          const errorMessage = errorValue?.error || 'Failed to fetch NRS dictionary';
           toast.error(errorMessage);
           setDictionary(null);
         }
       } else if (response.data?.data) {
-        const data = response.data.data as FirsDictionary;
+        const data = response.data.data as NrsDictionary;
         setDictionary(data);
         
         // Populate editors with existing data
@@ -125,7 +125,7 @@ export default function AdminFirsDictionary() {
         setShowConfig(false);
         setIsEditing(false);
       } else {
-        toast.error(error?.message || 'Failed to fetch FIRS dictionary');
+        toast.error(error?.message || 'Failed to fetch NRS dictionary');
         setDictionary(null);
       }
     } finally {
@@ -188,26 +188,26 @@ export default function AdminFirsDictionary() {
       const fieldsData = JSON.parse(fieldsJson);
       const metadataData = JSON.parse(metadataJson);
 
-      const response = await api.v1.admin.config['firs-dictionary'].put({
+      const response = await api.v1.admin.config['nrs-dictionary'].put({
         invoice: fieldsData,
         metadata: metadataData,
       });
 
       if (response.error) {
-        const errorMessage = (response.error as any)?.value?.error || 'Failed to save FIRS dictionary';
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to save NRS dictionary';
         toast.error(errorMessage);
       } else if (response.data?.data) {
         console.log('response', response.data.data);
-        toast.success('FIRS dictionary saved successfully');
+        toast.success('NRS dictionary saved successfully');
         // Refresh the dictionary
-        await fetchFirsDictionary();
+        await fetchNrsDictionary();
         setShowConfig(false);
         setIsEditing(false);
       } else {
         toast.error('Unexpected response format');
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to save FIRS dictionary');
+      toast.error(error?.message || 'Failed to save NRS dictionary');
     } finally {
       setSaving(false);
     }
@@ -245,7 +245,7 @@ export default function AdminFirsDictionary() {
 
   useEffect(() => {
     if (pathname) {
-      fetchFirsDictionary();
+      fetchNrsDictionary();
     }
   }, [pathname]);
 
@@ -306,9 +306,9 @@ export default function AdminFirsDictionary() {
     <Dialog open={showProcessModal} onOpenChange={setShowProcessModal}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Process FIRS Dictionary Payload</DialogTitle>
+          <DialogTitle>Process NRS Dictionary Payload</DialogTitle>
           <DialogDescription>
-            Paste the complete FIRS dictionary JSON payload. The system will automatically extract the fields and metadata.
+            Paste the complete NRS dictionary JSON payload. The system will automatically extract the fields and metadata.
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 min-h-0 flex flex-col gap-4">
@@ -376,8 +376,8 @@ export default function AdminFirsDictionary() {
         <div className="space-y-6 animate-fade-in">
           <div className="page-header">
             <div>
-              <h1 className="page-title">FIRS Dictionary</h1>
-              <p className="page-subtitle">Manage FIRS reference data and validation schemas</p>
+              <h1 className="page-title">NRS Dictionary</h1>
+              <p className="page-subtitle">Manage NRS reference data and validation schemas</p>
             </div>
           </div>
 
@@ -388,9 +388,9 @@ export default function AdminFirsDictionary() {
                 <FileJson className="w-8 h-8 text-muted-foreground" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold">FIRS Schema has not been configured</h3>
+                <h3 className="text-lg font-semibold">NRS Schema has not been configured</h3>
                 <p className="text-sm text-muted-foreground max-w-md">
-                  Configure the FIRS UBL Invoice Schema by providing the fields and metadata structure.
+                  Configure the NRS UBL Invoice Schema by providing the fields and metadata structure.
                 </p>
               </div>
               <Button 
@@ -398,7 +398,7 @@ export default function AdminFirsDictionary() {
                 className="rounded-full mt-4"
               >
                 <Settings className="w-4 h-4 mr-2" />
-                Configure FIRS Schema
+                Configure NRS Schema
               </Button>
             </div>
           </CardContent>
@@ -438,11 +438,11 @@ export default function AdminFirsDictionary() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <div>
-              <h1 className="page-title">FIRS Dictionary</h1>
+              <h1 className="page-title">NRS Dictionary</h1>
               <p className="page-subtitle">
                 {isEditing 
-                  ? `Edit FIRS UBL Invoice Schema - ${dictionary?.name || ''}`
-                  : 'Create FIRS UBL Invoice Schema'
+                  ? `Edit NRS UBL Invoice Schema - ${dictionary?.name || ''}`
+                  : 'Create NRS UBL Invoice Schema'
                 }
               </p>
             </div>
@@ -575,7 +575,7 @@ export default function AdminFirsDictionary() {
         {/* Header */}
         <div className="page-header">
           <div>
-            <h1 className="page-title">FIRS Dictionary</h1>
+            <h1 className="page-title">NRS Dictionary</h1>
             <p className="page-subtitle">{dictionary.name}</p>
           </div>
           <div className='flex gap-2'>
@@ -641,7 +641,7 @@ export default function AdminFirsDictionary() {
           <CardHeader>
             <CardTitle>Schema Fields ({dictionary.fields?.length || 0})</CardTitle>
             <CardDescription>
-              All fields defined in the FIRS UBL Invoice Schema
+              All fields defined in the NRS UBL Invoice Schema
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -805,15 +805,15 @@ export default function AdminFirsDictionary() {
       <div className="space-y-6 animate-fade-in">
       <div className="page-header">
         <div>
-          <h1 className="page-title">FIRS Dictionary</h1>
-          <p className="page-subtitle">Manage FIRS reference data and validation schemas</p>
+          <h1 className="page-title">NRS Dictionary</h1>
+          <p className="page-subtitle">Manage NRS reference data and validation schemas</p>
         </div>
       </div>
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mr-2" />
-            <span className="text-muted-foreground">Loading FIRS dictionary...</span>
+            <span className="text-muted-foreground">Loading NRS dictionary...</span>
           </div>
         </CardContent>
       </Card>

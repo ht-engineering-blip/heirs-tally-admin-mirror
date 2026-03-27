@@ -1,5 +1,5 @@
-import AdminFirsDictionary from '@/views/admin/AdminFirsDictionary'
+import AdminNrsDictionary from '@/views/admin/AdminNrsDictionary'
 
-export default function FirsDictionaryPage() {
-  return <AdminFirsDictionary />
+export default function NrsDictionaryPage() {
+  return <AdminNrsDictionary />
 }

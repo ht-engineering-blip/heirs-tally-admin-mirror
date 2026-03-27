@@ -745,8 +745,7 @@ export default function TransactionsPage() {
                 <TabsContent value="data" className="space-y-4 mt-4">
                   {(() => {
                     const payload = invoiceDetails.webhookEvents?.[0]?.payload?.data
-                    const rawData = payload || invoiceDetails.invoice || {}
-                    const rawJson = JSON.stringify(rawData, null, 2)
+                    const rawJson = JSON.stringify(invoiceDetails, null, 2)
 
                     if (!payload) {
                       return (

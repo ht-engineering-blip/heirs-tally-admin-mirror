@@ -229,16 +229,16 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* FIRS Credentials Card */}
+      {/* NRS Credentials Card */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                FIRS Credentials
+                NRS Credentials
               </CardTitle>
-              <CardDescription>Your FIRS authentication details</CardDescription>
+              <CardDescription>Your NRS authentication details</CardDescription>
             </div>
             <Button
               variant="outline"
@@ -257,25 +257,25 @@ export default function ProfilePage() {
           {showCredentials ? (
             <div className="space-y-4">
               <ProfileField
-                label="FIRS Status"
+                label="NRS Status"
                 value={
-                  (tenantData as any)?.config?.firs
+                  (tenantData as any)?.config?.nrs
                     ? 'Connected'
                     : 'Not connected'
                 }
               />
-              {(tenantData as any)?.config?.firs && (
+              {(tenantData as any)?.config?.nrs && (
                 <>
                   <ProfileField
-                    label="FIRS Service ID"
-                    value={(tenantData as any)?.config?.firs.serviceId}
+                    label="NRS Service ID"
+                    value={(tenantData as any)?.config?.nrs.serviceId}
                   />
                   <ProfileField
                     label="Business Name"
                     value={tenantData?.businessName}
                   />
                   <ProfileField
-                    label="FIRS TIN"
+                    label="NRS TIN"
                     value={tenantData.tin}
                   />
                 </>
@@ -283,7 +283,7 @@ export default function ProfilePage() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Click &quot;Show&quot; to view your FIRS credential details.
+              Click &quot;Show&quot; to view your NRS credential details.
             </p>
           )}
         </CardContent>

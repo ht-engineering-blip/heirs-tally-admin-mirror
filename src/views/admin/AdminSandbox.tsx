@@ -96,7 +96,7 @@ export default function AdminSandbox() {
     
     const timeline: TimelineStep[] = [
       createTimelineStep('1', 'Parse Invoice JSON', 'running'),
-      createTimelineStep('2', 'Transform to FIRS UBL', 'pending'),
+      createTimelineStep('2', 'Transform to NRS UBL', 'pending'),
       createTimelineStep('3', 'Validate Transformation', 'pending'),
     ];
 
@@ -289,7 +289,7 @@ export default function AdminSandbox() {
     
     const timeline: TimelineStep[] = [
       createTimelineStep('1', 'Parse Invoice JSON', 'running'),
-      createTimelineStep('2', 'Transform to FIRS UBL', 'pending'),
+      createTimelineStep('2', 'Transform to NRS UBL', 'pending'),
       createTimelineStep('3', 'Validate Invoice', 'pending'),
       createTimelineStep('4', 'Generate QR Code', 'pending'),
       createTimelineStep('5', 'Sign Invoice', 'pending'),
@@ -498,7 +498,7 @@ export default function AdminSandbox() {
 
               <TabsContent value="validate" className="mt-4">
                 <p className="text-sm text-muted-foreground">
-                  Validate invoice against FIRS UBL schema
+                  Validate invoice against NRS UBL schema
                 </p>
               </TabsContent>
 

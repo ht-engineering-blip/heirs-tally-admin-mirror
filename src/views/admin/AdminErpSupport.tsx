@@ -56,7 +56,7 @@ interface ErpListItem {
   last_updated: Date;
 }
 
-interface FirsDictionaryField {
+interface NrsDictionaryField {
   field_id: string;
   field_path: string;
   data_type: string;
@@ -89,7 +89,7 @@ export enum SchemaStatus {
 const CONFIG_STEPS = [
   { id: 'setup', label: 'Setup', description: 'ERP type & status' },
   { id: 'schema', label: 'Schema', description: 'Invoice & metadata' },
-  { id: 'mapping', label: 'Field Mapping', description: 'Map to FIRS UBL' },
+  { id: 'mapping', label: 'Field Mapping', description: 'Map to NRS UBL' },
 ] as const;
 
 type ConfigStep = typeof CONFIG_STEPS[number]['id'];
@@ -149,8 +149,8 @@ export default function AdminErpSupport() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [configStep, setConfigStep] = useState<ConfigStep>('setup');
-  const [firsFields, setFirsFields] = useState<FirsDictionaryField[]>([]);
-  const [firsLoading, setFirsLoading] = useState(false);
+  const [nrsFields, setFirsFields] = useState<NrsDictionaryField[]>([]);
+  const [nrsLoading, setFirsLoading] = useState(false);
   const [mappingData, setMappingData] = useState<MappingRule[]>([]);
   const [mappingCanvasRef, setMappingCanvasRef] = useState<any>(null);
   const invoiceEditorRef = useRef<any>(null);
@@ -196,10 +196,10 @@ export default function AdminErpSupport() {
     }
   };
 
-  const fetchFirsDictionary = async () => {
+  const fetchNrsDictionary = async () => {
     setFirsLoading(true);
     try {
-      const response = await api.v1.admin.config['firs-dictionary'].get();
+      const response = await api.v1.admin.config['nrs-dictionary'].get();
       if (response.error) {
         const errorValue = (response.error as any)?.value;
         if (errorValue?.statusCode === 404 || errorValue?.error?.includes('not found')) {
@@ -212,7 +212,7 @@ export default function AdminErpSupport() {
         }
       }
     } catch {
-      // Silently fail - FIRS dictionary may not exist yet
+      // Silently fail - NRS dictionary may not exist yet
       setFirsFields([]);
     } finally {
       setFirsLoading(false);
@@ -287,7 +287,7 @@ export default function AdminErpSupport() {
   useEffect(() => {
     if (pathname) {
       fetchErpList();
-      fetchFirsDictionary();
+      fetchNrsDictionary();
     }
   }, [pathname]);
 
@@ -309,15 +309,15 @@ export default function AdminErpSupport() {
     }
   }, [invoiceJson]);
 
-  // Derive FIRS target fields from the dictionary
-  const firsTargetFields = useMemo(() => {
-    return firsFields.map((f) => ({
+  // Derive NRS target fields from the dictionary
+  const nrsTargetFields = useMemo(() => {
+    return nrsFields.map((f) => ({
       key: f.field_path || f.field_id,
       type: f.data_type,
       required: f.is_required,
       description: f.description,
     }));
-  }, [firsFields]);
+  }, [nrsFields]);
 
   const validateJson = (jsonString: string): { valid: boolean; error?: string } => {
     try {
@@ -658,10 +658,10 @@ export default function AdminErpSupport() {
     }, [sourceSearch, erpSourceFields]);
 
     const filteredTargetFields = useMemo(() => {
-      if (!targetSearch) return firsTargetFields;
+      if (!targetSearch) return nrsTargetFields;
       const q = targetSearch.toLowerCase();
-      return firsTargetFields.filter(f => f.key.toLowerCase().includes(q));
-    }, [targetSearch, firsTargetFields]);
+      return nrsTargetFields.filter(f => f.key.toLowerCase().includes(q));
+    }, [targetSearch, nrsTargetFields]);
 
     // Get mappings for a source/target field
     const getMappingsForSource = (key: string) => mappingData.filter(m => m.source === key);
@@ -706,7 +706,7 @@ export default function AdminErpSupport() {
       );
     }
 
-    if (firsTargetFields.length === 0 && !firsLoading) {
+    if (nrsTargetFields.length === 0 && !nrsLoading) {
       return (
         <Card>
           <CardContent className="pt-12 pb-12">
@@ -715,9 +715,9 @@ export default function AdminErpSupport() {
                 <FileJson className="w-8 h-8 text-muted-foreground" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold">FIRS Dictionary not configured</h3>
+                <h3 className="text-lg font-semibold">NRS Dictionary not configured</h3>
                 <p className="text-sm text-muted-foreground max-w-md">
-                  The FIRS UBL Invoice Schema has not been set up yet. Configure it from the FIRS Dictionary page to enable field mapping.
+                  The NRS UBL Invoice Schema has not been set up yet. Configure it from the NRS Dictionary page to enable field mapping.
                 </p>
               </div>
             </div>
@@ -732,7 +732,7 @@ export default function AdminErpSupport() {
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span>{erpSourceFields.length} source fields</span>
           <span>-</span>
-          <span>{firsTargetFields.length} target fields</span>
+          <span>{nrsTargetFields.length} target fields</span>
           <span>-</span>
           <Badge variant="secondary">{mappingData.length} mappings</Badge>
           {mappingData.length > 0 && (
@@ -813,12 +813,12 @@ export default function AdminErpSupport() {
             </CardContent>
           </Card>
 
-          {/* Target (FIRS UBL Fields) */}
+          {/* Target (NRS UBL Fields) */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <FileJson className="w-4 h-4" />
-                FIRS UBL Fields
+                NRS UBL Fields
               </CardTitle>
               <Input
                 placeholder="Search target fields..."
@@ -1220,12 +1220,12 @@ export default function AdminErpSupport() {
 
           {/* Step 3: Field Mapping */}
           {configStep === 'mapping' && (
-            firsLoading ? (
+            nrsLoading ? (
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mr-2" />
-                    <span className="text-muted-foreground">Loading FIRS dictionary fields...</span>
+                    <span className="text-muted-foreground">Loading NRS dictionary fields...</span>
                   </div>
                 </CardContent>
               </Card>

@@ -49,7 +49,7 @@ const mainNavItems: NavItem[] = [
 
 const systemNavItems: NavItem[] = [
   { title: 'System Health', href: '/system-health', icon: Activity },
-  { title: 'FIRS Dictionary', href: '/firs-dictionary', icon: FileStack },
+  { title: 'NRS Dictionary', href: '/nrs-dictionary', icon: FileStack },
   { title: 'ERP Support', href: '/erp-support', icon: Server },
   { title: 'Security', href: '/security', icon: Shield },
   { title: 'Settings', href: '/settings', icon: Settings },

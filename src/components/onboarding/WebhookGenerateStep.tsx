@@ -155,7 +155,7 @@ export function WebhookGenerateStep({ tenantId, onStepComplete }: WebhookGenerat
           Generate Webhook URL
         </h3>
         <p className="text-sm text-muted-foreground">
-          Generate a webhook URL to receive invoice notifications from FIRS. This URL will be used by FIRS to send inbound invoices and status updates.
+          Generate a webhook URL to receive invoice notifications from NRS. This URL will be used by NRS to send inbound invoices and status updates.
         </p>
       </div>
 

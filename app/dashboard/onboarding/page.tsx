@@ -8,8 +8,8 @@ import { useTenant } from '@/hooks/use-tenant'
 import { Progress } from '@/components/ui/progress'
 import {
   OnboardingStepper,
-  FirsOAuthStep,
-  FirsCredentialsStep,
+  NrsOAuthStep,
+  NrsCredentialsStep,
   WebhookGenerateStep,
   OnboardingComplete,
 } from '@/components/onboarding'
@@ -19,13 +19,13 @@ import { SectionLoader } from '@/components/shared/SectionLoader'
 const STEP_KEYS = ['firs_oauth', 'firs_credentials', 'webhook_generate'] as const
 type StepKey = typeof STEP_KEYS[number]
 const KEY_ALIAS = {
-  firs_oauth: "firsProvisioning",
-  firs_credentials: "firsProvisioning",
+  firs_oauth: "nrsProvisioning",
+  firs_credentials: "nrsProvisioning",
 
 }
 const STEP_META: Record<StepKey, { label: string; description: string }> = {
-  firs_oauth: { label: 'FIRS Auth', description: 'Authenticate with FIRS portal' },
-  firs_credentials: { label: 'Credentials', description: 'Provide FIRS certificate & key' },
+  firs_oauth: { label: 'NRS Auth', description: 'Authenticate with NRS portal' },
+  firs_credentials: { label: 'Credentials', description: 'Provide NRS certificate & key' },
   webhook_generate: { label: 'Webhook', description: 'Generate webhook URL' },
 }
 
@@ -166,10 +166,10 @@ export default function OnboardingPage() {
         </CardHeader>
         <CardContent>
           {tenantId && activeStepKey === 'firs_oauth' && (
-            <FirsOAuthStep tenantId={tenantId} onStepComplete={handleStepComplete} />
+            <NrsOAuthStep tenantId={tenantId} onStepComplete={handleStepComplete} />
           )}
           {tenantId && activeStepKey === 'firs_credentials' && (
-            <FirsCredentialsStep tenantId={tenantId} onStepComplete={handleStepComplete} />
+            <NrsCredentialsStep tenantId={tenantId} onStepComplete={handleStepComplete} />
           )}
           {tenantId && activeStepKey === 'webhook_generate' && (
             <WebhookGenerateStep tenantId={tenantId} onStepComplete={handleStepComplete} />

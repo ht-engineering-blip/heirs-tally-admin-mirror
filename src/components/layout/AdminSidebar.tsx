@@ -48,7 +48,7 @@ export interface NavItem {
 }
 
 const systemNavItems: NavItem[] = [
-  { title: 'FIRS Dictionary', href: '/admin/system/firs-dictionary', icon: FileStack, permission: 'system:view' },
+  { title: 'NRS Dictionary', href: '/admin/system/nrs-dictionary', icon: FileStack, permission: 'system:view' },
   { title: 'ERP Support', href: '/admin/system/erp-support', icon: Server, permission: 'system:view' },
   /*   { title: 'System Health', href: '/admin/system/health', icon: Activity, permission: 'system:view' },
     { title: 'Settings', href: '/admin/system/settings', icon: Settings, permission: 'system:view' }, */

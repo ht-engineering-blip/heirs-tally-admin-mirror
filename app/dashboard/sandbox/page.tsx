@@ -74,7 +74,7 @@ export default function SandboxPage() {
 
     const timeline: TimelineStep[] = [
       createStep('1', 'Parse Invoice JSON', 'running'),
-      createStep('2', 'Transform to FIRS UBL'),
+      createStep('2', 'Transform to NRS UBL'),
       createStep('3', 'Validate Transformation'),
     ]
     setTestResult({ type: 'transform', timeline, result: null })
@@ -195,7 +195,7 @@ export default function SandboxPage() {
 
     const timeline: TimelineStep[] = [
       createStep('1', 'Parse Invoice JSON', 'running'),
-      createStep('2', 'Transform to FIRS UBL'),
+      createStep('2', 'Transform to NRS UBL'),
       createStep('3', 'Validate Invoice'),
       createStep('4', 'Generate QR Code'),
       createStep('5', 'Sign Invoice'),
@@ -339,7 +339,7 @@ export default function SandboxPage() {
 
               <TabsContent value="validate" className="mt-4">
                 <p className="text-sm text-muted-foreground">
-                  Validate invoice data against FIRS UBL schema. Optionally select an ERP type to test transformation first.
+                  Validate invoice data against NRS UBL schema. Optionally select an ERP type to test transformation first.
                 </p>
                 <div className="space-y-2 mt-3">
                   <Label>ERP Type (optional)</Label>

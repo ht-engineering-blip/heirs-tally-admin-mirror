@@ -24,14 +24,14 @@ import * as z from 'zod'
 
 const isDev = process.env.NEXT_PUBLIC_APP_ENV === 'development' || process.env.NODE_ENV === 'development'
 
-const firsOAuthSchema = z.object({
-  email: z.string().email('Valid FIRS email required'),
-  password: z.string().min(1, 'FIRS password is required'),
+const nrsOAuthSchema = z.object({
+  email: z.string().email('Valid NRS email required'),
+  password: z.string().min(1, 'NRS password is required'),
 })
 
-type FirsOAuthFormValues = z.infer<typeof firsOAuthSchema>
+type NrsOAuthFormValues = z.infer<typeof nrsOAuthSchema>
 
-interface FirsOAuthStepProps {
+interface NrsOAuthStepProps {
   tenantId: string
   onStepComplete: () => void
 }
@@ -45,14 +45,14 @@ interface BusinessInfo {
   isActive: boolean
 }
 
-export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) {
+export function NrsOAuthStep({ tenantId, onStepComplete }: NrsOAuthStepProps) {
   const [error, setError] = useState<string | null>(null)
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [useMock, setUseMock] = useState(false)
 
-  const form = useForm<FirsOAuthFormValues>({
-    resolver: zodResolver(firsOAuthSchema),
+  const form = useForm<NrsOAuthFormValues>({
+    resolver: zodResolver(nrsOAuthSchema),
     defaultValues: { email: '', password: '' },
   })
 
@@ -61,9 +61,9 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
     setError(null)
     try {
       const tenantApi = createTenantApi()
-      const response = await tenantApi.firsOAuth(email, password, mock)
+      const response = await tenantApi.nrsOAuth(email, password, mock)
       if (response.error || response.data.error) {
-        const errorMessage = (response.error as any)?.value?.error || response.data.error  || 'FIRS authentication failed'
+        const errorMessage = (response.error as any)?.value?.error || response.data.error  || 'NRS authentication failed'
         setError(errorMessage)
         toast.error(errorMessage)
         setIsSubmitting(false)
@@ -72,17 +72,17 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
 
       const responseData = (response.data as any)?.data
       if (!responseData?.business) {
-        setError('Unexpected response from FIRS')
-        toast.error('Unexpected response from FIRS')
+        setError('Unexpected response from NRS')
+        toast.error('Unexpected response from NRS')
         setIsSubmitting(false)
         return
       }
 
       setBusinessInfo(responseData.business)
-      toast.success('FIRS authentication successful!')
+      toast.success('NRS authentication successful!')
       onStepComplete()
     } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to authenticate with FIRS'
+      const errorMessage = err?.message || 'Failed to authenticate with NRS'
       setError(errorMessage)
       toast.error(errorMessage)
     } finally {
@@ -104,7 +104,7 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
         <Alert className="border-success bg-success/10">
           <CheckCircle2 className="h-4 w-4 text-success" />
           <AlertDescription className="text-success">
-            FIRS authentication successful! Your business has been verified.
+            NRS authentication successful! Your business has been verified.
           </AlertDescription>
         </Alert>
         <Card>
@@ -146,9 +146,9 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-lg font-semibold">FIRS Authentication</h3>
+        <h3 className="text-lg font-semibold">NRS Authentication</h3>
         <p className="text-sm text-muted-foreground">
-          Enter your FIRS portal credentials to verify your business and fetch your Business ID.
+          Enter your NRS portal credentials to verify your business and fetch your Business ID.
         </p>
       </div>
 
@@ -156,7 +156,7 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
         <div className="flex items-center justify-between rounded-lg border border-dashed border-amber-400 bg-amber-50 px-4 py-3 dark:border-amber-600 dark:bg-amber-950/30">
           <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
             <FlaskConical className="h-4 w-4 shrink-0" />
-            <span className="font-medium">Use mock FIRS credentials</span>
+            <span className="font-medium">Use mock NRS credentials</span>
             <span className="text-amber-600/70 dark:text-amber-500/70">(dev only)</span>
           </div>
           <Switch
@@ -179,14 +179,14 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
           <Alert className="border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30">
             <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             <AlertDescription className="text-amber-700 dark:text-amber-400">
-              Mock mode is active. FIRS test credentials will be used automatically — no real credentials needed.
+              Mock mode is active. NRS test credentials will be used automatically — no real credentials needed.
             </AlertDescription>
           </Alert>
           <Button className="w-full" disabled={isSubmitting} onClick={onMockSubmit}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Authenticating with FIRS...
+                Authenticating with NRS...
               </>
             ) : (
               <>
@@ -204,13 +204,13 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>FIRS Email</FormLabel>
+                  <FormLabel>NRS Email</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
                         type="email"
-                        placeholder="your-firs-email@example.com"
+                        placeholder="your-nrs-email@example.com"
                         className="pl-10"
                         {...field}
                       />
@@ -226,13 +226,13 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>FIRS Password</FormLabel>
+                  <FormLabel>NRS Password</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
                         type="password"
-                        placeholder="Enter your FIRS password"
+                        placeholder="Enter your NRS password"
                         className="pl-10"
                         {...field}
                       />
@@ -247,11 +247,11 @@ export function FirsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) 
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Authenticating with FIRS...
+                  Authenticating with NRS...
                 </>
               ) : (
                 <>
-                  Authenticate with FIRS
+                  Authenticate with NRS
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}

@@ -86,7 +86,7 @@ interface MappingRule {
   target: string
 }
 
-interface FirsDictionaryField {
+interface NrsDictionaryField {
   field_id: string
   field_path: string
   data_type: string
@@ -169,8 +169,8 @@ export default function WebhookSettingsPage() {
   const [savingMappings, setSavingMappings] = useState(false)  
 
   // Data mapping state
-  const [firsFields, setFirsFields] = useState<FirsDictionaryField[]>([])
-  const [firsLoading, setFirsLoading] = useState(false)
+  const [nrsFields, setFirsFields] = useState<NrsDictionaryField[]>([])
+  const [nrsLoading, setFirsLoading] = useState(false)
   const [receivedPayload, setReceivedPayload] = useState<any>(null)
   const [mappingData, setMappingData] = useState<MappingRule[]>([])
   const [showMapper, setShowMapper] = useState(false)
@@ -250,12 +250,12 @@ export default function WebhookSettingsPage() {
     }
   }, [tenantData, fetchEventRouting])
 
-  // Fetch FIRS dictionary for mapping target fields
-  const fetchFirsDictionary = useCallback(async () => {
+  // Fetch NRS dictionary for mapping target fields
+  const fetchNrsDictionary = useCallback(async () => {
     setFirsLoading(true)
     try {
       const adminApi = getAdminApiClient()
-      const response = await adminApi.v1.admin.config['firs-dictionary'].get()
+      const response = await adminApi.v1.admin.config['nrs-dictionary'].get()
       if (response.data && 'data' in response.data && (response.data as any).data) {
         const data = (response.data as any).data
         if (data.fields && Array.isArray(data.fields)) {
@@ -263,7 +263,7 @@ export default function WebhookSettingsPage() {
         }
       }
     } catch {
-      // FIRS dictionary may not exist yet
+      // NRS dictionary may not exist yet
     } finally {
       setFirsLoading(false)
     }
@@ -522,8 +522,8 @@ export default function WebhookSettingsPage() {
   }
 
   const handleOpenMapper = () => {
-    if (firsFields.length === 0) {
-      fetchFirsDictionary()
+    if (nrsFields.length === 0) {
+      fetchNrsDictionary()
     }
     setShowMapper(true)
   }
@@ -706,13 +706,13 @@ export default function WebhookSettingsPage() {
   }, [receivedPayload])
 
   const targetFields = useMemo(() => {
-    return firsFields.map((f) => ({
+    return nrsFields.map((f) => ({
       key: f.field_path || f.field_id,
       type: f.data_type,
       required: f.is_required,
       description: f.description,
     }))
-  }, [firsFields])
+  }, [nrsFields])
 
   // History columns
   const historyColumns: Column<WebhookEvent>[] = [
@@ -812,7 +812,7 @@ export default function WebhookSettingsPage() {
                     <div>
                       <CardTitle>Webhook Endpoint</CardTitle>
                       <CardDescription>
-                        Your webhook URL receives events from external systems like ERPs and FIRS
+                        Your webhook URL receives events from external systems like ERPs and NRS
                       </CardDescription>
                     </div>
                   </div>
@@ -970,7 +970,7 @@ export default function WebhookSettingsPage() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
-                    { step: '1', title: 'Receive', desc: 'External systems (ERP, FIRS) send events to your webhook URL via HTTP POST' },
+                    { step: '1', title: 'Receive', desc: 'External systems (ERP, NRS) send events to your webhook URL via HTTP POST' },
                     { step: '2', title: 'Route', desc: 'Events are matched against your configured event mappings and routed to the appropriate workflow' },
                     { step: '3', title: 'Process', desc: 'The workflow processes the event: transforms, validates, signs, and transmits the invoice data' },
                   ].map((s) => (
@@ -1157,7 +1157,7 @@ export default function WebhookSettingsPage() {
                       {testPassed && receivedPayload && (
                         <Button size="sm" onClick={handleOpenMapper}>
                           <Link2 className="w-4 h-4 mr-2" />
-                          Map Fields to FIRS Schema
+                          Map Fields to NRS Schema
                         </Button>
                       )}
                     </div>
@@ -1315,7 +1315,7 @@ export default function WebhookSettingsPage() {
                 sourceFields={sourceFields}
                 targetFields={targetFields}
                 mappingData={mappingData}
-                firsLoading={firsLoading}
+                nrsLoading={nrsLoading}
                 onAddMapping={addFieldMapping}
                 onRemoveBySource={removeFieldMappingBySource}
                 onRemoveByTarget={removeFieldMappingByTarget}
@@ -1445,7 +1445,7 @@ function FieldMapper({
   sourceFields,
   targetFields,
   mappingData,
-  firsLoading,
+  nrsLoading,
   onAddMapping,
   onRemoveBySource,
   onRemoveByTarget,
@@ -1457,7 +1457,7 @@ function FieldMapper({
   sourceFields: { key: string; type: string }[]
   targetFields: { key: string; type: string; required?: boolean; description?: string }[]
   mappingData: MappingRule[]
-  firsLoading: boolean
+  nrsLoading: boolean
   onAddMapping: (source: string, target: string) => void
   onRemoveBySource: (source: string) => void
   onRemoveByTarget: (target: string) => void
@@ -1495,12 +1495,12 @@ function FieldMapper({
     }
   }, [selectedSource, selectedTarget])
 
-  if (firsLoading) {
+  if (nrsLoading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-3" />
-          <span className="text-muted-foreground">Loading FIRS schema fields...</span>
+          <span className="text-muted-foreground">Loading NRS schema fields...</span>
         </CardContent>
       </Card>
     )
@@ -1525,9 +1525,9 @@ function FieldMapper({
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
           <FileJson className="w-12 h-12 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-medium mb-2">FIRS Schema Not Found</h3>
+          <h3 className="text-lg font-medium mb-2">NRS Schema Not Found</h3>
           <p className="text-sm text-muted-foreground max-w-md">
-            The FIRS UBL Invoice Schema has not been configured yet. Ask your admin to set it up from the FIRS Dictionary page.
+            The NRS UBL Invoice Schema has not been configured yet. Ask your admin to set it up from the NRS Dictionary page.
           </p>
         </CardContent>
       </Card>
@@ -1631,7 +1631,7 @@ function FieldMapper({
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 <FileJson className="w-4 h-4" />
-                FIRS UBL Fields
+                NRS UBL Fields
               </CardTitle>
               <Input
                 placeholder="Search target fields..."

@@ -20,25 +20,25 @@ import { ArrowRight, AlertCircle, Loader2, CheckCircle2, ShieldCheck } from 'luc
 import { toast } from '@/components/ui/sonner'
 import { createTenantApi } from '@/lib/api/tenant-api'
 
-const firsCredentialsSchema = z.object({
+const nrsCredentialsSchema = z.object({
   certificate: z.string().min(1, 'Certificate is required'),
   publicKey: z.string().min(1, 'Public key is required'),
 })
 
-type FirsCredentialsFormValues = z.infer<typeof firsCredentialsSchema>
+type NrsCredentialsFormValues = z.infer<typeof nrsCredentialsSchema>
 
-interface FirsCredentialsStepProps {
+interface NrsCredentialsStepProps {
   tenantId: string
   onStepComplete: () => void
 }
 
-export function FirsCredentialsStep({ tenantId, onStepComplete }: FirsCredentialsStepProps) {
+export function NrsCredentialsStep({ tenantId, onStepComplete }: NrsCredentialsStepProps) {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
 
-  const form = useForm<FirsCredentialsFormValues>({
-    resolver: zodResolver(firsCredentialsSchema),
+  const form = useForm<NrsCredentialsFormValues>({
+    resolver: zodResolver(nrsCredentialsSchema),
     defaultValues: { certificate: '', publicKey: '' },
   })
 
@@ -48,10 +48,10 @@ export function FirsCredentialsStep({ tenantId, onStepComplete }: FirsCredential
 
     try {
       const tenantApi = createTenantApi()
-      const response = await tenantApi.putFirsCredentials(tenantId, data.certificate, data.publicKey)
+      const response = await tenantApi.putNrsCredentials(tenantId, data.certificate, data.publicKey)
 
       if (response.error) {
-        const errorMessage = (response.error as any)?.value?.error || 'Failed to save FIRS credentials'
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to save NRS credentials'
         setError(errorMessage)
         toast.error(errorMessage)
         setIsSubmitting(false)
@@ -67,10 +67,10 @@ export function FirsCredentialsStep({ tenantId, onStepComplete }: FirsCredential
       }
 
       setIsComplete(true)
-      toast.success('FIRS credentials configured successfully!')
+      toast.success('NRS credentials configured successfully!')
       onStepComplete()
     } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to save FIRS credentials'
+      const errorMessage = err?.message || 'Failed to save NRS credentials'
       setError(errorMessage)
       toast.error(errorMessage)
     } finally {
@@ -83,7 +83,7 @@ export function FirsCredentialsStep({ tenantId, onStepComplete }: FirsCredential
       <Alert className="border-success bg-success/10">
         <CheckCircle2 className="h-4 w-4 text-success" />
         <AlertDescription className="text-success">
-          FIRS credentials have been configured successfully.
+          NRS credentials have been configured successfully.
         </AlertDescription>
       </Alert>
     )
@@ -94,10 +94,10 @@ export function FirsCredentialsStep({ tenantId, onStepComplete }: FirsCredential
       <div>
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
-          FIRS Credentials
+          NRS Credentials
         </h3>
         <p className="text-sm text-muted-foreground">
-          Provide your FIRS certificate and public key for invoice signing. Paste the PEM-encoded content below.
+          Provide your NRS certificate and public key for invoice signing. Paste the PEM-encoded content below.
         </p>
       </div>
 
@@ -124,7 +124,7 @@ export function FirsCredentialsStep({ tenantId, onStepComplete }: FirsCredential
                   />
                 </FormControl>
                 <FormDescription>
-                  Paste your PEM-encoded FIRS certificate
+                  Paste your PEM-encoded NRS certificate
                 </FormDescription>
                 <FormMessage />
               </FormItem>
