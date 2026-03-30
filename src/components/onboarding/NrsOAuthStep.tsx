@@ -24,14 +24,14 @@ import * as z from 'zod'
 
 const isDev = process.env.NEXT_PUBLIC_APP_ENV === 'development' || process.env.NODE_ENV === 'development'
 
-const nrsOAuthSchema = z.object({
+const firsOAuthSchema = z.object({
   email: z.string().email('Valid NRS email required'),
   password: z.string().min(1, 'NRS password is required'),
 })
 
-type NrsOAuthFormValues = z.infer<typeof nrsOAuthSchema>
+type FirsOAuthFormValues = z.infer<typeof firsOAuthSchema>
 
-interface NrsOAuthStepProps {
+interface FirsOAuthStepProps {
   tenantId: string
   onStepComplete: () => void
 }
@@ -45,23 +45,34 @@ interface BusinessInfo {
   isActive: boolean
 }
 
-export function NrsOAuthStep({ tenantId, onStepComplete }: NrsOAuthStepProps) {
+export function NrsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) {
   const [error, setError] = useState<string | null>(null)
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [useMock, setUseMock] = useState(false)
 
-  const form = useForm<NrsOAuthFormValues>({
-    resolver: zodResolver(nrsOAuthSchema),
+  const form = useForm<FirsOAuthFormValues>({
+    resolver: zodResolver(firsOAuthSchema),
     defaultValues: { email: '', password: '' },
   })
+
+  const handleMockToggle = (checked: boolean) => {
+    setUseMock(checked)
+    if (checked) {
+      form.setValue('email', 'test@email.co')
+      form.setValue('password', 'Password@123')
+    } else {
+      form.setValue('email', '')
+      form.setValue('password', '')
+    }
+  }
 
   const runAuth = async (email: string, password: string, mock: boolean) => {
     setIsSubmitting(true)
     setError(null)
     try {
       const tenantApi = createTenantApi()
-      const response = await tenantApi.nrsOAuth(email, password, mock)
+      const response = await tenantApi.firsOAuth(email, password, mock)
       if (response.error || response.data.error) {
         const errorMessage = (response.error as any)?.value?.error || response.data.error  || 'NRS authentication failed'
         setError(errorMessage)
@@ -91,11 +102,7 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: NrsOAuthStepProps) {
   }
 
   const onSubmit = async (data: FirsOAuthFormValues) => {
-    await runAuth(data.email, data.password, false)
-  }
-
-  const onMockSubmit = async () => {
-    await runAuth('', '', true)
+    await runAuth(data.email, data.password, useMock)
   }
 
   if (businessInfo) {
@@ -161,8 +168,9 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: NrsOAuthStepProps) {
           </div>
           <Switch
             checked={useMock}
-            onCheckedChange={setUseMock}
+            onCheckedChange={handleMockToggle}
             aria-label="Toggle mock mode"
+            className="data-[state=unchecked]:dark:bg-amber-800"
           />
         </div>
       )}
@@ -174,15 +182,53 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: NrsOAuthStepProps) {
         </Alert>
       )}
 
-      {useMock ? (
-        <div className="space-y-4">
-          <Alert className="border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30">
-            <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <AlertDescription className="text-amber-700 dark:text-amber-400">
-              Mock mode is active. NRS test credentials will be used automatically — no real credentials needed.
-            </AlertDescription>
-          </Alert>
-          <Button className="w-full" disabled={isSubmitting} onClick={onMockSubmit}>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>NRS Email</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      placeholder="your-nrs-email@example.com"
+                      className="pl-10"
+                      {...field}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>NRS Password</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      placeholder="Enter your NRS password"
+                      className="pl-10"
+                      {...field}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -190,75 +236,13 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: NrsOAuthStepProps) {
               </>
             ) : (
               <>
-                <FlaskConical className="mr-2 h-4 w-4" />
-                Authenticate with Mock Credentials
+                Authenticate with NRS
+                <ArrowRight className="ml-2 h-4 w-4" />
               </>
             )}
           </Button>
-        </div>
-      ) : (
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>NRS Email</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="email"
-                        placeholder="your-nrs-email@example.com"
-                        className="pl-10"
-                        {...field}
-                      />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>NRS Password</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="password"
-                        placeholder="Enter your NRS password"
-                        className="pl-10"
-                        {...field}
-                      />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Authenticating with NRS...
-                </>
-              ) : (
-                <>
-                  Authenticate with NRS
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </form>
-        </Form>
-      )}
+        </form>
+      </Form>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Plus, Eye, Edit, Trash2, Power, Building2, ArrowLeft } from 'lucide-react';
 import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
@@ -94,6 +94,7 @@ export default function Tenants() {
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [columnSort, setColumnSort] = useState<{ key: string; order: 'asc' | 'desc' } | null>(null);
   
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -387,24 +388,41 @@ export default function Tenants() {
   };
 
   const handleSort = (key: string, order: 'asc' | 'desc') => {
-    const sorted = [...tenants].sort((a, b) => {
-      let aVal: any = a[key as keyof Tenant];
-      let bVal: any = b[key as keyof Tenant];
-      
-      if (key === 'createdAt' || key === 'updatedAt') {
-        aVal = new Date(aVal || 0).getTime();
-        bVal = new Date(bVal || 0).getTime();
-      } else if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase();
-        bVal = bVal.toLowerCase();
-      }
-      
-      if (aVal < bVal) return order === 'asc' ? -1 : 1;
-      if (aVal > bVal) return order === 'asc' ? 1 : -1;
-      return 0;
-    });
-    setTenants(sorted);
+    setColumnSort({ key, order });
   };
+
+  const statusWeight = (t: Tenant) =>
+    t.status === 'active' ? 0 : t.status === 'suspended' ? 1 : 2;
+
+  const displayTenants = useMemo(() => {
+    return [...tenants].sort((a, b) => {
+      // Always sort by status group first
+      const weightDiff = statusWeight(a) - statusWeight(b);
+      if (weightDiff !== 0) return weightDiff;
+
+      // Within the same status group, apply column sort if active
+      if (columnSort) {
+        const { key, order } = columnSort;
+        let aVal: any = a[key as keyof Tenant];
+        let bVal: any = b[key as keyof Tenant];
+
+        if (key === 'createdAt' || key === 'updatedAt') {
+          aVal = new Date(aVal || 0).getTime();
+          bVal = new Date(bVal || 0).getTime();
+        } else if (typeof aVal === 'string') {
+          aVal = aVal.toLowerCase();
+          bVal = (bVal as string).toLowerCase();
+        }
+
+        if (aVal < bVal) return order === 'asc' ? -1 : 1;
+        if (aVal > bVal) return order === 'asc' ? 1 : -1;
+        return 0;
+      }
+
+      // Default within-group sort: most recent first
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [tenants, columnSort]);
 
   const getPlanBadge = (plan: string) => {
     const colors: Record<string, string> = {
@@ -622,7 +640,7 @@ export default function Tenants() {
 
         {/* Data Table */}
         <DataTable
-          data={tenants}
+          data={displayTenants}
           columns={columns}
           searchPlaceholder="Search tenants by name, TIN, or email..."
           filters={tenantFilters}
@@ -636,6 +654,11 @@ export default function Tenants() {
           onFilterChange={setFilters}
           onSort={handleSort}
           emptyMessage="No tenants found"
+          rowClassName={(tenant) =>
+            tenant.status === 'inactive' || tenant.status === 'suspended'
+              ? 'opacity-50 grayscale-[30%]'
+              : ''
+          }
         />
       </div>
 

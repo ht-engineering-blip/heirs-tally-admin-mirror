@@ -86,7 +86,7 @@ interface MappingRule {
   target: string
 }
 
-interface NrsDictionaryField {
+interface FirsDictionaryField {
   field_id: string
   field_path: string
   data_type: string
@@ -169,8 +169,8 @@ export default function WebhookSettingsPage() {
   const [savingMappings, setSavingMappings] = useState(false)  
 
   // Data mapping state
-  const [nrsFields, setFirsFields] = useState<NrsDictionaryField[]>([])
-  const [nrsLoading, setFirsLoading] = useState(false)
+  const [firsFields, setFirsFields] = useState<FirsDictionaryField[]>([])
+  const [firsLoading, setFirsLoading] = useState(false)
   const [receivedPayload, setReceivedPayload] = useState<any>(null)
   const [mappingData, setMappingData] = useState<MappingRule[]>([])
   const [showMapper, setShowMapper] = useState(false)
@@ -251,11 +251,11 @@ export default function WebhookSettingsPage() {
   }, [tenantData, fetchEventRouting])
 
   // Fetch NRS dictionary for mapping target fields
-  const fetchNrsDictionary = useCallback(async () => {
+  const fetchFirsDictionary = useCallback(async () => {
     setFirsLoading(true)
     try {
       const adminApi = getAdminApiClient()
-      const response = await adminApi.v1.admin.config['nrs-dictionary'].get()
+      const response = await adminApi.v1.admin.config['firs-dictionary'].get()
       if (response.data && 'data' in response.data && (response.data as any).data) {
         const data = (response.data as any).data
         if (data.fields && Array.isArray(data.fields)) {
@@ -522,8 +522,8 @@ export default function WebhookSettingsPage() {
   }
 
   const handleOpenMapper = () => {
-    if (nrsFields.length === 0) {
-      fetchNrsDictionary()
+    if (firsFields.length === 0) {
+      fetchFirsDictionary()
     }
     setShowMapper(true)
   }
@@ -706,13 +706,13 @@ export default function WebhookSettingsPage() {
   }, [receivedPayload])
 
   const targetFields = useMemo(() => {
-    return nrsFields.map((f) => ({
+    return firsFields.map((f) => ({
       key: f.field_path || f.field_id,
       type: f.data_type,
       required: f.is_required,
       description: f.description,
     }))
-  }, [nrsFields])
+  }, [firsFields])
 
   // History columns
   const historyColumns: Column<WebhookEvent>[] = [
@@ -871,6 +871,13 @@ export default function WebhookSettingsPage() {
                         </div>
                       )}
                     </div>
+                    <Alert className="border-info/30 bg-info/5 text-info">
+                      <AlertCircle className="h-4 w-4 text-info" />
+                      <AlertDescription className="text-xs space-y-1 text-info">
+                        <p><strong>How to authenticate incoming webhooks:</strong></p>
+                        <p>Send your webhook secret in the request headers as <code className="font-mono bg-info/10 px-1 py-0.5 rounded">X-Webhook-Key</code>. Requests without this header or with an incorrect value will be rejected.</p>
+                      </AlertDescription>
+                    </Alert>
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
                       <Input
@@ -1315,7 +1322,7 @@ export default function WebhookSettingsPage() {
                 sourceFields={sourceFields}
                 targetFields={targetFields}
                 mappingData={mappingData}
-                nrsLoading={nrsLoading}
+                firsLoading={firsLoading}
                 onAddMapping={addFieldMapping}
                 onRemoveBySource={removeFieldMappingBySource}
                 onRemoveByTarget={removeFieldMappingByTarget}
@@ -1445,7 +1452,7 @@ function FieldMapper({
   sourceFields,
   targetFields,
   mappingData,
-  nrsLoading,
+  firsLoading,
   onAddMapping,
   onRemoveBySource,
   onRemoveByTarget,
@@ -1457,7 +1464,7 @@ function FieldMapper({
   sourceFields: { key: string; type: string }[]
   targetFields: { key: string; type: string; required?: boolean; description?: string }[]
   mappingData: MappingRule[]
-  nrsLoading: boolean
+  firsLoading: boolean
   onAddMapping: (source: string, target: string) => void
   onRemoveBySource: (source: string) => void
   onRemoveByTarget: (target: string) => void
@@ -1495,7 +1502,7 @@ function FieldMapper({
     }
   }, [selectedSource, selectedTarget])
 
-  if (nrsLoading) {
+  if (firsLoading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">

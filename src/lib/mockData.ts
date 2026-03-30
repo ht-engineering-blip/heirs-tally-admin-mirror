@@ -40,7 +40,7 @@ export interface Transaction {
   currency: string;
   customerName: string;
   createdAt: string;
-  nrsUuid?: string;
+  firsUuid?: string;
   errorMessage?: string;
 }
 
@@ -70,7 +70,7 @@ export interface ApiKey {
 
 export interface SystemHealth {
   apiUptime: number;
-  nrsConnectivity: 'healthy' | 'degraded' | 'down';
+  firsConnectivity: 'healthy' | 'degraded' | 'down';
   queueDepth: number;
   avgResponseTime: number;
   errorRate: number;
@@ -260,7 +260,7 @@ export const mockTransactions: Transaction[] = [
     currency: 'NGN',
     customerName: 'ABC Distributors',
     createdAt: '2025-02-06T09:15:00Z',
-    nrsUuid: 'NRS-UUID-123456',
+    firsUuid: 'FIRS-UUID-123456',
   },
   {
     id: 'txn-002',
@@ -273,7 +273,7 @@ export const mockTransactions: Transaction[] = [
     currency: 'NGN',
     customerName: 'XYZ Enterprises',
     createdAt: '2025-02-06T08:45:00Z',
-    nrsUuid: 'NRS-UUID-123455',
+    firsUuid: 'FIRS-UUID-123455',
   },
   {
     id: 'txn-003',
@@ -286,7 +286,7 @@ export const mockTransactions: Transaction[] = [
     currency: 'NGN',
     customerName: 'Prime Suppliers Ltd',
     createdAt: '2025-02-06T08:30:00Z',
-    nrsUuid: 'NRS-UUID-123454',
+    firsUuid: 'FIRS-UUID-123454',
   },
   {
     id: 'txn-004',
@@ -312,7 +312,7 @@ export const mockTransactions: Transaction[] = [
     currency: 'NGN',
     customerName: 'Bulk Buyers Inc',
     createdAt: '2025-02-06T06:50:00Z',
-    nrsUuid: 'NRS-UUID-123453',
+    firsUuid: 'FIRS-UUID-123453',
   },
   {
     id: 'txn-006',
@@ -337,7 +337,7 @@ export const mockTransactions: Transaction[] = [
     currency: 'NGN',
     customerName: 'Medical Supplies Ltd',
     createdAt: '2025-02-05T22:15:00Z',
-    nrsUuid: 'NRS-UUID-123452',
+    firsUuid: 'FIRS-UUID-123452',
   },
   {
     id: 'txn-008',
@@ -350,7 +350,7 @@ export const mockTransactions: Transaction[] = [
     currency: 'NGN',
     customerName: 'Import House Nigeria',
     createdAt: '2025-02-05T18:40:00Z',
-    nrsUuid: 'NRS-UUID-123451',
+    firsUuid: 'FIRS-UUID-123451',
   },
   {
     id: 'txn-009',
@@ -486,7 +486,7 @@ export const mockDashboardStats: DashboardStats = {
 // System health
 export const mockSystemHealth: SystemHealth = {
   apiUptime: 99.98,
-  nrsConnectivity: 'healthy',
+  firsConnectivity: 'healthy',
   queueDepth: 142,
   avgResponseTime: 245,
   errorRate: 0.12,

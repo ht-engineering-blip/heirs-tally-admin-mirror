@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import {
   Form,
   FormControl,
@@ -16,31 +17,39 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ArrowRight, AlertCircle, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react'
+import { ArrowRight, AlertCircle, Loader2, CheckCircle2, ShieldCheck, FlaskConical } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { createTenantApi } from '@/lib/api/tenant-api'
 
-const nrsCredentialsSchema = z.object({
+const isDev = process.env.NEXT_PUBLIC_APP_ENV === 'development' || process.env.NODE_ENV === 'development'
+
+const firsCredentialsSchema = z.object({
   certificate: z.string().min(1, 'Certificate is required'),
   publicKey: z.string().min(1, 'Public key is required'),
 })
 
-type NrsCredentialsFormValues = z.infer<typeof nrsCredentialsSchema>
+type FirsCredentialsFormValues = z.infer<typeof firsCredentialsSchema>
 
-interface NrsCredentialsStepProps {
+interface FirsCredentialsStepProps {
   tenantId: string
   onStepComplete: () => void
 }
 
-export function NrsCredentialsStep({ tenantId, onStepComplete }: NrsCredentialsStepProps) {
+export function NrsCredentialsStep({ tenantId, onStepComplete }: FirsCredentialsStepProps) {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
+  const [useMock, setUseMock] = useState(false)
 
-  const form = useForm<NrsCredentialsFormValues>({
-    resolver: zodResolver(nrsCredentialsSchema),
+  const form = useForm<FirsCredentialsFormValues>({
+    resolver: zodResolver(firsCredentialsSchema),
     defaultValues: { certificate: '', publicKey: '' },
   })
+
+  const onMockSubmit = () => {
+    toast.success('NRS credentials skipped (mock mode)')
+    onStepComplete()
+  }
 
   const onSubmit = async (data: FirsCredentialsFormValues) => {
     setIsSubmitting(true)
@@ -48,7 +57,7 @@ export function NrsCredentialsStep({ tenantId, onStepComplete }: NrsCredentialsS
 
     try {
       const tenantApi = createTenantApi()
-      const response = await tenantApi.putNrsCredentials(tenantId, data.certificate, data.publicKey)
+      const response = await tenantApi.putFirsCredentials(tenantId, data.certificate, data.publicKey)
 
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to save NRS credentials'
@@ -101,6 +110,22 @@ export function NrsCredentialsStep({ tenantId, onStepComplete }: NrsCredentialsS
         </p>
       </div>
 
+      {isDev && (
+        <div className="flex items-center justify-between rounded-lg border border-dashed border-amber-400 bg-amber-50 px-4 py-3 dark:border-amber-600 dark:bg-amber-950/30">
+          <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+            <FlaskConical className="h-4 w-4 shrink-0" />
+            <span className="font-medium">Skip NRS credentials</span>
+            <span className="text-amber-600/70 dark:text-amber-500/70">(dev only)</span>
+          </div>
+          <Switch
+            checked={useMock}
+            onCheckedChange={setUseMock}
+            aria-label="Toggle mock mode"
+            className="data-[state=unchecked]:dark:bg-amber-800"
+          />
+        </div>
+      )}
+
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -108,6 +133,20 @@ export function NrsCredentialsStep({ tenantId, onStepComplete }: NrsCredentialsS
         </Alert>
       )}
 
+      {useMock ? (
+        <div className="space-y-4">
+          <Alert className="border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30">
+            <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-amber-700 dark:text-amber-400">
+              Mock mode is active. NRS credential validation will be skipped — no real certificate or key needed.
+            </AlertDescription>
+          </Alert>
+          <Button className="w-full" onClick={onMockSubmit}>
+            <FlaskConical className="mr-2 h-4 w-4" />
+            Continue with Mock Credentials
+          </Button>
+        </div>
+      ) : (
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
@@ -167,6 +206,7 @@ export function NrsCredentialsStep({ tenantId, onStepComplete }: NrsCredentialsS
           </Button>
         </form>
       </Form>
+      )}
     </div>
   )
 }

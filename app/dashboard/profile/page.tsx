@@ -17,6 +17,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Textarea } from '@/components/ui/textarea'
 import { Loader2, Building2, AlertCircle, CheckCircle, Pencil, X, Shield, Eye, EyeOff, Copy } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { SectionLoader } from '@/components/shared/SectionLoader'
@@ -31,11 +32,20 @@ const profileSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileSchema>
 
+const credentialsSchema = z.object({
+  certificate: z.string().min(1, 'Certificate is required'),
+  publicKey: z.string().min(1, 'Public key is required'),
+})
+
+type CredentialsFormValues = z.infer<typeof credentialsSchema>
+
 export default function ProfilePage() {
   const { tenantId, tenantData, metadata, isLoading, error: tenantError, refetch } = useTenant()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
+  const [isEditingCredentials, setIsEditingCredentials] = useState(false)
+  const [isSavingCredentials, setIsSavingCredentials] = useState(false)
 
   const tenant = tenantData as Record<string, any> | undefined
   const config = tenant?.config as Record<string, any> | undefined
@@ -47,6 +57,11 @@ export default function ProfilePage() {
       contactEmail: tenant?.contactEmail || '',
       contactPhone: tenant?.contactPhone || '',
     },
+  })
+
+  const credentialsForm = useForm<CredentialsFormValues>({
+    resolver: zodResolver(credentialsSchema),
+    defaultValues: { certificate: '', publicKey: '' },
   })
 
   const onSubmit = async (data: ProfileFormValues) => {
@@ -76,6 +91,27 @@ export default function ProfilePage() {
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text)
     toast.success(`${label} copied to clipboard`)
+  }
+
+  const handleUpdateCredentials = async (data: CredentialsFormValues) => {
+    if (!tenantId) return
+    setIsSavingCredentials(true)
+    try {
+      const api = createTenantApi()
+      const response = await api.putFirsCredentials(tenantId, data.certificate, data.publicKey)
+      if (response.error) {
+        toast.error((response.error as any)?.value?.error || 'Failed to update FIRS credentials')
+        return
+      }
+      toast.success('FIRS credentials updated successfully')
+      setIsEditingCredentials(false)
+      credentialsForm.reset()
+      refetch()
+    } catch {
+      toast.error('An unexpected error occurred')
+    } finally {
+      setIsSavingCredentials(false)
+    }
   }
 
   if (isLoading) {
@@ -189,7 +225,7 @@ export default function ProfilePage() {
               <ProfileField label="TIN" value={tenant?.tin} />
               <ProfileField label="Contact Email" value={tenant?.contactEmail} />
               <ProfileField label="Contact Phone" value={tenant?.contactPhone} />
-              <ProfileField label="ERP System" value={tenant?.erpSystem} />
+              <ProfileField label="ERP System" value={config?.erpSystem || tenant?.erpSystem} />
               <ProfileField label="Registered" value={tenant?.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : undefined} />
             </div>
           )}
@@ -229,61 +265,117 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* NRS Credentials Card */}
+      {/* FIRS Credentials Card */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                NRS Credentials
+                FIRS Credentials
               </CardTitle>
-              <CardDescription>Your NRS authentication details</CardDescription>
+              <CardDescription>Your FIRS certificate and public key for invoice signing</CardDescription>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCredentials(!showCredentials)}
-            >
-              {showCredentials ? (
-                <><EyeOff className="h-4 w-4 mr-1" /> Hide</>
-              ) : (
-                <><Eye className="h-4 w-4 mr-1" /> Show</>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCredentials(!showCredentials)}
+              >
+                {showCredentials ? (
+                  <><EyeOff className="h-4 w-4 mr-1" /> Hide</>
+                ) : (
+                  <><Eye className="h-4 w-4 mr-1" /> Show</>
+                )}
+              </Button>
+              {!isEditingCredentials && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setIsEditingCredentials(true); setShowCredentials(false) }}
+                >
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Update
+                </Button>
               )}
-            </Button>
+            </div>
           </div>
         </CardHeader>
-        <CardContent> 
-          {showCredentials ? (
+        <CardContent className="space-y-4">
+          {isEditingCredentials ? (
+            <Form {...credentialsForm}>
+              <form onSubmit={credentialsForm.handleSubmit(handleUpdateCredentials)} className="space-y-4">
+                <FormField
+                  control={credentialsForm.control}
+                  name="certificate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Certificate</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                          className="font-mono text-xs min-h-[120px]"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={credentialsForm.control}
+                  name="publicKey"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Public Key</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
+                          className="font-mono text-xs min-h-[120px]"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setIsEditingCredentials(false); credentialsForm.reset() }}
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" disabled={isSavingCredentials}>
+                    {isSavingCredentials && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Save Credentials
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          ) : showCredentials ? (
             <div className="space-y-4">
               <ProfileField
-                label="NRS Status"
-                value={
-                  (tenantData as any)?.config?.nrs
-                    ? 'Connected'
-                    : 'Not connected'
-                }
+                label="FIRS Status"
+                value={(tenantData as any)?.config?.nrs ? 'Connected' : 'Not connected'}
               />
               {(tenantData as any)?.config?.nrs && (
                 <>
                   <ProfileField
-                    label="NRS Service ID"
+                    label="Service ID"
                     value={(tenantData as any)?.config?.nrs.serviceId}
                   />
-                  <ProfileField
-                    label="Business Name"
-                    value={tenantData?.businessName}
-                  />
-                  <ProfileField
-                    label="NRS TIN"
-                    value={tenantData.tin}
-                  />
+                  <ProfileField label="Business Name" value={tenantData?.businessName} />
+                  <ProfileField label="TIN" value={tenantData.tin} />
                 </>
               )}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Click &quot;Show&quot; to view your NRS credential details.
+              Click &quot;Show&quot; to view your FIRS credential details, or &quot;Update&quot; to replace your certificate and key.
             </p>
           )}
         </CardContent>

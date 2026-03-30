@@ -11,6 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -21,8 +22,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
+import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -37,13 +46,14 @@ import {
   CheckCircle,
   Clock,
   Copy,
+  Download,
   Eye,
   FileText,
   Package,
   QrCode,
   RefreshCw,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface Invoice {
   id: string
@@ -85,6 +95,16 @@ const transactionFilters: FilterOption[] = [
   },
 ]
 
+const PAGE_SIZE = 10
+
+const WORKFLOW_STEP_MAP = [
+  { stateKey: 'transformed', apiValue: 'transform', label: 'Transform' },
+  { stateKey: 'validated', apiValue: 'validate', label: 'Validate' },
+  { stateKey: 'signed', apiValue: 'sign', label: 'Sign' },
+  { stateKey: 'transmitted', apiValue: 'transmit', label: 'Transmit' },
+  { stateKey: 'delivered', apiValue: 'deliver', label: 'Deliver' },
+]
+
 export default function TransactionsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -94,45 +114,49 @@ export default function TransactionsPage() {
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = usePersistedTab('all')
 
-  console.log('Transactions: ', invoices);
-  
 
   // Modal states
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [showResendDialog, setShowResendDialog] = useState(false)
+  const [showRetryDialog, setShowRetryDialog] = useState(false)
+  const [retryStep, setRetryStep] = useState<string>('validate')
+  const [retrying, setRetrying] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [invoiceDetails, setInvoiceDetails] = useState<any>(null)
   const [resending, setResending] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const abortRef = useRef<AbortController | null>(null)
 
-  // Auto-refresh table every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => setRefreshTrigger(n => n + 1), 30000)
-    return () => clearInterval(interval)
-  }, [])
+  const fetchInvoices = useCallback(async () => {
+    // Cancel any in-flight request before starting a new one
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
 
-  const fetchInvoices = async () => {
     setIsLoading(true)
     try {
       const api = createTenantApi()
       const allInvoices: Invoice[] = []
       let totalCount = 0
 
-      if (activeTab === 'all' || activeTab === 'outbound') {
+      // For the 'all' tab both APIs are fetched with a larger limit so the
+      // DataTable can paginate the combined result client-side.
+      // For single-type tabs we do true server-side pagination.
+      const isAllTab = activeTab === 'all'
+      const apiLimit = isAllTab ? '50' : PAGE_SIZE.toString()
+      const apiPage = isAllTab ? '1' : page.toString()
+
+      if (isAllTab || activeTab === 'outbound') {
         try {
           const outboundResponse = await api.getOutboundInvoices({
-            page: page.toString(),
-            limit: '50',
+            page: apiPage,
+            limit: apiLimit,
             ...(filters.status && filters.status !== 'all' && { status: filters.status }),
           })
-          console.log('Outbound response: ', outboundResponse);
-          
-          
           if (outboundResponse.data?.data) {
             const outboundData = outboundResponse.data.data as any[]
             const pagination = outboundResponse.data.pagination
-            
+
             outboundData.forEach((invoice: any) => {
               allInvoices.push({
                 id: invoice.irn,
@@ -151,23 +175,21 @@ export default function TransactionsPage() {
                 erp: invoice.erp,
               })
             })
-            
-            totalCount += pagination?.total || 0
+
+            if (!isAllTab) totalCount += pagination?.total || 0
           }
         } catch (error) {
           console.error('Failed to fetch outbound invoices:', error)
         }
       }
-      
-      if (activeTab === 'all' || activeTab === 'inbound') {
+
+      if (isAllTab || activeTab === 'inbound') {
         try {
           const inboundResponse = await api.getInboundInvoices({
-            page: page.toString(),
-            limit: '50',
+            page: apiPage,
+            limit: apiLimit,
             ...(filters.status && filters.status !== 'all' && { status: filters.status }),
           })
-          console.log('inbound response: ', inboundResponse);
-          
           if (inboundResponse.data?.data) {
             const inboundData = inboundResponse.data.data as any[]
             const pagination = inboundResponse.data.pagination
@@ -192,7 +214,7 @@ export default function TransactionsPage() {
               })
             })
 
-            totalCount += pagination?.total || 0
+            if (!isAllTab) totalCount += pagination?.total || 0
           }
         } catch (error) {
           console.error('Failed to fetch inbound invoices:', error)
@@ -212,17 +234,26 @@ export default function TransactionsPage() {
       }
 
       setInvoices(filtered)
-      setTotal(totalCount || filtered.length)
+      // For 'all' tab, total = number of combined items fetched (client-side pagination)
+      // For single-type tabs, total = server-reported total (server-side pagination)
+      setTotal(isAllTab ? filtered.length : (totalCount || filtered.length))
     } catch (error: any) {
       toast.error(error?.message || 'Failed to load transactions')
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [page, searchQuery, filters, activeTab])
 
+  // Re-fetch when params or manual refresh trigger changes
   useEffect(() => {
     fetchInvoices()
-  }, [page, searchQuery, filters, activeTab, refreshTrigger])
+  }, [fetchInvoices, refreshTrigger])
+
+  // Auto-refresh every 5 minutes
+  useEffect(() => {
+    const interval = setInterval(() => setRefreshTrigger(n => n + 1), 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const fetchInvoiceDetails = async (invoice: Invoice) => {
     setDetailLoading(true)
@@ -281,6 +312,29 @@ export default function TransactionsPage() {
     }
   }
 
+  const handleRetryFromStep = async () => {
+    if (!selectedInvoice || selectedInvoice.type !== 'outbound') return
+
+    setRetrying(true)
+    try {
+      const api = createTenantApi()
+      const response = await api.retryFromStep(selectedInvoice.irn, retryStep)
+
+      if (response.error) {
+        toast.error((response.error as any)?.value?.error || 'Failed to retry invoice')
+      } else {
+        toast.success(`Invoice queued to retry from "${retryStep}" step`)
+        setShowRetryDialog(false)
+        setSelectedInvoice(null)
+        fetchInvoices()
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to retry invoice')
+    } finally {
+      setRetrying(false)
+    }
+  }
+
   const formatAmount = (amount: number, currency: string) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
@@ -313,10 +367,32 @@ export default function TransactionsPage() {
     return s === 'failed' || s === 'rejected'
   }
 
+  // Show "Retry from Step" when the invoice is outbound and any workflow step is incomplete
+  const hasIncompleteSteps = (workflowState: any) => {
+    if (!workflowState) return false
+    const steps = ['transformed', 'validated', 'signed', 'transmitted', 'delivered']
+    return steps.some((step) => !workflowState[step])
+  }
+
+  // Show "Resend Invoice" when the invoice has any job-level error
+  const hasJobError = (inv: Invoice) => {
+    if (inv.type !== 'outbound') return false
+    const ws = inv.workflowState
+    if (!ws) return false
+    return !!(ws.error || ws.jobError || ws.failed)
+  }
+
+  const downloadQrCode = (qrCode: string, filename = 'qrcode') => {
+    const a = document.createElement('a')
+    a.href = qrCode
+    a.download = `${filename}.png`
+    a.click()
+  }
+
   const columns: Column<Invoice>[] = [
     {
-      key: 'invoiceNumber',
-      header: 'Invoice',
+      key: 'irn',
+      header: 'IRN',
       sortable: true,
       accessor: (inv) => (
         <div className="flex items-center gap-3">
@@ -365,14 +441,20 @@ export default function TransactionsPage() {
       ),
     },
     {
-      key: 'totalAmount',
-      header: 'Amount',
+      key: 'customerName',
+      header: 'Counterparty',
       sortable: true,
-      accessor: (inv) => (
-        <span className="font-semibold">
-          {formatAmount(Number(inv.totalAmount), inv.currency)}
-        </span>
-      ),
+      accessor: (inv) => {
+        const name = inv.type === 'outbound' ? inv.customerName : inv.supplierName
+        const sub = inv.type === 'inbound' && inv.supplierTIN ? inv.supplierTIN : null
+        if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>
+        return (
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
+            {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
+          </div>
+        )
+      },
     },
     {
       key: 'qrCode',
@@ -381,39 +463,55 @@ export default function TransactionsPage() {
       accessor: (inv) => {
         if (inv.qrCode) {
           return (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <QrCode className="w-4 h-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-4">
-                <div className="flex flex-col items-center gap-2">
-                  <img
-                    src={inv.qrCode.toString()}
-                    alt="QR Code"
-                    className="w-[200px] h-[200px]"
-                  />
-                  <p className="text-xs text-muted-foreground text-center mt-2">
-                    Scan to verify invoice
-                  </p>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <div onClick={(e) => e.stopPropagation()}>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <QrCode className="w-4 h-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-4">
+                  <div className="flex flex-col items-center gap-2">
+                    <img
+                      src={inv.qrCode.toString()}
+                      alt="QR Code"
+                      className="w-[200px] h-[200px]"
+                    />
+                    <p className="text-xs text-muted-foreground text-center">
+                      Scan to verify invoice
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => downloadQrCode(inv.qrCode!, inv.irn)}
+                    >
+                      <Download className="w-3 h-3 mr-2" />
+                      Download
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           )
         }
         return <span className="text-muted-foreground text-xs">&mdash;</span>
       },
     },
     {
-      key: 'paymentStatus',
-      header: 'Payment',
+      key: 'erp',
+      header: 'ERP',
+      sortable: true,
       className: 'hidden md:table-cell',
       accessor: (inv) => {
-        if (inv.type === 'inbound' && inv.paymentStatus) {
-          return <StatusBadge status={inv.paymentStatus} />
+        if (inv.erp) {
+          return (
+            <Badge variant="outline" className="text-xs whitespace-nowrap">
+              {inv.erp}
+            </Badge>
+          )
         }
-        return <span className="text-muted-foreground">&mdash;</span>
+        return <span className="text-muted-foreground text-xs">&mdash;</span>
       },
     },
     {
@@ -438,9 +536,6 @@ export default function TransactionsPage() {
       if (key === 'createdAt' || key === 'issueDate' || key === 'dueDate') {
         aVal = new Date(aVal || 0).getTime()
         bVal = new Date(bVal || 0).getTime()
-      } else if (key === 'totalAmount') {
-        aVal = Number(aVal || 0)
-        bVal = Number(bVal || 0)
       } else if (typeof aVal === 'string') {
         aVal = aVal.toLowerCase()
         bVal = (bVal || '').toLowerCase()
@@ -459,7 +554,16 @@ export default function TransactionsPage() {
         <Eye className="w-4 h-4 mr-2" />
         View Details
       </DropdownMenuItem>
-      {inv.type === 'outbound' && isFailed(inv.status) && (
+      {inv.qrCode && (
+        <DropdownMenuItem onClick={() => downloadQrCode(inv.qrCode!, inv.irn)}>
+          <Download className="w-4 h-4 mr-2" />
+          Download QR Code
+        </DropdownMenuItem>
+      )}
+      {inv.type === 'outbound' && (hasJobError(inv) || hasIncompleteSteps(inv.workflowState)) && (
+        <DropdownMenuSeparator />
+      )}
+      {inv.type === 'outbound' && hasJobError(inv) && (
         <DropdownMenuItem
           onClick={() => {
             setSelectedInvoice(inv)
@@ -467,7 +571,20 @@ export default function TransactionsPage() {
           }}
         >
           <RefreshCw className="w-4 h-4 mr-2" />
-          Resend
+          Resend Invoice
+        </DropdownMenuItem>
+      )}
+      {inv.type === 'outbound' && hasIncompleteSteps(inv.workflowState) && (
+        <DropdownMenuItem
+          onClick={() => {
+            const firstIncomplete = WORKFLOW_STEP_MAP.find(s => !inv.workflowState?.[s.stateKey])
+            setSelectedInvoice(inv)
+            setRetryStep(firstIncomplete?.apiValue ?? 'validate')
+            setShowRetryDialog(true)
+          }}
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Retry from Step
         </DropdownMenuItem>
       )}
     </>
@@ -490,7 +607,7 @@ export default function TransactionsPage() {
             <h1 className="text-2xl font-bold">Transactions</h1>
             <p className="text-muted-foreground">View and manage your inbound and outbound invoices</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setRefreshTrigger(n => n + 1)} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => { abortRef.current?.abort(); setRefreshTrigger(n => n + 1) }}>
             <RefreshCw className={cn('w-4 h-4 mr-2', isLoading && 'animate-spin')} />
             Refresh
           </Button>
@@ -498,7 +615,7 @@ export default function TransactionsPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-          <Card>
+          <Card className='dark:border dark:border-grey-100'>
             <CardContent className="p-4 sm:pt-6">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -584,9 +701,10 @@ export default function TransactionsPage() {
           isLoading={isLoading}
           currentPage={page}
           totalItems={total}
+          pageSize={PAGE_SIZE}
           onPageChange={setPage}
-          onSearch={setSearchQuery}
-          onFilterChange={setFilters}
+          onSearch={(q) => { setSearchQuery(q); setPage(1) }}
+          onFilterChange={(f) => { setFilters(f); setPage(1) }}
           onSort={handleSort}
           onRowClick={handleViewDetails}
           emptyMessage="No transactions found"
@@ -660,6 +778,18 @@ export default function TransactionsPage() {
                           className="w-[140px] h-[140px]"
                         />
                       </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => downloadQrCode(
+                          (invoiceDetails.invoice?.qrCode || selectedInvoice?.qrCode || '').toString(),
+                          selectedInvoice?.irn || 'qrcode'
+                        )}
+                      >
+                        <Download className="w-3 h-3 mr-2" />
+                        Download QR Code
+                      </Button>
                     </div>
                   )}
 
@@ -802,10 +932,10 @@ export default function TransactionsPage() {
                               <p className="text-sm">{format(new Date(payload.due_date), 'PP')}</p>
                             </div>
                           )}
-                          {payload.nrs_validated !== undefined && (
+                          {payload.firs_validated !== undefined && (
                             <div>
                               <p className="text-xs text-muted-foreground">NRS Validated</p>
-                              <p className="text-sm">{payload.nrs_validated ? 'Yes' : 'No'}</p>
+                              <p className="text-sm">{payload.firs_validated ? 'Yes' : 'No'}</p>
                             </div>
                           )}
                         </div>
@@ -1087,7 +1217,7 @@ export default function TransactionsPage() {
             </ScrollArea>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {selectedInvoice?.type === 'outbound' && selectedInvoice && isFailed(selectedInvoice.status) && (
+            {selectedInvoice && hasJobError(selectedInvoice) && (
               <Button
                 variant="outline"
                 className="w-full sm:w-auto"
@@ -1097,11 +1227,71 @@ export default function TransactionsPage() {
                 }}
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Resend
+                Resend Invoice
+              </Button>
+            )}
+            {selectedInvoice?.type === 'outbound' && hasIncompleteSteps(invoiceDetails?.invoice?.workflowState ?? selectedInvoice?.workflowState) && (
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  const ws = invoiceDetails?.invoice?.workflowState ?? selectedInvoice?.workflowState
+                  const firstIncomplete = WORKFLOW_STEP_MAP.find(s => !ws?.[s.stateKey])
+                  setShowDetailModal(false)
+                  setRetryStep(firstIncomplete?.apiValue ?? 'validate')
+                  setShowRetryDialog(true)
+                }}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry from Step
               </Button>
             )}
             <Button variant="outline" className="w-full sm:w-auto" onClick={() => setShowDetailModal(false)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Retry from Step Dialog */}
+      <Dialog open={showRetryDialog} onOpenChange={setShowRetryDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Retry from Step</DialogTitle>
+            <DialogDescription>
+              Resume the failed workflow for invoice{' '}
+              <strong>{selectedInvoice?.invoiceNumber || selectedInvoice?.irn}</strong> from a specific step.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label>Start from step</Label>
+            <Select value={retryStep} onValueChange={setRetryStep}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(selectedInvoice?.workflowState
+                  ? WORKFLOW_STEP_MAP.filter(s => !selectedInvoice.workflowState![s.stateKey])
+                  : WORKFLOW_STEP_MAP
+                ).map(s => (
+                  <SelectItem key={s.apiValue} value={s.apiValue}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              The invoice will be reprocessed starting from the selected step, skipping any steps before it.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowRetryDialog(false); setSelectedInvoice(null) }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRetryFromStep}
+              disabled={retrying}
+              className="bg-warning text-warning-foreground hover:bg-warning/90"
+            >
+              {retrying ? 'Retrying...' : 'Retry'}
             </Button>
           </DialogFooter>
         </DialogContent>

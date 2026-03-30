@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePersistedTab } from '@/hooks/use-persisted-tab';
-import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw, Webhook, Copy, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw, Webhook, Copy, Loader2, Eye, EyeOff, AlertCircle, Shield } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -103,6 +104,9 @@ export default function TenantDetail() {
     invoiceIdKey?: string;
   } | null>(null);
   const [secretVisible, setSecretVisible] = useState(false);
+  const [showFirsCredentialsModal, setShowFirsCredentialsModal] = useState(false);
+  const [firsCredentialsSaving, setFirsCredentialsSaving] = useState(false);
+  const [firsCredentialsForm, setFirsCredentialsForm] = useState({ certificate: '', publicKey: '' });
 
   const [formData, setFormData] = useState({
     businessName: '',
@@ -280,6 +284,31 @@ export default function TenantDetail() {
       toast.error(error?.message || 'Failed to generate webhook');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleUpdateFirsCredentials = async () => {
+    if (!tenant || !firsCredentialsForm.certificate || !firsCredentialsForm.publicKey) return;
+    setFirsCredentialsSaving(true);
+    try {
+      const tenantApi = createTenantApi();
+      const response = await tenantApi.putFirsCredentials(
+        tenant.tenantId,
+        firsCredentialsForm.certificate,
+        firsCredentialsForm.publicKey
+      );
+      if (response.error) {
+        toast.error((response.error as any)?.value?.error || 'Failed to update FIRS credentials');
+      } else {
+        toast.success('FIRS credentials updated successfully');
+        setShowFirsCredentialsModal(false);
+        setFirsCredentialsForm({ certificate: '', publicKey: '' });
+        fetchTenant();
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update FIRS credentials');
+    } finally {
+      setFirsCredentialsSaving(false);
     }
   };
 
@@ -695,6 +724,42 @@ export default function TenantDetail() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* FIRS Credentials */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Shield className="h-4 w-4" />
+                        FIRS Credentials
+                      </CardTitle>
+                      <CardDescription>Certificate and public key used for invoice signing</CardDescription>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFirsCredentialsForm({ certificate: '', publicKey: '' });
+                        setShowFirsCredentialsModal(true);
+                      }}
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Update Credentials
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Shield className="h-4 w-4" />
+                    <span>
+                      {(tenant as any)?.config?.nrs
+                        ? 'FIRS credentials are configured for this tenant.'
+                        : 'No FIRS credentials configured yet.'}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
@@ -762,6 +827,54 @@ export default function TenantDetail() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* FIRS Credentials Modal */}
+      <Dialog open={showFirsCredentialsModal} onOpenChange={setShowFirsCredentialsModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Update FIRS Credentials
+            </DialogTitle>
+            <DialogDescription>
+              Replace the certificate and public key for <strong>{tenant?.businessName}</strong>.
+              Paste the full PEM-encoded content including the header and footer lines.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Certificate</Label>
+              <Textarea
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                className="font-mono text-xs min-h-[120px]"
+                value={firsCredentialsForm.certificate}
+                onChange={(e) => setFirsCredentialsForm(f => ({ ...f, certificate: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Public Key</Label>
+              <Textarea
+                placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
+                className="font-mono text-xs min-h-[120px]"
+                value={firsCredentialsForm.publicKey}
+                onChange={(e) => setFirsCredentialsForm(f => ({ ...f, publicKey: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFirsCredentialsModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateFirsCredentials}
+              disabled={firsCredentialsSaving || !firsCredentialsForm.certificate || !firsCredentialsForm.publicKey}
+            >
+              {firsCredentialsSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save Credentials
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Tenant Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>

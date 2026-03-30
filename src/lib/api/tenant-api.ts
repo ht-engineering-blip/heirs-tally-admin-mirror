@@ -1,4 +1,4 @@
-import { getTenantApiClient } from './client'
+import { getTenantApiClient } from './client';
 
 export function createTenantApi() {
   const api = getTenantApiClient()
@@ -15,11 +15,11 @@ export function createTenantApi() {
         headers: { Authorization: `Bearer ${token}` },
       }),
 
-    nrsOAuth: (email: string, password: string, mock = false) =>
-      api.v1.auth.oauth.nrs.post({ email, password, mock }),
+    firsOAuth: (email: string, password: string, mock = false) =>
+      api.v1.auth.oauth.firs.post({ email, password, mock }),
 
-    putNrsCredentials: (tenantId: string, certificate: string, publicKey: string) =>
-      api.v1.tenants({ tenantId })['nrs-credentials'].put({ certificate, publicKey }),
+    putFirsCredentials: (tenantId: string, certificate: string, publicKey: string) =>
+      api.v1.tenants({ tenantId })['firs-credentials'].put({ certificate, publicKey }),
 
     getOnboarding: (tenantId: string) =>
       api.v1.tenants({ tenantId }).onboarding.get(),
@@ -48,6 +48,9 @@ export function createTenantApi() {
 
     resendOutboundInvoice: (irn: string) =>
       api.v1.workflow.invoices.outbound({ irn }).resend.post({}),
+
+    retryFromStep: (irn: string, fromStep: string) =>
+      api.v1.workflow.invoices.outbound({ irn })['retry-from-step'].post({ fromStep }),
 
     // ERP Sync endpoints
     getErpSyncConfig: (tenantId: string) =>

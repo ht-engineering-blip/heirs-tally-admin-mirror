@@ -172,11 +172,11 @@ export default function Transactions() {
       ),
     },
     {
-      key: 'nrsUuid',
+      key: 'firsUuid',
       header: 'NRS UUID',
       accessor: (txn) => (
-        txn.nrsUuid ? (
-          <span className="font-mono text-xs text-muted-foreground">{txn.nrsUuid}</span>
+        txn.firsUuid ? (
+          <span className="font-mono text-xs text-muted-foreground">{txn.firsUuid}</span>
         ) : (
           <span className="text-muted-foreground">-</span>
         )

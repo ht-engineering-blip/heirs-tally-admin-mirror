@@ -20,7 +20,7 @@ export default function AdminSystemHealth() {
     },
     {
       name: 'NRS Integration',
-      status: health.nrsConnectivity === 'healthy' ? 'operational' : health.nrsConnectivity,
+      status: health.firsConnectivity === 'healthy' ? 'operational' : health.firsConnectivity,
       uptime: '99.95%',
       icon: Cloud,
     },
@@ -116,9 +116,9 @@ export default function AdminSystemHealth() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <Wifi className={cn('w-5 h-5', health.nrsConnectivity === 'healthy' ? 'text-success' : 'text-warning')} />
+                <Wifi className={cn('w-5 h-5', health.firsConnectivity === 'healthy' ? 'text-success' : 'text-warning')} />
                 <div>
-                  <p className="text-2xl font-bold capitalize">{health.nrsConnectivity}</p>
+                  <p className="text-2xl font-bold capitalize">{health.firsConnectivity}</p>
                   <p className="text-sm text-muted-foreground">NRS Connection</p>
                 </div>
               </div>

@@ -56,7 +56,7 @@ interface ErpListItem {
   last_updated: Date;
 }
 
-interface NrsDictionaryField {
+interface FirsDictionaryField {
   field_id: string;
   field_path: string;
   data_type: string;
@@ -149,8 +149,8 @@ export default function AdminErpSupport() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [configStep, setConfigStep] = useState<ConfigStep>('setup');
-  const [nrsFields, setFirsFields] = useState<NrsDictionaryField[]>([]);
-  const [nrsLoading, setFirsLoading] = useState(false);
+  const [firsFields, setFirsFields] = useState<FirsDictionaryField[]>([]);
+  const [firsLoading, setFirsLoading] = useState(false);
   const [mappingData, setMappingData] = useState<MappingRule[]>([]);
   const [mappingCanvasRef, setMappingCanvasRef] = useState<any>(null);
   const invoiceEditorRef = useRef<any>(null);
@@ -196,10 +196,10 @@ export default function AdminErpSupport() {
     }
   };
 
-  const fetchNrsDictionary = async () => {
+  const fetchFirsDictionary = async () => {
     setFirsLoading(true);
     try {
-      const response = await api.v1.admin.config['nrs-dictionary'].get();
+      const response = await api.v1.admin.config['firs-dictionary'].get();
       if (response.error) {
         const errorValue = (response.error as any)?.value;
         if (errorValue?.statusCode === 404 || errorValue?.error?.includes('not found')) {
@@ -287,7 +287,7 @@ export default function AdminErpSupport() {
   useEffect(() => {
     if (pathname) {
       fetchErpList();
-      fetchNrsDictionary();
+      fetchFirsDictionary();
     }
   }, [pathname]);
 
@@ -310,14 +310,14 @@ export default function AdminErpSupport() {
   }, [invoiceJson]);
 
   // Derive NRS target fields from the dictionary
-  const nrsTargetFields = useMemo(() => {
-    return nrsFields.map((f) => ({
+  const firsTargetFields = useMemo(() => {
+    return firsFields.map((f) => ({
       key: f.field_path || f.field_id,
       type: f.data_type,
       required: f.is_required,
       description: f.description,
     }));
-  }, [nrsFields]);
+  }, [firsFields]);
 
   const validateJson = (jsonString: string): { valid: boolean; error?: string } => {
     try {
@@ -658,10 +658,10 @@ export default function AdminErpSupport() {
     }, [sourceSearch, erpSourceFields]);
 
     const filteredTargetFields = useMemo(() => {
-      if (!targetSearch) return nrsTargetFields;
+      if (!targetSearch) return firsTargetFields;
       const q = targetSearch.toLowerCase();
-      return nrsTargetFields.filter(f => f.key.toLowerCase().includes(q));
-    }, [targetSearch, nrsTargetFields]);
+      return firsTargetFields.filter(f => f.key.toLowerCase().includes(q));
+    }, [targetSearch, firsTargetFields]);
 
     // Get mappings for a source/target field
     const getMappingsForSource = (key: string) => mappingData.filter(m => m.source === key);
@@ -706,7 +706,7 @@ export default function AdminErpSupport() {
       );
     }
 
-    if (nrsTargetFields.length === 0 && !nrsLoading) {
+    if (firsTargetFields.length === 0 && !firsLoading) {
       return (
         <Card>
           <CardContent className="pt-12 pb-12">
@@ -732,7 +732,7 @@ export default function AdminErpSupport() {
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span>{erpSourceFields.length} source fields</span>
           <span>-</span>
-          <span>{nrsTargetFields.length} target fields</span>
+          <span>{firsTargetFields.length} target fields</span>
           <span>-</span>
           <Badge variant="secondary">{mappingData.length} mappings</Badge>
           {mappingData.length > 0 && (
@@ -1220,7 +1220,7 @@ export default function AdminErpSupport() {
 
           {/* Step 3: Field Mapping */}
           {configStep === 'mapping' && (
-            nrsLoading ? (
+            firsLoading ? (
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-center py-8">

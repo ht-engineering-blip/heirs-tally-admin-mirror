@@ -31,9 +31,9 @@ export function SystemHealthCard({ health }: SystemHealthCardProps) {
     },
     {
       label: 'NRS Connectivity',
-      value: health.nrsConnectivity,
+      value: health.firsConnectivity,
       icon: Wifi,
-      status: health.nrsConnectivity,
+      status: health.firsConnectivity,
     },
     {
       label: 'Queue Depth',
@@ -76,8 +76,8 @@ export function SystemHealthCard({ health }: SystemHealthCardProps) {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold">System Health</CardTitle>
-          <Badge className={getConnectivityColor(health.nrsConnectivity)}>
-            {health.nrsConnectivity === 'healthy' ? 'All Systems Operational' : 'Issues Detected'}
+          <Badge className={getConnectivityColor(health.firsConnectivity)}>
+            {health.firsConnectivity === 'healthy' ? 'All Systems Operational' : 'Issues Detected'}
           </Badge>
         </div>
       </CardHeader>

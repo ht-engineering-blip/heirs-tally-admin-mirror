@@ -1,15 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { SectionLoader } from '@/components/shared/SectionLoader';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -19,28 +17,29 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Checkbox } from '@/components/ui/checkbox';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Search,
-  Filter,
   Download,
+  Filter,
   MoreHorizontal,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
+  Search,
   X,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { SectionLoader } from '@/components/shared/SectionLoader';
+import { useState } from 'react';
 
 export interface Column<T> {
   key: string;
@@ -76,6 +75,7 @@ interface DataTableProps<T> {
   onSort?: (key: string, order: 'asc' | 'desc') => void;
   isLoading?: boolean;
   emptyMessage?: string;
+  rowClassName?: (item: T) => string;
 }
 
 export function DataTable<T extends { id: string }>({
@@ -96,6 +96,7 @@ export function DataTable<T extends { id: string }>({
   onSort,
   isLoading = false,
   emptyMessage = 'No data found',
+  rowClassName,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
@@ -288,7 +289,8 @@ export function DataTable<T extends { id: string }>({
                   className={cn(
                     'data-table-row',
                     onRowClick && 'cursor-pointer',
-                    selectedIds.has(item.id) && 'bg-primary/5'
+                    selectedIds.has(item.id) && 'bg-primary/5',
+                    rowClassName?.(item)
                   )}
                   onClick={() => onRowClick?.(item)}
                 >

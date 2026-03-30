@@ -19,8 +19,8 @@ import { SectionLoader } from '@/components/shared/SectionLoader'
 const STEP_KEYS = ['firs_oauth', 'firs_credentials', 'webhook_generate'] as const
 type StepKey = typeof STEP_KEYS[number]
 const KEY_ALIAS = {
-  firs_oauth: "nrsProvisioning",
-  firs_credentials: "nrsProvisioning",
+  firs_oauth: "firsProvisioning",
+  firs_credentials: "firsProvisioning",
 
 }
 const STEP_META: Record<StepKey, { label: string; description: string }> = {

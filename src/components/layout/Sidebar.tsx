@@ -1,36 +1,33 @@
 'use client'
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import {
-  LayoutDashboard,
-  Building2,
-  FileText,
-  Users,
-  Key,
-  Settings,
-  Shield,
-  Activity,
-  ChevronLeft,
-  ChevronRight,
-  LogOut,
-  FileStack,
-  Server,
-  X,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Logo } from '@/components/shared/Logo';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Logo } from '@/components/shared/Logo';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
+import {
+  Activity,
+  Building2,
+  FileStack,
+  FileText,
+  Key,
+  LayoutDashboard,
+  LogOut,
+  Server,
+  Settings,
+  Shield,
+  Users,
+  X
+} from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 interface NavItem {
   title: string;
@@ -91,7 +88,7 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
       )}
     <aside
       className={cn(
-          'rounded-r-xl flex flex-col h-screen bg-sidebar/95  transition-all duration-300 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sidebar z-50',
+          'rounded-r-xl flex flex-col h-screen bg-sidebar/95  transition-all duration-300 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sidebar z-50',
           sidebarWidth,
           mobileClasses,
           isMobile && !isOpen && 'pointer-events-none'

@@ -35,7 +35,7 @@ interface Field {
   mapping_hints: any[];
 }
 
-interface NrsDictionary {
+interface FirsDictionary {
   _id?: string;
   schema_id: string;
   name: string;
@@ -50,12 +50,12 @@ interface NrsDictionary {
   updatedAt?: string;
 }
 
-export default function AdminNrsDictionary() {
+export default function AdminFirsDictionary() {
   const api = getAdminApiClient();
   const pathname = usePathname();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [dictionary, setDictionary] = useState<NrsDictionary | null>(null);
+  const [dictionary, setDictionary] = useState<FirsDictionary | null>(null);
   const [fieldsJson, setFieldsJson] = useState<string>('[]');
   const [metadataJson, setMetadataJson] = useState<string>('{}');
   const [fieldsError, setFieldsError] = useState<string | null>(null);
@@ -69,10 +69,10 @@ export default function AdminNrsDictionary() {
   const metadataEditorRef = useRef<any>(null);
   const payloadEditorRef = useRef<any>(null);
 
-  const fetchNrsDictionary = async () => {
+  const fetchFirsDictionary = async () => {
     setLoading(true);
     try {
-      const response = await api.v1.admin.config['nrs-dictionary'].get();
+      const response = await api.v1.admin.config['firs-dictionary'].get();
       
       if (response.error) {
         // Check if it's a 404 or not found error
@@ -90,7 +90,7 @@ export default function AdminNrsDictionary() {
           setDictionary(null);
         }
       } else if (response.data?.data) {
-        const data = response.data.data as NrsDictionary;
+        const data = response.data.data as FirsDictionary;
         setDictionary(data);
         
         // Populate editors with existing data
@@ -188,7 +188,7 @@ export default function AdminNrsDictionary() {
       const fieldsData = JSON.parse(fieldsJson);
       const metadataData = JSON.parse(metadataJson);
 
-      const response = await api.v1.admin.config['nrs-dictionary'].put({
+      const response = await api.v1.admin.config['firs-dictionary'].put({
         invoice: fieldsData,
         metadata: metadataData,
       });
@@ -200,7 +200,7 @@ export default function AdminNrsDictionary() {
         console.log('response', response.data.data);
         toast.success('NRS dictionary saved successfully');
         // Refresh the dictionary
-        await fetchNrsDictionary();
+        await fetchFirsDictionary();
         setShowConfig(false);
         setIsEditing(false);
       } else {
@@ -245,7 +245,7 @@ export default function AdminNrsDictionary() {
 
   useEffect(() => {
     if (pathname) {
-      fetchNrsDictionary();
+      fetchFirsDictionary();
     }
   }, [pathname]);
 
@@ -636,12 +636,94 @@ export default function AdminNrsDictionary() {
           </CardContent>
         </Card>
 
+        {/* Suggested Fields to Map */}
+        {dictionary.fields && dictionary.fields.length > 0 && (
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold">Suggested Fields to Map</h2>
+              <p className="text-sm text-muted-foreground">
+                Key fields from the FIRS UBL Invoice Schema recommended as starting points for ERP field mapping.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {dictionary.fields.slice(0, 6).map((field, index) => (
+                <Card key={field.field_id || index} className="overflow-hidden">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
+                        {field.field_id}
+                      </code>
+                      {field.is_required && (
+                        <Badge className="bg-destructive/10 text-destructive text-xs">Required</Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium text-muted-foreground">Path:</span>{' '}
+                      <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">
+                        {field.field_path}
+                      </code>
+                    </div>
+                    <div>
+                      <span className="font-medium text-muted-foreground">Type:</span>{' '}
+                      <Badge variant="outline" className="text-xs ml-1">
+                        {field.data_type}
+                      </Badge>
+                    </div>
+                    {field.format && (
+                      <div>
+                        <span className="font-medium text-muted-foreground">Format:</span>{' '}
+                        <span>{field.format}</span>
+                      </div>
+                    )}
+                    {field.validation_rules && (
+                      <div>
+                        <span className="font-medium text-muted-foreground">Validation:</span>{' '}
+                        <span className="text-xs">{field.validation_rules}</span>
+                      </div>
+                    )}
+                    {field.description && (
+                      <div>
+                        <span className="font-medium text-muted-foreground">Description:</span>{' '}
+                        <p className="text-xs mt-1">{field.description}</p>
+                      </div>
+                    )}
+                    {field.example_value !== undefined && field.example_value !== null && (
+                      <div>
+                        <span className="font-medium text-muted-foreground">Example:</span>{' '}
+                        <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">
+                          {typeof field.example_value === 'object'
+                            ? JSON.stringify(field.example_value)
+                            : String(field.example_value)}
+                        </code>
+                      </div>
+                    )}
+                    {field.enum_values && field.enum_values.length > 0 && (
+                      <div>
+                        <span className="font-medium text-muted-foreground">Enum Values:</span>{' '}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {field.enum_values.map((val, i) => (
+                            <Badge key={i} variant="outline" className="text-xs">
+                              {String(val)}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Fields Table */}
         <Card>
           <CardHeader>
             <CardTitle>Schema Fields ({dictionary.fields?.length || 0})</CardTitle>
             <CardDescription>
-              All fields defined in the NRS UBL Invoice Schema
+              All fields defined in the FIRS UBL Invoice Schema
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -720,79 +802,6 @@ export default function AdminNrsDictionary() {
           </CardContent>
         </Card>
 
-        {/* Field Details (Expandable) */}
-        {dictionary.fields && dictionary.fields.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {dictionary.fields.slice(0, 6).map((field, index) => (
-              <Card key={field.field_id || index} className="overflow-hidden">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
-                      {field.field_id}
-                    </code>
-                    {field.is_required && (
-                      <Badge className="bg-destructive/10 text-destructive text-xs">Required</Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-medium text-muted-foreground">Path:</span>{' '}
-                    <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">
-                      {field.field_path}
-                    </code>
-                  </div>
-                  <div>
-                    <span className="font-medium text-muted-foreground">Type:</span>{' '}
-                    <Badge variant="outline" className="text-xs ml-1">
-                      {field.data_type}
-                    </Badge>
-                  </div>
-                  {field.format && (
-                    <div>
-                      <span className="font-medium text-muted-foreground">Format:</span>{' '}
-                      <span>{field.format}</span>
-                    </div>
-                  )}
-                  {field.validation_rules && (
-                    <div>
-                      <span className="font-medium text-muted-foreground">Validation:</span>{' '}
-                      <span className="text-xs">{field.validation_rules}</span>
-                    </div>
-                  )}
-                  {field.description && (
-                    <div>
-                      <span className="font-medium text-muted-foreground">Description:</span>{' '}
-                      <p className="text-xs mt-1">{field.description}</p>
-                    </div>
-                  )}
-                  {field.example_value !== undefined && field.example_value !== null && (
-                    <div>
-                      <span className="font-medium text-muted-foreground">Example:</span>{' '}
-                      <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">
-                        {typeof field.example_value === 'object' 
-                          ? JSON.stringify(field.example_value) 
-                          : String(field.example_value)}
-                      </code>
-                    </div>
-                  )}
-                  {field.enum_values && field.enum_values.length > 0 && (
-                    <div>
-                      <span className="font-medium text-muted-foreground">Enum Values:</span>{' '}
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {field.enum_values.map((val, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">
-                            {String(val)}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
       </div>
       </>
     );
