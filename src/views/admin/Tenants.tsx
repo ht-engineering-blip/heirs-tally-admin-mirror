@@ -144,7 +144,6 @@ export default function Tenants() {
         query: { limit: 1000 },
       });
 
-      console.log({ tenantResponse: response?.data?.data });
 
       if (response.error) {
         const errorMessage =

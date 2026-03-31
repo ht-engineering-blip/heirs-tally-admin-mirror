@@ -87,7 +87,6 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
         data = { error: responseText || 'Unknown error' }
       }
       
-      console.log("Logged datal ", data)
       // Return the API response as-is, preserving status code and error structure
       return new Response(JSON.stringify(data), {
         status: response.status,
