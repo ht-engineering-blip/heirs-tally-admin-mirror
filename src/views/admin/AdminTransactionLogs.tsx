@@ -1,35 +1,42 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { usePersistedTab } from '@/hooks/use-persisted-tab';
-import { format } from 'date-fns';
+import { Column, DataTable, FilterOption, StatusBadge } from '@/components/shared';
 import {
-  Eye, RefreshCw, ArrowUpRight, ArrowDownLeft, AlertCircle,
-  CheckCircle, Clock, FileText, Copy, Download, Package, QrCode,
-} from 'lucide-react';
-import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
-import { Button } from '@/components/ui/button';
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
-import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
-import { getAdminApiClient } from '@/lib/api/client';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { usePersistedTab } from '@/hooks/use-persisted-tab';
+import { getAdminApiClient } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import {
+  AlertCircle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  CheckCircle, Clock,
+  Copy, Download,
+  Eye,
+  FileText,
+  Package, QrCode,
+  RefreshCw,
+} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 interface Invoice {
   id: string;
@@ -97,7 +104,9 @@ export default function AdminTransactionLogs() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [total, setTotal] = useState(0);
+  const [statsData, setStatsData] = useState({ total: 0, outbound: 0, inbound: 0, failed: 0, pending: 0 });
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = usePersistedTab('all');
@@ -117,16 +126,20 @@ export default function AdminTransactionLogs() {
 
   const fetchInvoices = useCallback(async () => {
     abortRef.current?.abort();
-    abortRef.current = new AbortController();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setIsLoading(true);
     try {
       const api = getAdminApiClient();
       const allInvoices: Invoice[] = [];
       let totalCount = 0;
+      let hadError = false;
+      let outboundApiTotal = 0;
+      let inboundApiTotal = 0;
 
       const isAllTab = activeTab === 'all';
-      const apiLimit = isAllTab ? '50' : PAGE_SIZE.toString();
+      const apiLimit = isAllTab ? '100' : pageSize.toString();
       const apiPage = isAllTab ? '1' : page.toString();
 
       if (isAllTab || activeTab === 'outbound') {
@@ -164,12 +177,21 @@ export default function AdminTransactionLogs() {
                 erp: invoice.erp,
               });
             });
-            if (!isAllTab) totalCount += pagination?.total || 0;
+            outboundApiTotal = pagination?.total || outboundData.length;
+            if (!isAllTab) totalCount += outboundApiTotal;
+          } else if (outboundResponse.error) {
+            hadError = true;
+            console.error('Failed to fetch outbound invoices:', outboundResponse.error);
           }
         } catch (error) {
-          console.error('Failed to fetch outbound invoices:', error);
+          if (!controller.signal.aborted) {
+            hadError = true;
+            console.error('Failed to fetch outbound invoices:', error);
+          }
         }
       }
+
+      if (controller.signal.aborted) return;
 
       if (isAllTab || activeTab === 'inbound') {
         try {
@@ -207,12 +229,21 @@ export default function AdminTransactionLogs() {
                 updatedAt: invoice.issueDate,
               });
             });
-            if (!isAllTab) totalCount += pagination?.total || 0;
+            inboundApiTotal = pagination?.total || inboundData.length;
+            if (!isAllTab) totalCount += inboundApiTotal;
+          } else if (inboundResponse.error) {
+            hadError = true;
+            console.error('Failed to fetch inbound invoices:', inboundResponse.error);
           }
         } catch (error) {
-          console.error('Failed to fetch inbound invoices:', error);
+          if (!controller.signal.aborted) {
+            hadError = true;
+            console.error('Failed to fetch inbound invoices:', error);
+          }
         }
       }
+
+      if (controller.signal.aborted) return;
 
       // Client-side type filter (for 'all' tab)
       let filtered = allInvoices;
@@ -220,24 +251,49 @@ export default function AdminTransactionLogs() {
         filtered = allInvoices.filter(inv => inv.type === filters.type);
       }
 
-      setInvoices(filtered);
+      if (hadError && allInvoices.length === 0) {
+        toast.error('Failed to load transactions. Please try refreshing.');
+      }
+
+      // Stats from API-reported totals — independent of page/pageSize
+      setStatsData({
+        total: outboundApiTotal + inboundApiTotal,
+        outbound: outboundApiTotal,
+        inbound: inboundApiTotal,
+        failed: allInvoices.filter(i => { const s = (i.status || '').toLowerCase(); return s === 'failed' || s === 'rejected'; }).length,
+        pending: allInvoices.filter(i => i.status?.toLowerCase() === 'pending').length,
+      });
+
+      // Client-side pagination slice for 'all' tab; server paginates for single-type tabs
+      const displayInvoices = isAllTab
+        ? filtered.slice((page - 1) * pageSize, page * pageSize)
+        : filtered;
+      setInvoices(displayInvoices);
       setTotal(isAllTab ? filtered.length : totalCount || filtered.length);
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to load transactions');
+      if (!controller.signal.aborted) {
+        toast.error(error?.message || 'Failed to load transactions');
+      }
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
-  }, [page, searchQuery, filters, activeTab]);
+  }, [page, pageSize, searchQuery, filters, activeTab]);
 
+  // Re-fetch when params or manual refresh trigger changes; abort on cleanup
   useEffect(() => {
     fetchInvoices();
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [fetchInvoices, refreshTrigger]);
 
-  // Auto-refresh every 5 minutes
+  // Auto-refresh every 15 minutes
   useEffect(() => {
     const interval = setInterval(() => {
       setRefreshTrigger(n => n + 1);
-    }, 5 * 60 * 1000);
+    }, 15 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -411,25 +467,25 @@ export default function AdminTransactionLogs() {
         </div>
       ),
     },
-    {
-      key: 'customerName',
-      header: 'Counterparty',
-      sortable: true,
-      accessor: (inv) => {
-        const name = inv.type === 'outbound' ? inv.customerName : inv.supplierName;
-        const sub = inv.type === 'inbound' && inv.supplierTIN ? inv.supplierTIN : null;
-        if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>;
-        return (
-          <div className="min-w-0">
-            <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
-            {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
-            {inv.tenantName && (
-              <p className="text-xs text-muted-foreground truncate max-w-[160px]">Tenant: {inv.tenantName}</p>
-            )}
-          </div>
-        );
-      },
-    },
+    // {
+    //   key: 'customerName',
+    //   header: 'Counterparty',
+    //   sortable: true,
+    //   accessor: (inv) => {
+    //     const name = inv.type === 'outbound' ? inv.customerName : inv.supplierName;
+    //     const sub = inv.type === 'inbound' && inv.supplierTIN ? inv.supplierTIN : null;
+    //     if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>;
+    //     return (
+    //       <div className="min-w-0">
+    //         <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
+    //         {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
+    //         {inv.tenantName && (
+    //           <p className="text-xs text-muted-foreground truncate max-w-[160px]">Tenant: {inv.tenantName}</p>
+    //         )}
+    //       </div>
+    //     );
+    //   },
+    // },
     {
       key: 'qrCode',
       header: 'QR Code',
@@ -563,13 +619,7 @@ export default function AdminTransactionLogs() {
     </>
   );
 
-  const stats = {
-    total: invoices.length,
-    outbound: invoices.filter(i => i.type === 'outbound').length,
-    inbound: invoices.filter(i => i.type === 'inbound').length,
-    failed: invoices.filter(i => isFailed(i.status)).length,
-    pending: invoices.filter(i => i.status?.toLowerCase() === 'pending').length,
-  };
+  const stats = statsData;
 
   return (
     <>
@@ -678,8 +728,9 @@ export default function AdminTransactionLogs() {
           isLoading={isLoading}
           currentPage={page}
           totalItems={total}
-          pageSize={PAGE_SIZE}
+          pageSize={pageSize}
           onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
           onSearch={(q) => { setSearchQuery(q); setPage(1); }}
           onFilterChange={(f) => { setFilters(f); setPage(1); }}
           onSort={handleSort}

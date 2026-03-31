@@ -70,6 +70,7 @@ interface DataTableProps<T> {
   totalItems?: number;
   currentPage?: number;
   onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
   onSearch?: (query: string) => void;
   onFilterChange?: (filters: Record<string, string>) => void;
   onSort?: (key: string, order: 'asc' | 'desc') => void;
@@ -91,6 +92,7 @@ export function DataTable<T extends { id: string }>({
   totalItems,
   currentPage = 1,
   onPageChange,
+  onPageSizeChange,
   onSearch,
   onFilterChange,
   onSort,
@@ -334,7 +336,12 @@ export function DataTable<T extends { id: string }>({
           <span>Rows per page:</span>
           <Select
             value={pageSizeState.toString()}
-            onValueChange={(value) => setPageSizeState(parseInt(value))}
+            onValueChange={(value) => {
+              const size = parseInt(value)
+              setPageSizeState(size)
+              onPageSizeChange?.(size)
+              onPageChange?.(1)
+            }}
           >
             <SelectTrigger className="w-[70px]">
               <SelectValue />

@@ -25,6 +25,7 @@ import {
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -32,7 +33,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePersistedTab } from '@/hooks/use-persisted-tab'
@@ -109,7 +109,9 @@ export default function TransactionsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
   const [total, setTotal] = useState(0)
+  const [statsData, setStatsData] = useState({ total: 0, outbound: 0, inbound: 0, failed: 0, pending: 0 })
   const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = usePersistedTab('all')
@@ -131,19 +133,24 @@ export default function TransactionsPage() {
   const fetchInvoices = useCallback(async () => {
     // Cancel any in-flight request before starting a new one
     abortRef.current?.abort()
-    abortRef.current = new AbortController()
+    const controller = new AbortController()
+    abortRef.current = controller
 
     setIsLoading(true)
     try {
       const api = createTenantApi()
       const allInvoices: Invoice[] = []
       let totalCount = 0
+      let hadError = false
+      // API-reported totals for stats cards (independent of page/pageSize)
+      let outboundApiTotal = 0
+      let inboundApiTotal = 0
 
       // For the 'all' tab both APIs are fetched with a larger limit so the
       // DataTable can paginate the combined result client-side.
       // For single-type tabs we do true server-side pagination.
       const isAllTab = activeTab === 'all'
-      const apiLimit = isAllTab ? '50' : PAGE_SIZE.toString()
+      const apiLimit = isAllTab ? '100' : pageSize.toString()
       const apiPage = isAllTab ? '1' : page.toString()
 
       if (isAllTab || activeTab === 'outbound') {
@@ -176,12 +183,21 @@ export default function TransactionsPage() {
               })
             })
 
-            if (!isAllTab) totalCount += pagination?.total || 0
+            outboundApiTotal = pagination?.total || outboundData.length
+            if (!isAllTab) totalCount += outboundApiTotal
+          } else if (outboundResponse.error) {
+            hadError = true
+            console.error('Failed to fetch outbound invoices:', outboundResponse.error)
           }
         } catch (error) {
-          console.error('Failed to fetch outbound invoices:', error)
+          if (!controller.signal.aborted) {
+            hadError = true
+            console.error('Failed to fetch outbound invoices:', error)
+          }
         }
       }
+
+      if (controller.signal.aborted) return
 
       if (isAllTab || activeTab === 'inbound') {
         try {
@@ -214,12 +230,21 @@ export default function TransactionsPage() {
               })
             })
 
-            if (!isAllTab) totalCount += pagination?.total || 0
+            inboundApiTotal = pagination?.total || inboundData.length
+            if (!isAllTab) totalCount += inboundApiTotal
+          } else if (inboundResponse.error) {
+            hadError = true
+            console.error('Failed to fetch inbound invoices:', inboundResponse.error)
           }
         } catch (error) {
-          console.error('Failed to fetch inbound invoices:', error)
+          if (!controller.signal.aborted) {
+            hadError = true
+            console.error('Failed to fetch inbound invoices:', error)
+          }
         }
       }
+
+      if (controller.signal.aborted) return
 
       // Client-side search filter
       let filtered = allInvoices
@@ -233,25 +258,52 @@ export default function TransactionsPage() {
         )
       }
 
-      setInvoices(filtered)
-      // For 'all' tab, total = number of combined items fetched (client-side pagination)
-      // For single-type tabs, total = server-reported total (server-side pagination)
+      if (hadError && allInvoices.length === 0) {
+        toast.error('Failed to load transactions. Please try refreshing.')
+      }
+
+      // Stats come from API-reported totals (independent of current page/pageSize)
+      // failed/pending are computed from all fetched items as the API has no endpoint for these counts
+      setStatsData({
+        total: outboundApiTotal + inboundApiTotal,
+        outbound: outboundApiTotal,
+        inbound: inboundApiTotal,
+        failed: allInvoices.filter(i => isFailed(i.status)).length,
+        pending: allInvoices.filter(i => i.status?.toLowerCase() === 'pending').length,
+      })
+
+      // For the 'all' tab the full combined list is sliced client-side so the
+      // DataTable always receives exactly pageSize rows for the current page.
+      // For single-type tabs the server already returns the right page.
+      const displayInvoices = isAllTab
+        ? filtered.slice((page - 1) * pageSize, page * pageSize)
+        : filtered
+      setInvoices(displayInvoices)
+      // For 'all' tab, total = full combined count so the paginator is correct.
+      // For single-type tabs, total = server-reported total.
       setTotal(isAllTab ? filtered.length : (totalCount || filtered.length))
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to load transactions')
+      if (!controller.signal.aborted) {
+        toast.error(error?.message || 'Failed to load transactions')
+      }
     } finally {
-      setIsLoading(false)
+      if (!controller.signal.aborted) {
+        setIsLoading(false)
+      }
     }
-  }, [page, searchQuery, filters, activeTab])
+  }, [page, pageSize, searchQuery, filters, activeTab])
 
-  // Re-fetch when params or manual refresh trigger changes
+  // Re-fetch when params or manual refresh trigger changes; abort on cleanup
   useEffect(() => {
     fetchInvoices()
+    return () => {
+      abortRef.current?.abort()
+    }
   }, [fetchInvoices, refreshTrigger])
 
-  // Auto-refresh every 5 minutes
+  // Auto-refresh every 15 minutes
   useEffect(() => {
-    const interval = setInterval(() => setRefreshTrigger(n => n + 1), 5 * 60 * 1000)
+    const interval = setInterval(() => setRefreshTrigger(n => n + 1), 15 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
 
@@ -440,22 +492,22 @@ export default function TransactionsPage() {
         </div>
       ),
     },
-    {
-      key: 'customerName',
-      header: 'Counterparty',
-      sortable: true,
-      accessor: (inv) => {
-        const name = inv.type === 'outbound' ? inv.customerName : inv.supplierName
-        const sub = inv.type === 'inbound' && inv.supplierTIN ? inv.supplierTIN : null
-        if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>
-        return (
-          <div className="min-w-0">
-            <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
-            {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
-          </div>
-        )
-      },
-    },
+    // {
+    //   key: 'customerName',
+    //   header: 'Counterparty',
+    //   sortable: true,
+    //   accessor: (inv) => {
+    //     const name = inv.type === 'outbound' ? inv.customerName : inv.supplierName
+    //     const sub = inv.type === 'inbound' && inv.supplierTIN ? inv.supplierTIN : null
+    //     if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>
+    //     return (
+    //       <div className="min-w-0">
+    //         <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
+    //         {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
+    //       </div>
+    //     )
+    //   },
+    // },
     {
       key: 'qrCode',
       header: 'QR Code',
@@ -590,13 +642,7 @@ export default function TransactionsPage() {
     </>
   )
 
-  const stats = {
-    total: invoices.length,
-    outbound: invoices.filter((i) => i.type === 'outbound').length,
-    inbound: invoices.filter((i) => i.type === 'inbound').length,
-    failed: invoices.filter((i) => isFailed(i.status)).length,
-    pending: invoices.filter((i) => i.status?.toLowerCase() === 'pending').length,
-  }
+  const stats = statsData
 
   return (
     <>
@@ -701,8 +747,9 @@ export default function TransactionsPage() {
           isLoading={isLoading}
           currentPage={page}
           totalItems={total}
-          pageSize={PAGE_SIZE}
+          pageSize={pageSize}
           onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
           onSearch={(q) => { setSearchQuery(q); setPage(1) }}
           onFilterChange={(f) => { setFilters(f); setPage(1) }}
           onSort={handleSort}
@@ -874,8 +921,14 @@ export default function TransactionsPage() {
                 {/* ── INVOICE DATA ── */}
                 <TabsContent value="data" className="space-y-4 mt-4">
                   {(() => {
-                    const payload = invoiceDetails.webhookEvents?.[0]?.payload?.data
-                    const rawJson = JSON.stringify(invoiceDetails, null, 2)
+                    // The UBL invoice document may be nested in invoice.invoice, or at the
+                    // top-level invoice object. Webhook payload path was incorrect (webhooks
+                    // don't carry a payload.data with UBL fields).
+                    const payload =
+                      invoiceDetails.invoice?.invoice ||
+                      invoiceDetails.webhookEvents?.[0]?.payload?.data ||
+                      invoiceDetails.webhookEvents?.[0]?.payload
+                    const rawJson = JSON.stringify(invoiceDetails.invoice || invoiceDetails, null, 2)
 
                     if (!payload) {
                       return (
