@@ -921,18 +921,32 @@ export default function TransactionsPage() {
                 {/* ── INVOICE DATA ── */}
                 <TabsContent value="data" className="space-y-4 mt-4">
                   {(() => {
+                    // invoiceDetails is the flat invoice object on the tenant side (no .invoice wrapper)
                     const payload =
-                      invoiceDetails.invoice?.invoiceData ||
-                      invoiceDetails.invoice?.decryptedData ||
-                      invoiceDetails.invoice?.invoice ||
-                      invoiceDetails.webhookEvents?.[0]?.payload?.data ||
-                      invoiceDetails.webhookEvents?.[0]?.payload
+                      invoiceDetails.metadata?.transformedInvoice ||
+                      invoiceDetails.invoice?.metadata?.transformedInvoice ||
+                      null
                     const rawJson = JSON.stringify(invoiceDetails.invoice || invoiceDetails, null, 2)
+                    const currency = payload?.document_currency_code || payload?.currency || 'NGN'
+                    // Dynamically find the ERP invoice number — scan for any key ending in _invoice_number or _invoice_id
+                    const invoiceNum = payload
+                      ? (Object.entries(payload).find(
+                          ([k]) => k.endsWith('_invoice_number') || k.endsWith('_invoice_id')
+                        )?.[1] as string | undefined) || payload.irn
+                      : undefined
+                    // Derive why the structured view is unavailable from workflowState
+                    const workflowState = invoiceDetails.workflowState || invoiceDetails.invoice?.workflowState
+                    const transformDone = workflowState?.transformed
 
                     if (!payload) {
                       return (
-                        <div className="space-y-2">
-                          <div className="flex justify-end">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs text-muted-foreground">
+                              {transformDone === false
+                                ? 'Invoice has not been transformed yet — showing raw source data.'
+                                : 'Structured view unavailable — showing raw invoice data.'}
+                            </p>
                             <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied') }}>
                               <Copy className="w-3.5 h-3.5 mr-1.5" />
                               Copy Raw
@@ -954,28 +968,34 @@ export default function TransactionsPage() {
                         </div>
                         {/* Invoice header */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-muted/50 rounded-lg border">
-                          {payload.invoice_number && (
+                          {invoiceNum && (
                             <div>
                               <p className="text-xs text-muted-foreground">Invoice Number</p>
-                              <p className="text-sm font-mono font-medium">{payload.invoice_number}</p>
+                              <p className="text-sm font-mono font-medium">{invoiceNum}</p>
                             </div>
                           )}
                           {payload.invoice_type_code && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Type</p>
-                              <p className="text-sm capitalize">{payload.invoice_type_code}</p>
+                              <p className="text-xs text-muted-foreground">Type Code</p>
+                              <p className="text-sm font-medium">{payload.invoice_type_code}</p>
                             </div>
                           )}
-                          {payload.document_currency_code && (
+                          {payload.invoice_kind && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Kind</p>
+                              <p className="text-sm font-medium">{payload.invoice_kind}</p>
+                            </div>
+                          )}
+                          {currency && (
                             <div>
                               <p className="text-xs text-muted-foreground">Currency</p>
-                              <p className="text-sm font-medium">{payload.document_currency_code}</p>
+                              <p className="text-sm font-medium">{currency}</p>
                             </div>
                           )}
-                          {payload.issue_date && (
+                          {(payload.issue_date || payload.invoice_date) && (
                             <div>
                               <p className="text-xs text-muted-foreground">Issue Date</p>
-                              <p className="text-sm">{format(new Date(payload.issue_date), 'PP')}</p>
+                              <p className="text-sm">{format(new Date(payload.issue_date || payload.invoice_date), 'PP')}</p>
                             </div>
                           )}
                           {payload.due_date && (
@@ -984,10 +1004,16 @@ export default function TransactionsPage() {
                               <p className="text-sm">{format(new Date(payload.due_date), 'PP')}</p>
                             </div>
                           )}
-                          {payload.firs_validated !== undefined && (
+                          {payload.payment_status && (
                             <div>
-                              <p className="text-xs text-muted-foreground">NRS Validated</p>
-                              <p className="text-sm">{payload.firs_validated ? 'Yes' : 'No'}</p>
+                              <p className="text-xs text-muted-foreground">Payment Status</p>
+                              <p className="text-sm capitalize">{payload.payment_status}</p>
+                            </div>
+                          )}
+                          {payload.customer_name && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Customer</p>
+                              <p className="text-sm font-medium">{payload.customer_name}</p>
                             </div>
                           )}
                         </div>
@@ -1002,14 +1028,37 @@ export default function TransactionsPage() {
                                 ['Tax Exclusive', payload.legal_monetary_total.tax_exclusive_amount],
                                 ['Tax Inclusive', payload.legal_monetary_total.tax_inclusive_amount],
                                 ['Line Extension', payload.legal_monetary_total.line_extension_amount],
-                              ].map(([label, val]) => val !== undefined && (
+                              ].map(([label, val]) => val != null && (
                                 <div key={label as string}>
                                   <p className="text-xs text-muted-foreground">{label}</p>
                                   <p className="text-sm font-semibold">
-                                    {formatAmount(Number(val), payload.document_currency_code || 'NGN')}
+                                    {formatAmount(Number(val), currency)}
                                   </p>
                                 </div>
                               ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Tax summary */}
+                        {payload.tax_total?.[0] && (
+                          <div className="p-4 bg-muted/50 rounded-lg border">
+                            <p className="text-xs font-medium text-muted-foreground mb-3">Tax Summary</p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Total Tax</p>
+                                <p className="text-sm font-semibold">{formatAmount(Number(payload.tax_total[0].tax_amount ?? 0), currency)}</p>
+                              </div>
+                              {payload.tax_total[0].tax_subtotal?.[0] && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Category</p>
+                                  <p className="text-sm font-medium">
+                                    {payload.tax_total[0].tax_subtotal[0].tax_category?.id || '—'}
+                                    {payload.tax_total[0].tax_subtotal[0].tax_category?.percent != null &&
+                                      ` (${payload.tax_total[0].tax_subtotal[0].tax_category.percent}%)`}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1065,6 +1114,7 @@ export default function TransactionsPage() {
                                     <p className="text-muted-foreground">Item</p>
                                     <p className="font-medium">{line.item?.name || '—'}</p>
                                     {line.item?.description && <p className="text-muted-foreground">{line.item.description}</p>}
+                                    {line.hsn_code && <p className="text-muted-foreground">HSN: {line.hsn_code}</p>}
                                   </div>
                                   <div>
                                     <p className="text-muted-foreground">Qty</p>
@@ -1072,11 +1122,11 @@ export default function TransactionsPage() {
                                   </div>
                                   <div>
                                     <p className="text-muted-foreground">Unit Price</p>
-                                    <p className="font-medium">{formatAmount(Number(line.price?.price_amount || 0), payload.document_currency_code || 'NGN')}</p>
+                                    <p className="font-medium">{formatAmount(Number(line.price?.price_amount || 0), currency)}</p>
                                   </div>
                                   <div>
                                     <p className="text-muted-foreground">Line Total</p>
-                                    <p className="font-semibold">{formatAmount(Number(line.line_extension_amount || 0), payload.document_currency_code || 'NGN')}</p>
+                                    <p className="font-semibold">{formatAmount(Number(line.line_extension_amount || 0), currency)}</p>
                                   </div>
                                 </div>
                               ))}

@@ -24,6 +24,9 @@ import * as z from 'zod'
 
 const isDev = APP_ENV === 'development' || process.env.NODE_ENV === 'development'
 
+console.log('IsDev: ', isDev);
+
+
 const firsCredentialsSchema = z.object({
   certificate: z.string().min(1, 'Certificate is required'),
   publicKey: z.string().min(1, 'Public key is required'),
