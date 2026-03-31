@@ -921,10 +921,9 @@ export default function TransactionsPage() {
                 {/* ── INVOICE DATA ── */}
                 <TabsContent value="data" className="space-y-4 mt-4">
                   {(() => {
-                    // The UBL invoice document may be nested in invoice.invoice, or at the
-                    // top-level invoice object. Webhook payload path was incorrect (webhooks
-                    // don't carry a payload.data with UBL fields).
                     const payload =
+                      invoiceDetails.invoice?.invoiceData ||
+                      invoiceDetails.invoice?.decryptedData ||
                       invoiceDetails.invoice?.invoice ||
                       invoiceDetails.webhookEvents?.[0]?.payload?.data ||
                       invoiceDetails.webhookEvents?.[0]?.payload

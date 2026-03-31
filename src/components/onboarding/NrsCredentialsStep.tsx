@@ -1,12 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import {
   Form,
   FormControl,
@@ -16,12 +11,18 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ArrowRight, AlertCircle, Loader2, CheckCircle2, ShieldCheck, FlaskConical } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { createTenantApi } from '@/lib/api/tenant-api'
+import { APP_ENV } from '@/lib/envData'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertCircle, ArrowRight, CheckCircle2, FlaskConical, Loader2, ShieldCheck } from 'lucide-react'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import * as z from 'zod'
 
-const isDev = process.env.NEXT_PUBLIC_APP_ENV === 'development' || process.env.NODE_ENV === 'development'
+const isDev = APP_ENV === 'development' || process.env.NODE_ENV === 'development'
 
 const firsCredentialsSchema = z.object({
   certificate: z.string().min(1, 'Certificate is required'),

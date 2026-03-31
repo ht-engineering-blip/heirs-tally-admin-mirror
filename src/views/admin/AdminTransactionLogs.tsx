@@ -124,6 +124,9 @@ export default function AdminTransactionLogs() {
   const [invoiceDetails, setInvoiceDetails] = useState<any>(null);
   const [resending, setResending] = useState(false);
 
+  console.log('invoice details: ', invoiceDetails);
+  
+
   const fetchInvoices = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -387,6 +390,14 @@ export default function AdminTransactionLogs() {
     a.href = qrCode;
     a.download = `${filename}.png`;
     a.click();
+  };
+
+  const formatAmount = (amount: number, currency: string) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: currency || 'NGN',
+      minimumFractionDigits: 2,
+    }).format(amount);
   };
 
   const getStatusIcon = (status: string) => {
@@ -896,18 +907,168 @@ export default function AdminTransactionLogs() {
                 {/* INVOICE DATA */}
                 <TabsContent value="data" className="space-y-4 mt-4">
                   {(() => {
-                    const rawJson = JSON.stringify(invoiceDetails, null, 2);
+                    const payload =
+                      invoiceDetails.invoice?.invoiceData ||
+                      invoiceDetails.invoice?.decryptedData ||
+                      invoiceDetails.invoice?.invoice ||
+                      invoiceDetails.webhookEvents?.[0]?.payload?.data ||
+                      invoiceDetails.webhookEvents?.[0]?.payload;
+                    const rawJson = JSON.stringify(invoiceDetails.invoice || invoiceDetails, null, 2);
+
+                    if (!payload) {
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex justify-end">
+                            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied'); }}>
+                              <Copy className="w-3.5 h-3.5 mr-1.5" />
+                              Copy Raw
+                            </Button>
+                          </div>
+                          <div className="p-4 bg-muted rounded-lg">
+                            <pre className="text-xs overflow-auto whitespace-pre-wrap">{rawJson}</pre>
+                          </div>
+                        </div>
+                      );
+                    }
                     return (
-                      <div className="space-y-2">
+                      <div className="space-y-4">
                         <div className="flex justify-end">
                           <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied'); }}>
                             <Copy className="w-3.5 h-3.5 mr-1.5" />
                             Copy Raw
                           </Button>
                         </div>
-                        <div className="p-4 bg-muted rounded-lg">
-                          <pre className="text-xs overflow-auto whitespace-pre-wrap">{rawJson}</pre>
+                        {/* Invoice header */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-muted/50 rounded-lg border">
+                          {payload.invoice_number && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Invoice Number</p>
+                              <p className="text-sm font-mono font-medium">{payload.invoice_number}</p>
+                            </div>
+                          )}
+                          {payload.invoice_type_code && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Type</p>
+                              <p className="text-sm capitalize">{payload.invoice_type_code}</p>
+                            </div>
+                          )}
+                          {payload.document_currency_code && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Currency</p>
+                              <p className="text-sm font-medium">{payload.document_currency_code}</p>
+                            </div>
+                          )}
+                          {payload.issue_date && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Issue Date</p>
+                              <p className="text-sm">{format(new Date(payload.issue_date), 'PP')}</p>
+                            </div>
+                          )}
+                          {payload.due_date && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Due Date</p>
+                              <p className="text-sm">{format(new Date(payload.due_date), 'PP')}</p>
+                            </div>
+                          )}
+                          {payload.firs_validated !== undefined && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">NRS Validated</p>
+                              <p className="text-sm">{payload.firs_validated ? 'Yes' : 'No'}</p>
+                            </div>
+                          )}
                         </div>
+
+                        {/* Monetary totals */}
+                        {payload.legal_monetary_total && (
+                          <div className="p-4 bg-muted/50 rounded-lg border">
+                            <p className="text-xs font-medium text-muted-foreground mb-3">Monetary Totals</p>
+                            <div className="grid grid-cols-2 gap-3">
+                              {[
+                                ['Payable Amount', payload.legal_monetary_total.payable_amount],
+                                ['Tax Exclusive', payload.legal_monetary_total.tax_exclusive_amount],
+                                ['Tax Inclusive', payload.legal_monetary_total.tax_inclusive_amount],
+                                ['Line Extension', payload.legal_monetary_total.line_extension_amount],
+                              ].map(([label, val]) => val !== undefined && (
+                                <div key={label as string}>
+                                  <p className="text-xs text-muted-foreground">{label}</p>
+                                  <p className="text-sm font-semibold">
+                                    {formatAmount(Number(val), payload.document_currency_code || 'NGN')}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Parties */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {payload.accounting_supplier_party && (
+                            <div className="p-4 border rounded-lg space-y-2">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Supplier</p>
+                              <p className="text-sm font-medium">{payload.accounting_supplier_party.party_name}</p>
+                              {payload.accounting_supplier_party.tin && <p className="text-xs text-muted-foreground">TIN: <span className="font-mono text-foreground">{payload.accounting_supplier_party.tin}</span></p>}
+                              {payload.accounting_supplier_party.email && <p className="text-xs text-muted-foreground">Email: {payload.accounting_supplier_party.email}</p>}
+                              {payload.accounting_supplier_party.telephone && <p className="text-xs text-muted-foreground">Phone: {payload.accounting_supplier_party.telephone}</p>}
+                              {payload.accounting_supplier_party.postal_address && (
+                                <p className="text-xs text-muted-foreground">
+                                  {[
+                                    payload.accounting_supplier_party.postal_address.street_name,
+                                    payload.accounting_supplier_party.postal_address.city_name,
+                                    payload.accounting_supplier_party.postal_address.country,
+                                  ].filter(Boolean).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {payload.accounting_customer_party && (
+                            <div className="p-4 border rounded-lg space-y-2">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer</p>
+                              <p className="text-sm font-medium">{payload.accounting_customer_party.party_name}</p>
+                              {payload.accounting_customer_party.tin && <p className="text-xs text-muted-foreground">TIN: <span className="font-mono text-foreground">{payload.accounting_customer_party.tin}</span></p>}
+                              {payload.accounting_customer_party.email && <p className="text-xs text-muted-foreground">Email: {payload.accounting_customer_party.email}</p>}
+                              {payload.accounting_customer_party.telephone && <p className="text-xs text-muted-foreground">Phone: {payload.accounting_customer_party.telephone}</p>}
+                              {payload.accounting_customer_party.postal_address && (
+                                <p className="text-xs text-muted-foreground">
+                                  {[
+                                    payload.accounting_customer_party.postal_address.street_name,
+                                    payload.accounting_customer_party.postal_address.city_name,
+                                    payload.accounting_customer_party.postal_address.country,
+                                  ].filter(Boolean).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Line items */}
+                        {payload.invoice_line?.length > 0 && (
+                          <div className="border rounded-lg overflow-hidden">
+                            <p className="text-xs font-medium text-muted-foreground px-4 py-2 bg-muted/50 border-b">Line Items</p>
+                            <div className="divide-y">
+                              {payload.invoice_line.map((line: any, idx: number) => (
+                                <div key={idx} className="px-4 py-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                  <div>
+                                    <p className="text-muted-foreground">Item</p>
+                                    <p className="font-medium">{line.item?.name || '—'}</p>
+                                    {line.item?.description && <p className="text-muted-foreground">{line.item.description}</p>}
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground">Qty</p>
+                                    <p className="font-medium">{line.invoiced_quantity}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground">Unit Price</p>
+                                    <p className="font-medium">{formatAmount(Number(line.price?.price_amount || 0), payload.document_currency_code || 'NGN')}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground">Line Total</p>
+                                    <p className="font-semibold">{formatAmount(Number(line.line_extension_amount || 0), payload.document_currency_code || 'NGN')}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}

@@ -108,7 +108,7 @@ API_BASE_URL=https://e-invoicing-middleware.vercel.app
 ADMIN_API_KEY=dev-admin-key
 
 # Public environment flag (used for dev-only UI like mock credential toggles)
-NEXT_PUBLIC_APP_ENV=development
+APP_ENV=development
 
 # NextAuth secret (auto-generated if omitted in development)
 NEXTAUTH_SECRET=your-secret-here
@@ -179,4 +179,4 @@ npm run test:watch
 - **API Proxy**: All requests from the browser go through an Elysia-based proxy at `/api/[...]`. The proxy attaches auth tokens (from cookies or NextAuth JWT) before forwarding to the backend middleware.
 - **RBAC**: Route protection and UI gating are handled via `use-permissions` hook and NextAuth session role checks.
 - **Mock-first development**: A full mock API layer in `src/lib/mockData/` allows development and testing independent of the backend.
-- **Dev-only features**: Some UI elements (e.g. NRS OAuth mock credentials toggle) are gated by `NEXT_PUBLIC_APP_ENV=development` or `NODE_ENV`.
+- **Dev-only features**: Some UI elements (e.g. NRS OAuth mock credentials toggle) are gated by `APP_ENV=development` or `NODE_ENV`.

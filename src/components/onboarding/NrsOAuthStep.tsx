@@ -12,17 +12,18 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import { toast } from '@/components/ui/sonner'
+import { Switch } from '@/components/ui/switch'
 import { formatErpName } from '@/hooks/use-supported-erps'
 import { createTenantApi } from '@/lib/api/tenant-api'
+import { APP_ENV } from '@/lib/envData'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, ArrowRight, Building2, CheckCircle2, FlaskConical, Loader2, Lock, Mail } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 
-const isDev = process.env.NEXT_PUBLIC_APP_ENV === 'development' || process.env.NODE_ENV === 'development'
+const isDev = APP_ENV === 'development' || process.env.NODE_ENV === 'development'
 
 const firsOAuthSchema = z.object({
   email: z.string().email('Valid NRS email required'),
