@@ -77,14 +77,14 @@ export const authOptions: NextAuthConfig = {
     error: '/auth/super-admin/login',
   },
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id
         token.role = user.role
         token.name = user.name
         token.email = user.email
-        // Store the API token if provided during sign-in
-        if (account?.provider === 'credentials' && (user as any).token) {
+        // Store the API token so the proxy can read it from the JWT
+        if ((user as any).token) {
           token.token = (user as any).token
         }
         if ((user as any).tenantId) {
@@ -104,5 +104,6 @@ export const authOptions: NextAuthConfig = {
       return session
     },
   },
+  trustHost: true,
   secret: process.env.NEXTAUTH_SECRET || 'heirs-tally-super-admin-secret-key-change-in-production',
 }

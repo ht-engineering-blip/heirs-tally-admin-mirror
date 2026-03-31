@@ -2,6 +2,17 @@
 
 import { Column, DEFAULT_EVENT_MAPPINGS, DataTable, EventMappingEditor, StatusBadge, type EventMapping } from '@/components/shared'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,11 +33,11 @@ import { createTenantWebhookListener, getAdminApiClient } from '@/lib/api/client
 import { createTenantApi } from '@/lib/api/tenant-api'
 import {
   Activity,
+  AlertCircle,
   ArrowRight,
   CheckCircle2,
   Copy,
   FileJson,
-  Globe,
   Link2,
   Loader2,
   Radio,
@@ -44,11 +55,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { SectionLoader } from '@/components/shared/SectionLoader'
 import { usePermissions } from '@/hooks/use-permissions'
+import { usePersistedTab } from '@/hooks/use-persisted-tab'
 import { useTenant } from '@/hooks/use-tenant'
 import { getTenantApiClient } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 import { format, formatDistanceToNow } from 'date-fns'
 
+import { stripTrailingSlash } from '@/lib/helpers'
 import 'react-data-mapping/dist/index.css'
 
 
@@ -59,6 +72,7 @@ interface WebhookConfig {
   webhookSecret: string
   webhookPath: string
   webhookEnabled: boolean
+  invoiceIdKey?: string
 }
 
 interface TestResult {
@@ -131,6 +145,7 @@ export default function WebhookSettingsPage() {
   const { hasPermission } = usePermissions()
   const tenantAPI = getTenantApiClient()
   const canUpdate = hasPermission('settings:update')
+  const [activeTab, setActiveTab] = usePersistedTab('configuration')
 
   // Config state
   const [webhookConfig, setWebhookConfig] = useState<WebhookConfig | null>(null)
@@ -139,6 +154,7 @@ export default function WebhookSettingsPage() {
   const [loadingConfig, setLoadingConfig] = useState(true)
   const [secretVisible, setSecretVisible] = useState(false)
   const [rawSecret, setRawSecret] = useState<string | null>(null)
+  const [invoiceIdKey, setInvoiceIdKey] = useState('')
 
   // Test state
   const [testMode, setTestMode] = useState<'manual' | 'listen'>('manual')
@@ -202,9 +218,12 @@ export default function WebhookSettingsPage() {
   // Load config from tenant data
   useEffect(() => {
     if (tenantData) {
+      
       const td = tenantData as any
       const config = td?.data?.config || td?.data || td?.config || td
       const metadata = td?.data?.metadata || td?.metadata || {}
+
+      
 
       setWebhookEnabled(!!config?.webhookEnabled)
 
@@ -215,7 +234,9 @@ export default function WebhookSettingsPage() {
           webhookSecret: config.webhookAuth || '••••••••',
           webhookPath: metadata.webhookPath || config.webhookPath || '',
           webhookEnabled: !!config.webhookEnabled,
+          invoiceIdKey: config.invoiceIdKey || metadata.invoiceIdKey || '',
         })
+        setInvoiceIdKey(config.invoiceIdKey || metadata.invoiceIdKey || '')
       }
 
       // Fetch event routing from new API
@@ -229,7 +250,7 @@ export default function WebhookSettingsPage() {
     }
   }, [tenantData, fetchEventRouting])
 
-  // Fetch FIRS dictionary for mapping target fields
+  // Fetch NRS dictionary for mapping target fields
   const fetchFirsDictionary = useCallback(async () => {
     setFirsLoading(true)
     try {
@@ -242,7 +263,7 @@ export default function WebhookSettingsPage() {
         }
       }
     } catch {
-      // FIRS dictionary may not exist yet
+      // NRS dictionary may not exist yet
     } finally {
       setFirsLoading(false)
     }
@@ -304,7 +325,7 @@ export default function WebhookSettingsPage() {
     setIsGenerating(true)
     try {
       const api = createTenantApi()
-      const response = await api.generateWebhook(tenantId)
+      const response = await api.generateWebhook(tenantId, invoiceIdKey || undefined)
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to generate webhook URL')
       } else {
@@ -317,6 +338,7 @@ export default function WebhookSettingsPage() {
             webhookSecret: data.webhookSecret,
             webhookPath: data.webhookPath,
             webhookEnabled: true,
+            invoiceIdKey: data.invoiceIdKey || invoiceIdKey,
           })
           setWebhookEnabled(true)
           toast.success('Webhook generated successfully. Copy your secret now — it won\'t be shown again.')
@@ -551,7 +573,9 @@ export default function WebhookSettingsPage() {
         toast.error('No webhook path configured. Generate a webhook URL first.')
         return
       }
-      const listenerURL = webhookConfig?.webhookUrl.replace("inbound", "listen")
+      const listenerURL = stripTrailingSlash(webhookConfig?.webhookUrl.replace("inbound", "listen"))
+      console.log('listener: ', listenerURL);
+      
       setIsListening(true)
       setListenerConnected(false)
       setListenedEvents([])
@@ -746,33 +770,33 @@ export default function WebhookSettingsPage() {
         {/* Header */}
         <div className="page-header">
           <div>
-            <h1 className="text-2xl font-bold">Webhook Settings</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold">Webhook Settings</h1>
+            <p className="text-sm text-muted-foreground">
               Configure webhooks to receive events from external systems and route them to workflows
             </p>
           </div>
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="configuration" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="configuration">
-              <Webhook className="w-4 h-4 mr-2 hidden sm:inline-block" />
-              Configuration
+            <TabsTrigger value="configuration" className="text-xs sm:text-sm px-2 sm:px-3">
+              <Webhook className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Configuration</span>
             </TabsTrigger>
-            <TabsTrigger value="routing">
-              <Settings2 className="w-4 h-4 mr-2 hidden sm:inline-block" />
-              Event Routing
+            <TabsTrigger value="test" className="text-xs sm:text-sm px-2 sm:px-3">
+              <Zap className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Test & Map</span>
             </TabsTrigger>
-            <TabsTrigger value="test">
-              <Zap className="w-4 h-4 mr-2 hidden sm:inline-block" />
-              Test & Map
+            <TabsTrigger value="routing" className="text-xs sm:text-sm px-2 sm:px-3">
+              <Settings2 className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Event Routing</span>
             </TabsTrigger>
-            <TabsTrigger value="history" onClick={() => {
+            <TabsTrigger value="history" className="text-xs sm:text-sm px-2 sm:px-3" onClick={() => {
               if (webhookHistory.length === 0 && !historyLoading) fetchWebhookHistory()
             }}>
-              <Activity className="w-4 h-4 mr-2 hidden sm:inline-block" />
-              History
+              <Activity className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">History</span>
             </TabsTrigger>
           </TabsList>
 
@@ -788,7 +812,7 @@ export default function WebhookSettingsPage() {
                     <div>
                       <CardTitle>Webhook Endpoint</CardTitle>
                       <CardDescription>
-                        Your webhook URL receives events from external systems like ERPs and FIRS
+                        Your webhook URL receives events from external systems like ERPs and NRS
                       </CardDescription>
                     </div>
                   </div>
@@ -847,18 +871,66 @@ export default function WebhookSettingsPage() {
                         </div>
                       )}
                     </div>
+                    <Alert className="border-info/30 bg-info/5 text-info">
+                      <AlertCircle className="h-4 w-4 text-info" />
+                      <AlertDescription className="text-xs space-y-1 text-info">
+                        <p><strong>How to authenticate incoming webhooks:</strong></p>
+                        <p>Send your webhook secret in the request headers as <code className="font-mono bg-info/10 px-1 py-0.5 rounded">X-Webhook-Key</code>. Requests without this header or with an incorrect value will be rejected.</p>
+                      </AlertDescription>
+                    </Alert>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
+                      <Input
+                        value={invoiceIdKey}
+                        onChange={(e) => setInvoiceIdKey(e.target.value)}
+                        placeholder='e.g. invoice.documentId'
+                        className="font-mono text-xs"
+                        disabled={!canUpdate}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Dot-notation path to the invoice ID field in the webhook payload
+                      </p>
+                    </div>
                     {canUpdate && (
-                      <Button variant="outline" size="sm" onClick={handleGenerate} disabled={isGenerating}>
-                        <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
-                        Regenerate URL & Secret
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm" disabled={isGenerating}>
+                            <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
+                            Regenerate URL & Secret
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Regenerate Webhook?</AlertDialogTitle>
+                            <AlertDialogDescription asChild>
+                              <div className="text-sm text-muted-foreground space-y-2">
+                                <p>This action is <strong>irreversible</strong> and will:</p>
+                                <ul className="list-disc list-inside space-y-1 text-sm">
+                                  <li>Invalidate the current webhook URL and secret</li>
+                                  <li>Revoke all existing event routing configurations</li>
+                                  <li>Break any external systems using the current credentials</li>
+                                </ul>
+                                <p>You will need to update all connected ERPs and external systems with the new webhook URL and secret.</p>
+                              </div>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleGenerate}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Yes, Regenerate
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
-                    <Alert>
-                      <Globe className="h-4 w-4" />
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
                       <AlertDescription className="text-xs space-y-1">
-                        <p>External systems should send HTTP POST requests to your webhook URL with event payloads.</p>
-                        <p>Include the webhook secret in the <code className="bg-muted px-1 rounded">X-Webhook-Key</code> header for authentication.</p>
-                        <p><strong>Regenerating</strong> will create a new URL and secret, invalidating the previous ones. Update any external systems using the old credentials.</p>
+                        <p><strong>Warning:</strong> Regenerating will create a new URL and secret, invalidating the previous ones and revoking all configurations tied to them.</p>
+                        <p>Ensure you update any external systems using the old credentials before regenerating.</p>
                       </AlertDescription>
                     </Alert>
                   </div>
@@ -869,6 +941,20 @@ export default function WebhookSettingsPage() {
                     <p className="text-sm text-muted-foreground mb-4">
                       Generate a webhook URL to start receiving events from external systems.
                     </p>
+                    {canUpdate && (
+                      <div className="max-w-sm mx-auto mb-4 space-y-2">
+                        <Label className="text-xs text-muted-foreground">Invoice ID Key (optional)</Label>
+                        <Input
+                          value={invoiceIdKey}
+                          onChange={(e) => setInvoiceIdKey(e.target.value)}
+                          placeholder='e.g. invoiceNumber or header.documentId'
+                          className="font-mono text-xs"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Dot-notation path to the invoice ID field in the webhook payload
+                        </p>
+                      </div>
+                    )}
                     {canUpdate && (
                       <Button onClick={handleGenerate} disabled={isGenerating}>
                         {isGenerating ? (
@@ -891,7 +977,7 @@ export default function WebhookSettingsPage() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
-                    { step: '1', title: 'Receive', desc: 'External systems (ERP, FIRS) send events to your webhook URL via HTTP POST' },
+                    { step: '1', title: 'Receive', desc: 'External systems (ERP, NRS) send events to your webhook URL via HTTP POST' },
                     { step: '2', title: 'Route', desc: 'Events are matched against your configured event mappings and routed to the appropriate workflow' },
                     { step: '3', title: 'Process', desc: 'The workflow processes the event: transforms, validates, signs, and transmits the invoice data' },
                   ].map((s) => (
@@ -938,7 +1024,7 @@ export default function WebhookSettingsPage() {
                 />
                 {canUpdate && eventMappings.length > 0 && (
                   <div className="flex justify-end pt-4">
-                    <Button onClick={handleSaveMappings} disabled={savingMappings}>
+                    <Button onClick={handleSaveMappings} disabled={savingMappings || JSON.stringify(eventMappings) === JSON.stringify(savedMappings)}>
                       {savingMappings ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : 'Save Mappings'}
                     </Button>
                   </div>
@@ -1078,7 +1164,7 @@ export default function WebhookSettingsPage() {
                       {testPassed && receivedPayload && (
                         <Button size="sm" onClick={handleOpenMapper}>
                           <Link2 className="w-4 h-4 mr-2" />
-                          Map Fields to FIRS Schema
+                          Map Fields to NRS Schema
                         </Button>
                       )}
                     </div>
@@ -1421,7 +1507,7 @@ function FieldMapper({
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-3" />
-          <span className="text-muted-foreground">Loading FIRS schema fields...</span>
+          <span className="text-muted-foreground">Loading NRS schema fields...</span>
         </CardContent>
       </Card>
     )
@@ -1446,9 +1532,9 @@ function FieldMapper({
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
           <FileJson className="w-12 h-12 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-medium mb-2">FIRS Schema Not Found</h3>
+          <h3 className="text-lg font-medium mb-2">NRS Schema Not Found</h3>
           <p className="text-sm text-muted-foreground max-w-md">
-            The FIRS UBL Invoice Schema has not been configured yet. Ask your admin to set it up from the FIRS Dictionary page.
+            The NRS UBL Invoice Schema has not been configured yet. Ask your admin to set it up from the NRS Dictionary page.
           </p>
         </CardContent>
       </Card>
@@ -1552,7 +1638,7 @@ function FieldMapper({
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 <FileJson className="w-4 h-4" />
-                FIRS UBL Fields
+                NRS UBL Fields
               </CardTitle>
               <Input
                 placeholder="Search target fields..."

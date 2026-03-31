@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Eye, Edit, Trash2, Power, Building2, Webhook, CheckCircle2, XCircle } from 'lucide-react';
+import { Eye, Edit, Trash2, Power, Building2, Webhook, CheckCircle2, XCircle, Copy, Loader2, EyeOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { DataTable, Column, FilterOption, StatusBadge, EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -11,7 +11,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { getAdminApiClient } from '@/lib/api/client';
+import { createTenantApi } from '@/lib/api/tenant-api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Dialog,
   DialogContent,
@@ -109,8 +113,16 @@ export default function AdminWebhookConfig() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEnableDialog, setShowEnableDialog] = useState(false);
   const [showDisableDialog, setShowDisableDialog] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<WebhookConfigEntry | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Generate webhook state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [invoiceIdKey, setInvoiceIdKey] = useState('');
+  const [generatedWebhook, setGeneratedWebhook] = useState<{ webhookUrl: string; webhookSecret: string; invoiceIdKey?: string } | null>(null);
+  const [secretVisible, setSecretVisible] = useState(false);
 
   // Edit form state
   const [editMappings, setEditMappings] = useState<EventMapping[]>([]);
@@ -134,12 +146,6 @@ export default function AdminWebhookConfig() {
         const tenantData = response.data.data as any[];
         const mappedConfigs: WebhookConfigEntry[] = await Promise.all(
           tenantData
-            .filter((t: any) => {
-              const hasWebhookUrl = t.config?.webhookUrl || t.metadata?.webhookUrl;
-              const hasWebhookPath = t.config?.webhookPath || t.metadata?.webhookPath;
-              const hasWebhookEnabled = t.config?.webhookEnabled !== undefined || t.metadata?.webhookEnabled !== undefined;
-              return hasWebhookUrl || hasWebhookPath || hasWebhookEnabled;
-            })
             .map(async (t: any) => {
               const config = t.config || {};
               const metadata = t.metadata || {};
@@ -324,6 +330,48 @@ export default function AdminWebhookConfig() {
     toast.success('Route removed');
   };
 
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard`);
+  };
+
+  const openGenerateModal = (config: WebhookConfigEntry) => {
+    setSelectedConfig(config);
+    setGeneratedWebhook(null);
+    setInvoiceIdKey('');
+    setSecretVisible(false);
+    setShowGenerateModal(true);
+  };
+
+  const handleGenerateWebhook = async () => {
+    if (!selectedConfig) return;
+    setIsGenerating(true);
+    try {
+      const tenantApi = createTenantApi();
+      const response = await tenantApi.generateWebhook(selectedConfig.tenantId, invoiceIdKey || undefined);
+      if (response.error) {
+        toast.error((response.error as any)?.value?.error || 'Failed to generate webhook URL');
+      } else {
+        const data = (response.data as any)?.data;
+        if (data?.webhookUrl) {
+          setGeneratedWebhook({
+            webhookUrl: data.webhookUrl,
+            webhookSecret: data.webhookSecret,
+            invoiceIdKey: data.invoiceIdKey || invoiceIdKey || undefined,
+          });
+          setSecretVisible(true);
+          setShowRegenerateDialog(false);
+          toast.success("Webhook generated. Copy the secret now — it won't be shown again.");
+          fetchConfigs();
+        }
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to generate webhook');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const openViewModal = (config: WebhookConfigEntry) => {
     setSelectedConfig(config);
     setShowViewModal(true);
@@ -447,6 +495,10 @@ export default function AdminWebhookConfig() {
 
   const rowActions = (config: WebhookConfigEntry) => (
     <>
+      <DropdownMenuItem onClick={() => openGenerateModal(config)}>
+        <Webhook className="w-4 h-4 mr-2" />
+        {config.webhookUrl ? 'Regenerate Webhook' : 'Generate Webhook'}
+      </DropdownMenuItem>
       <DropdownMenuItem onClick={() => openViewModal(config)}>
         <Eye className="w-4 h-4 mr-2" />
         View Details
@@ -513,7 +565,7 @@ export default function AdminWebhookConfig() {
         <div className="page-header">
           <div>
             <h1 className="page-title">Webhook Configurations</h1>
-            <p className="page-subtitle">View and manage webhook event routing for all tenants</p>
+            <p className="page-subtitle">Generate webhook URLs and manage event routing for all tenants</p>
           </div>
         </div>
 
@@ -588,7 +640,7 @@ export default function AdminWebhookConfig() {
           onSearch={setSearchQuery}
           onFilterChange={setFilters}
           onSort={handleSort}
-          emptyMessage="No webhook configurations found. Webhooks are configured from the tenant dashboard."
+          emptyMessage="No tenants found."
         />
       </div>
 
@@ -814,6 +866,156 @@ export default function AdminWebhookConfig() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Generate Webhook Modal */}
+      <Dialog open={showGenerateModal} onOpenChange={(open) => { setShowGenerateModal(open); if (!open) { setSelectedConfig(null); setGeneratedWebhook(null); setInvoiceIdKey(''); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Webhook className="w-5 h-5" />
+              {selectedConfig?.webhookUrl ? 'Regenerate' : 'Generate'} Webhook
+            </DialogTitle>
+            <DialogDescription>
+              {selectedConfig?.tenantName || selectedConfig?.tenantId}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Existing URL (no fresh generation yet) */}
+            {selectedConfig?.webhookUrl && !generatedWebhook && (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Current Webhook URL</Label>
+                  <div className="flex items-center gap-2">
+                    <Input value={selectedConfig.webhookUrl} readOnly className="font-mono text-xs" />
+                    <Button variant="outline" size="icon" onClick={() => copyToClipboard(selectedConfig.webhookUrl!, 'Webhook URL')}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Webhook Secret</Label>
+                  <div className="flex items-center gap-2">
+                    <Input value="••••••••••••••••••••••••" readOnly className="font-mono text-xs" type="password" />
+                    <Button variant="outline" size="icon" disabled title="Secret is hidden. Regenerate to get a new one.">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Secret is not retrievable. Regenerate to get a new one.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Newly generated result */}
+            {generatedWebhook && (
+              <div className="space-y-3 p-3 border rounded-lg bg-muted/40">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Webhook URL</Label>
+                  <div className="flex items-center gap-2">
+                    <Input value={generatedWebhook.webhookUrl} readOnly className="font-mono text-xs" />
+                    <Button variant="outline" size="icon" onClick={() => copyToClipboard(generatedWebhook.webhookUrl, 'Webhook URL')}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    Webhook Secret <span className="text-destructive">(copy now — won't be shown again)</span>
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input value={secretVisible ? generatedWebhook.webhookSecret : '••••••••••••••••'} readOnly className="font-mono text-xs" />
+                    <Button variant="outline" size="icon" onClick={() => setSecretVisible(v => !v)}>
+                      {secretVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={() => copyToClipboard(generatedWebhook.webhookSecret, 'Webhook secret')}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                {generatedWebhook.invoiceIdKey && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
+                    <p className="font-mono text-xs mt-0.5">{generatedWebhook.invoiceIdKey}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Invoice ID Key input + action */}
+            <div className="space-y-2 pt-1 border-t">
+              <Label htmlFor="gen-invoiceIdKey" className="text-xs text-muted-foreground">
+                Invoice ID Key <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="gen-invoiceIdKey"
+                value={invoiceIdKey}
+                onChange={(e) => setInvoiceIdKey(e.target.value)}
+                placeholder="e.g. invoice.documentId"
+                className="font-mono text-xs"
+              />
+
+              {selectedConfig?.webhookUrl ? (
+                <>
+                  <AlertDialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={isGenerating}
+                      onClick={() => setShowRegenerateDialog(true)}
+                      className="w-full sm:w-auto"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
+                      Regenerate URL &amp; Secret
+                    </Button>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Regenerate Webhook?</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                          <div className="text-sm text-muted-foreground space-y-2">
+                            <p>This action is <strong>irreversible</strong> and will:</p>
+                            <ul className="list-disc list-inside space-y-1 text-sm">
+                              <li>Generate a new webhook URL and secret for <strong>{selectedConfig?.tenantName}</strong></li>
+                              <li>Immediately invalidate the existing webhook URL and secret</li>
+                              <li>Disconnect any currently connected ERP or external system</li>
+                            </ul>
+                            <p>You will need to share the new credentials with the tenant.</p>
+                          </div>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleGenerateWebhook}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          disabled={isGenerating}
+                        >
+                          {isGenerating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Regenerating...</> : 'Yes, Regenerate'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      Regenerating will invalidate the previous URL and secret, revoking all configurations tied to them.
+                    </AlertDescription>
+                  </Alert>
+                </>
+              ) : (
+                <Button onClick={handleGenerateWebhook} disabled={isGenerating} className="w-full sm:w-auto">
+                  {isGenerating
+                    ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating...</>
+                    : <><Webhook className="mr-2 h-4 w-4" />Generate Webhook URL</>}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGenerateModal(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

@@ -7,6 +7,7 @@ interface StatusBadgeProps {
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   active: { label: 'Active', className: 'status-active' },
+  onboarding: { label: 'Onboarding', className: 'status-onboarding' },
   pending: { label: 'Pending', className: 'status-pending' },
   suspended: { label: 'Suspended', className: 'status-error' },
   inactive: { label: 'Inactive', className: 'status-inactive' },

@@ -60,8 +60,7 @@ export default function SuperAdminLoginPage() {
         toast.success('Login successful!', {
           description: 'Redirecting to dashboard...',
         })
-        router.push('/admin')
-        router.refresh()
+        window.location.href = '/admin'
       }
     } catch (err) {
       setError('An error occurred. Please try again.')

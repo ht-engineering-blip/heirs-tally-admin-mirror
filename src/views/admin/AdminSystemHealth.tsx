@@ -19,7 +19,7 @@ export default function AdminSystemHealth() {
       icon: Server,
     },
     {
-      name: 'FIRS Integration',
+      name: 'NRS Integration',
       status: health.firsConnectivity === 'healthy' ? 'operational' : health.firsConnectivity,
       uptime: '99.95%',
       icon: Cloud,
@@ -119,7 +119,7 @@ export default function AdminSystemHealth() {
                 <Wifi className={cn('w-5 h-5', health.firsConnectivity === 'healthy' ? 'text-success' : 'text-warning')} />
                 <div>
                   <p className="text-2xl font-bold capitalize">{health.firsConnectivity}</p>
-                  <p className="text-sm text-muted-foreground">FIRS Connection</p>
+                  <p className="text-sm text-muted-foreground">NRS Connection</p>
                 </div>
               </div>
             </CardContent>

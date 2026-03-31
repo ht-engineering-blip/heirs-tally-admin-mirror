@@ -375,7 +375,7 @@ export const mockTransactions: Transaction[] = [
     currency: 'NGN',
     customerName: 'Steel Works Co',
     createdAt: '2025-02-05T14:20:00Z',
-    errorMessage: 'FIRS service temporarily unavailable',
+    errorMessage: 'NRS service temporarily unavailable',
   },
 ];
 

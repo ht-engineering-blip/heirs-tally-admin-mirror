@@ -89,7 +89,7 @@ export enum SchemaStatus {
 const CONFIG_STEPS = [
   { id: 'setup', label: 'Setup', description: 'ERP type & status' },
   { id: 'schema', label: 'Schema', description: 'Invoice & metadata' },
-  { id: 'mapping', label: 'Field Mapping', description: 'Map to FIRS UBL' },
+  { id: 'mapping', label: 'Field Mapping', description: 'Map to NRS UBL' },
 ] as const;
 
 type ConfigStep = typeof CONFIG_STEPS[number]['id'];
@@ -212,7 +212,7 @@ export default function AdminErpSupport() {
         }
       }
     } catch {
-      // Silently fail - FIRS dictionary may not exist yet
+      // Silently fail - NRS dictionary may not exist yet
       setFirsFields([]);
     } finally {
       setFirsLoading(false);
@@ -309,7 +309,7 @@ export default function AdminErpSupport() {
     }
   }, [invoiceJson]);
 
-  // Derive FIRS target fields from the dictionary
+  // Derive NRS target fields from the dictionary
   const firsTargetFields = useMemo(() => {
     return firsFields.map((f) => ({
       key: f.field_path || f.field_id,
@@ -715,9 +715,9 @@ export default function AdminErpSupport() {
                 <FileJson className="w-8 h-8 text-muted-foreground" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold">FIRS Dictionary not configured</h3>
+                <h3 className="text-lg font-semibold">NRS Dictionary not configured</h3>
                 <p className="text-sm text-muted-foreground max-w-md">
-                  The FIRS UBL Invoice Schema has not been set up yet. Configure it from the FIRS Dictionary page to enable field mapping.
+                  The NRS UBL Invoice Schema has not been set up yet. Configure it from the NRS Dictionary page to enable field mapping.
                 </p>
               </div>
             </div>
@@ -813,12 +813,12 @@ export default function AdminErpSupport() {
             </CardContent>
           </Card>
 
-          {/* Target (FIRS UBL Fields) */}
+          {/* Target (NRS UBL Fields) */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <FileJson className="w-4 h-4" />
-                FIRS UBL Fields
+                NRS UBL Fields
               </CardTitle>
               <Input
                 placeholder="Search target fields..."
@@ -1225,7 +1225,7 @@ export default function AdminErpSupport() {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mr-2" />
-                    <span className="text-muted-foreground">Loading FIRS dictionary fields...</span>
+                    <span className="text-muted-foreground">Loading NRS dictionary fields...</span>
                   </div>
                 </CardContent>
               </Card>

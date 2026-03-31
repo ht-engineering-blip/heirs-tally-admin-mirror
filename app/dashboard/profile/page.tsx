@@ -17,6 +17,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Textarea } from '@/components/ui/textarea'
 import { Loader2, Building2, AlertCircle, CheckCircle, Pencil, X, Shield, Eye, EyeOff, Copy } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { SectionLoader } from '@/components/shared/SectionLoader'
@@ -31,11 +32,20 @@ const profileSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileSchema>
 
+const credentialsSchema = z.object({
+  certificate: z.string().min(1, 'Certificate is required'),
+  publicKey: z.string().min(1, 'Public key is required'),
+})
+
+type CredentialsFormValues = z.infer<typeof credentialsSchema>
+
 export default function ProfilePage() {
   const { tenantId, tenantData, metadata, isLoading, error: tenantError, refetch } = useTenant()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
+  const [isEditingCredentials, setIsEditingCredentials] = useState(false)
+  const [isSavingCredentials, setIsSavingCredentials] = useState(false)
 
   const tenant = tenantData as Record<string, any> | undefined
   const config = tenant?.config as Record<string, any> | undefined
@@ -47,6 +57,11 @@ export default function ProfilePage() {
       contactEmail: tenant?.contactEmail || '',
       contactPhone: tenant?.contactPhone || '',
     },
+  })
+
+  const credentialsForm = useForm<CredentialsFormValues>({
+    resolver: zodResolver(credentialsSchema),
+    defaultValues: { certificate: '', publicKey: '' },
   })
 
   const onSubmit = async (data: ProfileFormValues) => {
@@ -78,6 +93,27 @@ export default function ProfilePage() {
     toast.success(`${label} copied to clipboard`)
   }
 
+  const handleUpdateCredentials = async (data: CredentialsFormValues) => {
+    if (!tenantId) return
+    setIsSavingCredentials(true)
+    try {
+      const api = createTenantApi()
+      const response = await api.putFirsCredentials(tenantId, data.certificate, data.publicKey)
+      if (response.error) {
+        toast.error((response.error as any)?.value?.error || 'Failed to update FIRS credentials')
+        return
+      }
+      toast.success('FIRS credentials updated successfully')
+      setIsEditingCredentials(false)
+      credentialsForm.reset()
+      refetch()
+    } catch {
+      toast.error('An unexpected error occurred')
+    } finally {
+      setIsSavingCredentials(false)
+    }
+  }
+
   if (isLoading) {
     return <SectionLoader message="Loading profile" />
   }
@@ -96,17 +132,17 @@ export default function ProfilePage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Building2 className="h-6 w-6" />
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Building2 className="h-5 w-5 sm:h-6 sm:w-6" />
             Business Profile
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             View and manage your business information.
           </p>
         </div>
-        <Badge variant={tenant?.status === 'active' ? 'default' : 'secondary'}>
+        <Badge variant={tenant?.status === 'active' ? 'default' : 'secondary'} className="w-fit">
           {tenant?.status || 'N/A'}
         </Badge>
       </div>
@@ -189,7 +225,7 @@ export default function ProfilePage() {
               <ProfileField label="TIN" value={tenant?.tin} />
               <ProfileField label="Contact Email" value={tenant?.contactEmail} />
               <ProfileField label="Contact Phone" value={tenant?.contactPhone} />
-              <ProfileField label="ERP System" value={tenant?.erpSystem} />
+              <ProfileField label="ERP System" value={config?.erpSystem || tenant?.erpSystem} />
               <ProfileField label="Registered" value={tenant?.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : undefined} />
             </div>
           )}
@@ -238,52 +274,108 @@ export default function ProfilePage() {
                 <Shield className="h-5 w-5" />
                 FIRS Credentials
               </CardTitle>
-              <CardDescription>Your FIRS authentication details</CardDescription>
+              <CardDescription>Your FIRS certificate and public key for invoice signing</CardDescription>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCredentials(!showCredentials)}
-            >
-              {showCredentials ? (
-                <><EyeOff className="h-4 w-4 mr-1" /> Hide</>
-              ) : (
-                <><Eye className="h-4 w-4 mr-1" /> Show</>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCredentials(!showCredentials)}
+              >
+                {showCredentials ? (
+                  <><EyeOff className="h-4 w-4 mr-1" /> Hide</>
+                ) : (
+                  <><Eye className="h-4 w-4 mr-1" /> Show</>
+                )}
+              </Button>
+              {!isEditingCredentials && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setIsEditingCredentials(true); setShowCredentials(false) }}
+                >
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Update
+                </Button>
               )}
-            </Button>
+            </div>
           </div>
         </CardHeader>
-        <CardContent> 
-          {showCredentials ? (
+        <CardContent className="space-y-4">
+          {isEditingCredentials ? (
+            <Form {...credentialsForm}>
+              <form onSubmit={credentialsForm.handleSubmit(handleUpdateCredentials)} className="space-y-4">
+                <FormField
+                  control={credentialsForm.control}
+                  name="certificate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Certificate</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                          className="font-mono text-xs min-h-[120px]"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={credentialsForm.control}
+                  name="publicKey"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Public Key</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
+                          className="font-mono text-xs min-h-[120px]"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setIsEditingCredentials(false); credentialsForm.reset() }}
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" disabled={isSavingCredentials}>
+                    {isSavingCredentials && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Save Credentials
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          ) : showCredentials ? (
             <div className="space-y-4">
               <ProfileField
                 label="FIRS Status"
-                value={
-                  (tenantData as any)?.config?.firs
-                    ? 'Connected'
-                    : 'Not connected'
-                }
+                value={(tenantData as any)?.config?.nrs ? 'Connected' : 'Not connected'}
               />
-              {(tenantData as any)?.config?.firs && (
+              {(tenantData as any)?.config?.nrs && (
                 <>
                   <ProfileField
-                    label="FIRS Service ID"
-                    value={(tenantData as any)?.config?.firs.serviceId}
+                    label="Service ID"
+                    value={(tenantData as any)?.config?.nrs.serviceId}
                   />
-                  <ProfileField
-                    label="Business Name"
-                    value={tenantData?.businessName}
-                  />
-                  <ProfileField
-                    label="FIRS TIN"
-                    value={tenantData.tin}
-                  />
+                  <ProfileField label="Business Name" value={tenantData?.businessName} />
+                  <ProfileField label="TIN" value={tenantData.tin} />
                 </>
               )}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Click &quot;Show&quot; to view your FIRS credential details.
+              Click &quot;Show&quot; to view your FIRS credential details, or &quot;Update&quot; to replace your certificate and key.
             </p>
           )}
         </CardContent>
@@ -304,10 +396,10 @@ function ProfileField({
   onCopy?: () => void
 }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b last:border-0">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 py-2 border-b last:border-0">
       <span className="text-sm text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-right max-w-[300px] truncate">
+        <span className="text-sm font-medium text-left sm:text-right max-w-full sm:max-w-[300px] truncate">
           {value || 'N/A'}
         </span>
         {copyable && onCopy && (

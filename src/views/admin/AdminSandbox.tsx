@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react';
+import { usePersistedTab } from '@/hooks/use-persisted-tab';
 import { Play, CheckCircle, XCircle, Clock, Loader2, Code2, FileCheck, Workflow } from 'lucide-react';
 import { getAdminApiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
@@ -38,7 +39,7 @@ export default function AdminSandbox() {
   const ERP_OPTIONS = erpOptions.filter(
     (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
   );
-  const [activeTab, setActiveTab] = useState<'transform' | 'validate' | 'full'>('transform');
+  const [activeTab, setActiveTab] = usePersistedTab('transform');
   const [invoiceJson, setInvoiceJson] = useState<string>('{\n  "invoiceNumber": "INV-001",\n  "amount": 1000,\n  "currency": "NGN"\n}');
   const [erpType, setErpType] = useState<string>('');
   const [testing, setTesting] = useState(false);
@@ -95,7 +96,7 @@ export default function AdminSandbox() {
     
     const timeline: TimelineStep[] = [
       createTimelineStep('1', 'Parse Invoice JSON', 'running'),
-      createTimelineStep('2', 'Transform to FIRS UBL', 'pending'),
+      createTimelineStep('2', 'Transform to NRS UBL', 'pending'),
       createTimelineStep('3', 'Validate Transformation', 'pending'),
     ];
 
@@ -288,7 +289,7 @@ export default function AdminSandbox() {
     
     const timeline: TimelineStep[] = [
       createTimelineStep('1', 'Parse Invoice JSON', 'running'),
-      createTimelineStep('2', 'Transform to FIRS UBL', 'pending'),
+      createTimelineStep('2', 'Transform to NRS UBL', 'pending'),
       createTimelineStep('3', 'Validate Invoice', 'pending'),
       createTimelineStep('4', 'Generate QR Code', 'pending'),
       createTimelineStep('5', 'Sign Invoice', 'pending'),
@@ -497,7 +498,7 @@ export default function AdminSandbox() {
 
               <TabsContent value="validate" className="mt-4">
                 <p className="text-sm text-muted-foreground">
-                  Validate invoice against FIRS UBL schema
+                  Validate invoice against NRS UBL schema
                 </p>
               </TabsContent>
 

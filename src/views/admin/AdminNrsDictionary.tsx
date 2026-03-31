@@ -1,15 +1,8 @@
 'use client'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileJson, Save, Loader2, Edit, Settings, Calendar, Clock, ArrowLeft } from 'lucide-react';
-import { getAdminApiClient } from '@/lib/api/client';
-import { usePathname } from 'next/navigation';
-import { toast } from 'sonner';
-import { useEffect, useState, useRef } from 'react';
-import Editor from '@monaco-editor/react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -18,8 +11,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { extractJsonWithMetadata } from '@/lib/schema/firs-extractor';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatErpName } from '@/hooks/use-supported-erps';
+import { getAdminApiClient } from '@/lib/api/client';
+import { extractJsonWithMetadata } from '@/lib/schema/firs-extractor';
+import Editor from '@monaco-editor/react';
+import { ArrowLeft, Calendar, Clock, Edit, FileJson, Loader2, Save, Settings } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 interface Field {
   field_id: string;
@@ -85,7 +85,7 @@ export default function AdminFirsDictionary() {
           setShowConfig(false);
           setIsEditing(false);
         } else {
-          const errorMessage = errorValue?.error || 'Failed to fetch FIRS dictionary';
+          const errorMessage = errorValue?.error || 'Failed to fetch NRS dictionary';
           toast.error(errorMessage);
           setDictionary(null);
         }
@@ -125,7 +125,7 @@ export default function AdminFirsDictionary() {
         setShowConfig(false);
         setIsEditing(false);
       } else {
-        toast.error(error?.message || 'Failed to fetch FIRS dictionary');
+        toast.error(error?.message || 'Failed to fetch NRS dictionary');
         setDictionary(null);
       }
     } finally {
@@ -194,11 +194,11 @@ export default function AdminFirsDictionary() {
       });
 
       if (response.error) {
-        const errorMessage = (response.error as any)?.value?.error || 'Failed to save FIRS dictionary';
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to save NRS dictionary';
         toast.error(errorMessage);
       } else if (response.data?.data) {
         console.log('response', response.data.data);
-        toast.success('FIRS dictionary saved successfully');
+        toast.success('NRS dictionary saved successfully');
         // Refresh the dictionary
         await fetchFirsDictionary();
         setShowConfig(false);
@@ -207,7 +207,7 @@ export default function AdminFirsDictionary() {
         toast.error('Unexpected response format');
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to save FIRS dictionary');
+      toast.error(error?.message || 'Failed to save NRS dictionary');
     } finally {
       setSaving(false);
     }
@@ -306,9 +306,9 @@ export default function AdminFirsDictionary() {
     <Dialog open={showProcessModal} onOpenChange={setShowProcessModal}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Process FIRS Dictionary Payload</DialogTitle>
+          <DialogTitle>Process NRS Dictionary Payload</DialogTitle>
           <DialogDescription>
-            Paste the complete FIRS dictionary JSON payload. The system will automatically extract the fields and metadata.
+            Paste the complete NRS dictionary JSON payload. The system will automatically extract the fields and metadata.
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 min-h-0 flex flex-col gap-4">
@@ -376,8 +376,8 @@ export default function AdminFirsDictionary() {
         <div className="space-y-6 animate-fade-in">
           <div className="page-header">
             <div>
-              <h1 className="page-title">FIRS Dictionary</h1>
-              <p className="page-subtitle">Manage FIRS reference data and validation schemas</p>
+              <h1 className="page-title">NRS Dictionary</h1>
+              <p className="page-subtitle">Manage NRS reference data and validation schemas</p>
             </div>
           </div>
 
@@ -388,9 +388,9 @@ export default function AdminFirsDictionary() {
                 <FileJson className="w-8 h-8 text-muted-foreground" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold">FIRS Schema has not been configured</h3>
+                <h3 className="text-lg font-semibold">NRS Schema has not been configured</h3>
                 <p className="text-sm text-muted-foreground max-w-md">
-                  Configure the FIRS UBL Invoice Schema by providing the fields and metadata structure.
+                  Configure the NRS UBL Invoice Schema by providing the fields and metadata structure.
                 </p>
               </div>
               <Button 
@@ -398,7 +398,7 @@ export default function AdminFirsDictionary() {
                 className="rounded-full mt-4"
               >
                 <Settings className="w-4 h-4 mr-2" />
-                Configure FIRS Schema
+                Configure NRS Schema
               </Button>
             </div>
           </CardContent>
@@ -438,11 +438,11 @@ export default function AdminFirsDictionary() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <div>
-              <h1 className="page-title">FIRS Dictionary</h1>
+              <h1 className="page-title">NRS Dictionary</h1>
               <p className="page-subtitle">
                 {isEditing 
-                  ? `Edit FIRS UBL Invoice Schema - ${dictionary?.name || ''}`
-                  : 'Create FIRS UBL Invoice Schema'
+                  ? `Edit NRS UBL Invoice Schema - ${dictionary?.name || ''}`
+                  : 'Create NRS UBL Invoice Schema'
                 }
               </p>
             </div>
@@ -575,7 +575,7 @@ export default function AdminFirsDictionary() {
         {/* Header */}
         <div className="page-header">
           <div>
-            <h1 className="page-title">FIRS Dictionary</h1>
+            <h1 className="page-title">NRS Dictionary</h1>
             <p className="page-subtitle">{dictionary.name}</p>
           </div>
           <div className='flex gap-2'>
@@ -635,6 +635,88 @@ export default function AdminFirsDictionary() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Suggested Fields to Map */}
+        {dictionary.fields && dictionary.fields.length > 0 && (
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold">Suggested Fields to Map</h2>
+              <p className="text-sm text-muted-foreground">
+                Key fields from the FIRS UBL Invoice Schema recommended as starting points for ERP field mapping.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {dictionary.fields.slice(0, 6).map((field, index) => (
+                <Card key={field.field_id || index} className="overflow-hidden">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
+                        {field.field_id}
+                      </code>
+                      {field.is_required && (
+                        <Badge className="bg-destructive/10 text-destructive text-xs">Required</Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium text-muted-foreground">Path:</span>{' '}
+                      <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">
+                        {field.field_path}
+                      </code>
+                    </div>
+                    <div>
+                      <span className="font-medium text-muted-foreground">Type:</span>{' '}
+                      <Badge variant="outline" className="text-xs ml-1">
+                        {field.data_type}
+                      </Badge>
+                    </div>
+                    {field.format && (
+                      <div>
+                        <span className="font-medium text-muted-foreground">Format:</span>{' '}
+                        <span>{field.format}</span>
+                      </div>
+                    )}
+                    {field.validation_rules && (
+                      <div>
+                        <span className="font-medium text-muted-foreground">Validation:</span>{' '}
+                        <span className="text-xs">{field.validation_rules}</span>
+                      </div>
+                    )}
+                    {field.description && (
+                      <div>
+                        <span className="font-medium text-muted-foreground">Description:</span>{' '}
+                        <p className="text-xs mt-1">{field.description}</p>
+                      </div>
+                    )}
+                    {field.example_value !== undefined && field.example_value !== null && (
+                      <div>
+                        <span className="font-medium text-muted-foreground">Example:</span>{' '}
+                        <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">
+                          {typeof field.example_value === 'object'
+                            ? JSON.stringify(field.example_value)
+                            : String(field.example_value)}
+                        </code>
+                      </div>
+                    )}
+                    {field.enum_values && field.enum_values.length > 0 && (
+                      <div>
+                        <span className="font-medium text-muted-foreground">Enum Values:</span>{' '}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {field.enum_values.map((val, i) => (
+                            <Badge key={i} variant="outline" className="text-xs">
+                              {String(val)}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Fields Table */}
         <Card>
@@ -720,79 +802,6 @@ export default function AdminFirsDictionary() {
           </CardContent>
         </Card>
 
-        {/* Field Details (Expandable) */}
-        {dictionary.fields && dictionary.fields.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {dictionary.fields.slice(0, 6).map((field, index) => (
-              <Card key={field.field_id || index} className="overflow-hidden">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
-                      {field.field_id}
-                    </code>
-                    {field.is_required && (
-                      <Badge className="bg-destructive/10 text-destructive text-xs">Required</Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-medium text-muted-foreground">Path:</span>{' '}
-                    <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">
-                      {field.field_path}
-                    </code>
-                  </div>
-                  <div>
-                    <span className="font-medium text-muted-foreground">Type:</span>{' '}
-                    <Badge variant="outline" className="text-xs ml-1">
-                      {field.data_type}
-                    </Badge>
-                  </div>
-                  {field.format && (
-                    <div>
-                      <span className="font-medium text-muted-foreground">Format:</span>{' '}
-                      <span>{field.format}</span>
-                    </div>
-                  )}
-                  {field.validation_rules && (
-                    <div>
-                      <span className="font-medium text-muted-foreground">Validation:</span>{' '}
-                      <span className="text-xs">{field.validation_rules}</span>
-                    </div>
-                  )}
-                  {field.description && (
-                    <div>
-                      <span className="font-medium text-muted-foreground">Description:</span>{' '}
-                      <p className="text-xs mt-1">{field.description}</p>
-                    </div>
-                  )}
-                  {field.example_value !== undefined && field.example_value !== null && (
-                    <div>
-                      <span className="font-medium text-muted-foreground">Example:</span>{' '}
-                      <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">
-                        {typeof field.example_value === 'object' 
-                          ? JSON.stringify(field.example_value) 
-                          : String(field.example_value)}
-                      </code>
-                    </div>
-                  )}
-                  {field.enum_values && field.enum_values.length > 0 && (
-                    <div>
-                      <span className="font-medium text-muted-foreground">Enum Values:</span>{' '}
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {field.enum_values.map((val, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">
-                            {String(val)}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
       </div>
       </>
     );
@@ -805,15 +814,15 @@ export default function AdminFirsDictionary() {
       <div className="space-y-6 animate-fade-in">
       <div className="page-header">
         <div>
-          <h1 className="page-title">FIRS Dictionary</h1>
-          <p className="page-subtitle">Manage FIRS reference data and validation schemas</p>
+          <h1 className="page-title">NRS Dictionary</h1>
+          <p className="page-subtitle">Manage NRS reference data and validation schemas</p>
         </div>
       </div>
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mr-2" />
-            <span className="text-muted-foreground">Loading FIRS dictionary...</span>
+            <span className="text-muted-foreground">Loading NRS dictionary...</span>
           </div>
         </CardContent>
       </Card>

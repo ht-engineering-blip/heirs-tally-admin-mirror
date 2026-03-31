@@ -30,7 +30,7 @@ export function SystemHealthCard({ health }: SystemHealthCardProps) {
       status: health.apiUptime >= 99.9 ? 'good' : health.apiUptime >= 99 ? 'warning' : 'critical',
     },
     {
-      label: 'FIRS Connectivity',
+      label: 'NRS Connectivity',
       value: health.firsConnectivity,
       icon: Wifi,
       status: health.firsConnectivity,

@@ -14,9 +14,14 @@ const API_URL = typeof window !== 'undefined'
 // Track if we're already handling a 401 to prevent multiple redirects
 let isHandling401 = false
 
+function clearAccessTokenCookie() {
+  document.cookie = 'access_token=; path=/; max-age=0; SameSite=Lax'
+}
+
 function handle401(response: Response) {
   if (response.status === 401 && !isHandling401 && typeof window !== 'undefined') {
     isHandling401 = true
+    clearAccessTokenCookie()
     signOut({ callbackUrl: '/auth/login' }).finally(() => {
       isHandling401 = false
     })

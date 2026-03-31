@@ -102,7 +102,7 @@ const FALLBACK_WORKFLOWS: WorkflowOption[] = [
   {
     value: "outbound",
     label: "Outbound Workflow",
-    description: "Transform → Validate → Sign → Transmit to FIRS",
+    description: "Transform → Validate → Sign → Transmit to NRS",
     order: 0,
   },
   {
@@ -132,7 +132,7 @@ const FALLBACK_WORKFLOWS: WorkflowOption[] = [
   {
     value: "acknowledge",
     label: "Acknowledge",
-    description: "Send acknowledgment back to FIRS",
+    description: "Send acknowledgment back to NRS",
     order: 5,
   },
 ];

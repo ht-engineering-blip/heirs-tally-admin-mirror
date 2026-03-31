@@ -25,6 +25,7 @@ export function LogoutDialog({ callbackUrl = '/auth/login', children }: LogoutDi
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
+    document.cookie = 'access_token=; path=/; max-age=0; SameSite=Lax'
     await signOut({ callbackUrl })
   }
 

@@ -1,6 +1,6 @@
 export { OnboardingStepper } from './OnboardingStepper'
 export type { OnboardingStep } from './OnboardingStepper'
-export { FirsOAuthStep } from './FirsOAuthStep'
-export { FirsCredentialsStep } from './FirsCredentialsStep'
+export { NrsOAuthStep } from './NrsOAuthStep'
+export { NrsCredentialsStep } from './NrsCredentialsStep'
 export { WebhookGenerateStep } from './WebhookGenerateStep'
 export { OnboardingComplete } from './OnboardingComplete'

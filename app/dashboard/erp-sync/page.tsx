@@ -251,17 +251,17 @@ export default function ErpSyncPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Plug className="h-6 w-6" />
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Plug className="h-5 w-5 sm:h-6 sm:w-6" />
             ERP Sync Configuration
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Configure how your ERP system syncs with the e-invoicing platform.
           </p>
         </div>
-        {erpSystem && <Badge variant="outline">{erpSystem}</Badge>}
+        {erpSystem && <Badge variant="outline" className="w-fit">{erpSystem}</Badge>}
       </div>
 
       {/* No Config State */}
@@ -286,12 +286,12 @@ export default function ErpSyncPage() {
         <>
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle>{config.name || 'ERP Sync'}</CardTitle>
                   <CardDescription>{config.description || 'Sync configuration'}</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant={config.enabled ? 'default' : 'secondary'}>
                     {config.enabled ? 'Enabled' : 'Disabled'}
                   </Badge>
@@ -346,11 +346,11 @@ export default function ErpSyncPage() {
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <Tabs defaultValue="basic">
-                  <TabsList className="mb-4">
-                    <TabsTrigger value="basic">Basic</TabsTrigger>
-                    <TabsTrigger value="request">Request</TabsTrigger>
-                    <TabsTrigger value="auth">Authentication</TabsTrigger>
-                    <TabsTrigger value="advanced">Advanced</TabsTrigger>
+                  <TabsList className="mb-4 w-full flex overflow-x-auto">
+                    <TabsTrigger value="basic" className="text-xs sm:text-sm">Basic</TabsTrigger>
+                    <TabsTrigger value="request" className="text-xs sm:text-sm">Request</TabsTrigger>
+                    <TabsTrigger value="auth" className="text-xs sm:text-sm">Auth</TabsTrigger>
+                    <TabsTrigger value="advanced" className="text-xs sm:text-sm">Advanced</TabsTrigger>
                   </TabsList>
 
                   {/* Basic Tab */}
@@ -384,7 +384,7 @@ export default function ErpSyncPage() {
 
                   {/* Request Tab */}
                   <TabsContent value="request" className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField control={form.control} name="method" render={({ field }) => (
                         <FormItem>
                           <FormLabel>HTTP Method</FormLabel>
@@ -478,7 +478,7 @@ export default function ErpSyncPage() {
                       )} />
                     )}
                     {authType === 'basic' && (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField control={form.control} name="authUsername" render={({ field }) => (
                           <FormItem><FormLabel>Username</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
                         )} />
@@ -489,7 +489,7 @@ export default function ErpSyncPage() {
                     )}
                     {authType === 'api-key' && (
                       <>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <FormField control={form.control} name="authApiKeyName" render={({ field }) => (
                             <FormItem><FormLabel>Key Name</FormLabel><FormControl><Input placeholder="X-API-Key" {...field} /></FormControl></FormItem>
                           )} />
@@ -515,7 +515,7 @@ export default function ErpSyncPage() {
 
                   {/* Advanced Tab */}
                   <TabsContent value="advanced" className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField control={form.control} name="maxRetries" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Max Retries</FormLabel>

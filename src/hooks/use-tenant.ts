@@ -1,8 +1,8 @@
 'use client'
 
+import { getTenantApiClient } from '@/lib/api/client'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from './use-session'
-import { getTenantApiClient } from '@/lib/api/client'
 
 export function useTenant() {
   const { tenantId: sessionTenantId, isAuthenticated, isBusinessAdmin, isBusinessTeamMember } = useSession()

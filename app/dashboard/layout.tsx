@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { Header } from '@/components/layout/Header'
+import { TenantSidebar } from '@/components/layout/TenantSidebar'
+import { FullScreenLoader } from '@/components/shared/FullScreenLoader'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { useSession } from '@/hooks/use-session'
 import { useTenant } from '@/hooks/use-tenant'
-import { TenantSidebar } from '@/components/layout/TenantSidebar'
-import { Header } from '@/components/layout/Header'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { FullScreenLoader } from '@/components/shared/FullScreenLoader'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 export default function DashboardLayoutBase({
     children,
@@ -25,7 +25,10 @@ export default function DashboardLayoutBase({
 
     // Auth redirect
     useEffect(() => {
+        
         if (!isLoading) {
+            console.log({ isAuthenticated, isSuperAdmin, isBusinessAdmin, isBusinessTeamMember });
+            
             if (!isAuthenticated) {
                 router.push('/auth/login')
             } else if (isSuperAdmin) {
@@ -34,6 +37,7 @@ export default function DashboardLayoutBase({
                 router.push('/auth/login')
             }
         }
+        
     }, [isAuthenticated, isLoading, isSuperAdmin, isBusinessAdmin, isBusinessTeamMember, router])
 
     // Onboarding redirect — if not complete, send to onboarding page

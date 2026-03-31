@@ -474,8 +474,8 @@ export default function TeamPage() {
         {/* Header */}
         <div className="page-header">
           <div>
-            <h1 className="text-2xl font-bold">Team</h1>
-            <p className="text-muted-foreground">Manage your team members and their access</p>
+            <h1 className="text-xl sm:text-2xl font-bold">Team</h1>
+            <p className="text-sm text-muted-foreground">Manage your team members and their access</p>
           </div>
           {canInvite && (
             <Button onClick={() => setShowInviteModal(true)} className="rounded-full">
@@ -561,7 +561,7 @@ export default function TeamPage() {
 
       {/* Invite Member Modal */}
       <Dialog open={showInviteModal} onOpenChange={setShowInviteModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[95vw] max-w-lg">
           <DialogHeader>
             <DialogTitle>Invite Team Member</DialogTitle>
             <DialogDescription>
@@ -569,7 +569,7 @@ export default function TeamPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="inv-firstName">First Name *</Label>
                 <Input
@@ -652,15 +652,15 @@ export default function TeamPage() {
 
       {/* Edit Member Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[95vw] max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Team Member</DialogTitle>
             <DialogDescription>
-              Update {selectedMember?.firstName} {selectedMember?.lastName}'s details and access.
+              Update {selectedMember?.firstName} {selectedMember?.lastName}&apos;s details and access.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-firstName">First Name</Label>
                 <Input

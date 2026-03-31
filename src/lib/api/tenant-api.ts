@@ -1,4 +1,4 @@
-import { getTenantApiClient } from './client'
+import { getTenantApiClient } from './client';
 
 export function createTenantApi() {
   const api = getTenantApiClient()
@@ -24,8 +24,8 @@ export function createTenantApi() {
     getOnboarding: (tenantId: string) =>
       api.v1.tenants({ tenantId }).onboarding.get(),
 
-    generateWebhook: (tenantId: string) =>
-      api.v1.tenants({ tenantId }).webhook.generate.post({}),
+    generateWebhook: (tenantId: string, invoiceIdKey?: string) =>
+      api.v1.tenants({ tenantId }).webhook.generate.post({ ...(invoiceIdKey ? { invoiceIdKey } : {}) }),
 
     testWebhook: (tenantId: string, testPayload?: Record<string, unknown>) =>
       api.v1.tenants({ tenantId }).webhook.test.post({ testPayload: testPayload || {} }),
@@ -48,6 +48,9 @@ export function createTenantApi() {
 
     resendOutboundInvoice: (irn: string) =>
       api.v1.workflow.invoices.outbound({ irn }).resend.post({}),
+
+    retryFromStep: (irn: string, fromStep: string) =>
+      api.v1.workflow.invoices.outbound({ irn })['retry-from-step'].post({ fromStep }),
 
     // ERP Sync endpoints
     getErpSyncConfig: (tenantId: string) =>
