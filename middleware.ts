@@ -14,7 +14,7 @@ export default auth((request) => {
       const dashboardRoute = getDashboardRoute(userRole)
       return NextResponse.redirect(new URL(dashboardRoute, request.url))
     } else {
-      return NextResponse.redirect(new URL('/auth/super-admin/login', request.url))
+      return NextResponse.redirect(new URL('/auth/login', request.url))
     }
   }
 
