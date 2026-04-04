@@ -105,5 +105,5 @@ export const authOptions: NextAuthConfig = {
     },
   },
   trustHost: true,
-  secret: process.env.NEXTAUTH_SECRET || 'heirs-tally-super-admin-secret-key-change-in-production',
+  secret: process.env.NEXTAUTH_SECRET,
 }

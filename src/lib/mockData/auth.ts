@@ -1,51 +1,28 @@
 /**
- * Mock authentication data
- * In production, this would be replaced with database queries
+ * Super admin authentication
+ * Login key is read from SUPER_ADMIN_LOGIN_KEY env var
  */
 
 export interface AuthUser {
   id: string
   loginKey: string
-  role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER'
+  role: 'SUPER_ADMIN'
   name: string
   email?: string
 }
-
-export const validLoginKeys: AuthUser[] = [
-  {
-    id: '1',
-    loginKey: 'super-admin-key-2024',
-    role: 'SUPER_ADMIN',
-    name: 'Super Admin',
-    email: 'superadmin@heirstally.com',
-  },
-  {
-    id: '2',
-    loginKey: 'business-admin-key-2024',
-    role: 'BUSINESS_ADMIN',
-    name: 'Business Admin',
-    email: 'businessadmin@heirstally.com',
-  },
-  {
-    id: '3',
-    loginKey: 'business-team-member-key-2024',
-    role: 'BUSINESS_TEAM_MEMBER',
-    name: 'Business Team Member',
-    email: 'teammember@heirstally.com',
-  },
-]
 
 /**
  * Validate login key and return user if valid
  */
 export function validateLoginKey(loginKey: string): AuthUser | null {
-  const user = validLoginKeys.find((u) => u.loginKey === loginKey)
-  return user || null
-}
+  const validKey = process.env.SUPER_ADMIN_LOGIN_KEY
+  if (!validKey || loginKey !== validKey) return null
 
-/**
- * Get user by ID
- */
-export function getUserById(id: string): AuthUser | null {
-  return validLoginKeys.find((u) => u.id === id) || null
+  return {
+    id: '1',
+    loginKey: validKey,
+    role: 'SUPER_ADMIN',
+    name: 'Super Admin',
+    email: process.env.SUPER_ADMIN_EMAIL,
+  }
 }
