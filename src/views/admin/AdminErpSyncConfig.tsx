@@ -46,7 +46,7 @@ interface ErpSyncConfig {
   tenantId: string;
   tenantName?: string;
   erpType: string;
-  status: 'active' | 'pending' | 'suspended' | 'inactive';
+  status: 'active' | 'pending' | 'suspended' | 'inactive' | 'onboarding';
   enabled: boolean;
   lastSyncAt?: string;
   createdAt: string;
@@ -142,7 +142,7 @@ export default function AdminErpSyncConfig() {
           page: page,
           limit: 100, // Get more to show all configs
           ...(searchQuery && { search: searchQuery }),
-          ...(filters.status && filters.status !== 'all' && { status: filters.status }),
+          ...(filters.status && filters.status !== 'all' && { status: filters.status === 'active' ? undefined : filters.status }),
         },
       });
 
@@ -185,8 +185,15 @@ export default function AdminErpSyncConfig() {
 
         // Apply enabled filter
         let filtered = mappedConfigs;
+        if (filters.status && filters.status !== 'all') {
+          filtered = filtered.filter((c) => {
+            const displayStatus = c.status === 'onboarding' ? 'active' : c.status;
+            return displayStatus === filters.status;
+          });
+        }
+
         if (filters.enabled && filters.enabled !== 'all') {
-          filtered = mappedConfigs.filter((c) =>
+          filtered = filtered.filter((c) =>
             filters.enabled === 'enabled' ? c.enabled : !c.enabled
           );
         }
@@ -424,7 +431,7 @@ export default function AdminErpSyncConfig() {
       key: 'status',
       header: 'Tenant Status',
       sortable: true,
-      accessor: (config) => <StatusBadge status={config.status} />,
+      accessor: (config) => <StatusBadge status={config.status === 'onboarding' ? 'active' : config.status} />,
     },
     {
       key: 'lastSyncAt',
@@ -505,7 +512,7 @@ export default function AdminErpSyncConfig() {
     total: configs.length,
     enabled: configs.filter(c => c.enabled).length,
     disabled: configs.filter(c => !c.enabled).length,
-    active: configs.filter(c => c.status === 'active').length,
+    active: configs.filter(c => c.status === 'active' || c.status === 'onboarding').length,
   };
 
   // Fetch tenants for dropdown
@@ -714,7 +721,7 @@ export default function AdminErpSyncConfig() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Status</p>
-                      <StatusBadge status={selectedConfig.status} />
+                      <StatusBadge status={selectedConfig.status === 'onboarding' ? 'active' : selectedConfig.status} />
                     </div>
                   </CardContent>
                 </Card>

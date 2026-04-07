@@ -665,7 +665,7 @@ export default function AdminTransactionLogs() {
           Download QR Code
         </DropdownMenuItem>
       )}
-      {inv.type === 'inbound' && (
+      {inv.paymentStatus !== 'cancelled' && (
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItem

@@ -44,7 +44,7 @@ interface WebhookConfigEntry {
   webhookPath?: string;
   invoiceIdKey?: string;
   eventMappings: EventMapping[];
-  tenantStatus: 'active' | 'pending' | 'suspended' | 'inactive';
+  tenantStatus: 'active' | 'pending' | 'suspended' | 'inactive' | 'onboarding';
   createdAt: string;
   updatedAt?: string;
 }
@@ -136,7 +136,7 @@ export default function AdminWebhookConfig() {
           page: page,
           limit: 100,
           ...(searchQuery && { search: searchQuery }),
-          ...(filters.status && filters.status !== 'all' && { status: filters.status }),
+          ...(filters.status && filters.status !== 'all' && { status: filters.status === 'active' ? undefined : filters.status }),
         },
       });
 
@@ -171,10 +171,16 @@ export default function AdminWebhookConfig() {
             })
         );
 
-        // Apply enabled filter
         let filtered = mappedConfigs;
+        if (filters.status && filters.status !== 'all') {
+          filtered = filtered.filter((c) => {
+            const displayStatus = c.tenantStatus === 'onboarding' ? 'active' : c.tenantStatus;
+            return displayStatus === filters.status;
+          });
+        }
+
         if (filters.enabled && filters.enabled !== 'all') {
-          filtered = mappedConfigs.filter((c) =>
+          filtered = filtered.filter((c) =>
             filters.enabled === 'enabled' ? c.webhookEnabled : !c.webhookEnabled
           );
         }
@@ -479,7 +485,7 @@ export default function AdminWebhookConfig() {
       key: 'tenantStatus',
       header: 'Tenant Status',
       sortable: true,
-      accessor: (config) => <StatusBadge status={config.tenantStatus} />,
+      accessor: (config) => <StatusBadge status={config.tenantStatus === 'onboarding' ? 'active' : config.tenantStatus} />,
     },
     {
       key: 'createdAt',
@@ -555,7 +561,7 @@ export default function AdminWebhookConfig() {
     total: configs.length,
     enabled: configs.filter(c => c.webhookEnabled).length,
     disabled: configs.filter(c => !c.webhookEnabled).length,
-    active: configs.filter(c => c.tenantStatus === 'active').length,
+    active: configs.filter(c => c.tenantStatus === 'active' || c.tenantStatus === 'onboarding').length,
   };
 
   // ===== Render =====
@@ -673,7 +679,7 @@ export default function AdminWebhookConfig() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Status</p>
-                      <StatusBadge status={selectedConfig.tenantStatus} />
+                      <StatusBadge status={selectedConfig.tenantStatus === 'onboarding' ? 'active' : selectedConfig.tenantStatus} />
                     </div>
                   </CardContent>
                 </Card>

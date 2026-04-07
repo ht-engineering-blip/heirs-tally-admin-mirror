@@ -636,16 +636,16 @@ export default function AdminFirsDictionary() {
           </CardContent>
         </Card>
 
-        {/* Suggested Fields to Map */}
+        {/* Required Fields of NRS Schema */}
         {dictionary.fields && dictionary.fields.length > 0 && (
           <div className="space-y-3">
             <div>
-              <h2 className="text-base font-semibold">Suggested Fields to Map</h2>
+              <h2 className="text-base font-semibold">Required Fields of NRS Schema</h2>
               <p className="text-sm text-muted-foreground">
-                Key fields from the FIRS UBL Invoice Schema recommended as starting points for ERP field mapping.
+                Key fields from the NRS UBL Invoice Schema recommended as starting points for ERP field mapping.
               </p>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {dictionary.fields.slice(0, 6).map((field, index) => (
                 <Card key={field.field_id || index} className="overflow-hidden">
                   <CardHeader className="pb-3">
@@ -723,7 +723,7 @@ export default function AdminFirsDictionary() {
           <CardHeader>
             <CardTitle>Schema Fields ({dictionary.fields?.length || 0})</CardTitle>
             <CardDescription>
-              All fields defined in the FIRS UBL Invoice Schema
+              All fields defined in the NRS UBL Invoice Schema
             </CardDescription>
           </CardHeader>
           <CardContent>
