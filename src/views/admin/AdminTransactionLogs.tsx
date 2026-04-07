@@ -13,6 +13,7 @@ import {
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,13 +24,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePersistedTab } from '@/hooks/use-persisted-tab';
 import { getAdminApiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { PaymentStatus } from 'app/dashboard/transactions/page';
 import { format } from 'date-fns';
 import {
   AlertCircle,
   ArrowDownLeft,
   ArrowUpRight,
   CheckCircle, Clock,
-  Copy, Download,
+  Copy, CreditCard, Download,
   Eye,
   FileText,
   Package, QrCode,
@@ -49,7 +51,7 @@ interface Invoice {
   supplierName?: string;
   supplierTIN?: string;
   status: string;
-  paymentStatus?: string;
+  paymentStatus?: PaymentStatus;
   totalAmount: number;
   currency: string;
   issueDate: Date | string;
@@ -124,6 +126,17 @@ export default function AdminTransactionLogs() {
   const [invoiceDetails, setInvoiceDetails] = useState<any>(null);
   const [resending, setResending] = useState(false);
 
+  // Payment status update
+  const [showPaymentStatusDialog, setShowPaymentStatusDialog] = useState(false);
+  const [updatingPaymentStatus, setUpdatingPaymentStatus] = useState(false);
+  const [paymentStatusForm, setPaymentStatusForm] = useState({
+    status: 'PENDING',
+    paymentDate: '',
+    paymentAmount: '',
+    paymentReference: '',
+    rejectionReason: '',
+  });
+
   console.log('invoice details: ', invoiceDetails);
   
 
@@ -168,6 +181,7 @@ export default function AdminTransactionLogs() {
                 tenantId: invoice.tenantId,
                 tenantName: invoice.tenantName,
                 status: invoice.status,
+                paymentStatus: invoice?.paymentStatus,
                 totalAmount: invoice.totalAmount || 0,
                 currency: invoice.currency || 'NGN',
                 customerName: invoice.customerName,
@@ -210,6 +224,8 @@ export default function AdminTransactionLogs() {
 
           if (inboundResponse.data?.data) {
             const inboundData = inboundResponse.data.data as any[];
+            
+            
             const pagination = inboundResponse.data.pagination;
             inboundData.forEach((invoice: any) => {
               allInvoices.push({
@@ -220,7 +236,7 @@ export default function AdminTransactionLogs() {
                 tenantId: invoice.tenantId,
                 tenantName: invoice.tenantName,
                 status: invoice.status,
-                paymentStatus: invoice.paymentStatus,
+                paymentStatus: invoice?.paymentStatus,
                 totalAmount: invoice.totalAmount || 0,
                 currency: invoice.currency || 'NGN',
                 supplierName: invoice.supplierName,
@@ -385,6 +401,34 @@ export default function AdminTransactionLogs() {
     }
   };
 
+  const handleUpdatePaymentStatus = async () => {
+    if (!selectedInvoice) return;
+    setUpdatingPaymentStatus(true);
+    try {
+      const api = getAdminApiClient();
+      const response = await (api as any).v1.invoicing({ irn: selectedInvoice.irn }).status.patch({
+        status: paymentStatusForm.status,
+        ...(paymentStatusForm.paymentDate && { paymentDate: paymentStatusForm.paymentDate }),
+        ...(paymentStatusForm.paymentAmount && { paymentAmount: parseFloat(paymentStatusForm.paymentAmount) }),
+        ...(paymentStatusForm.paymentReference && { paymentReference: paymentStatusForm.paymentReference }),
+      });
+      if (response.error) {
+        toast.error((response.error as any)?.value?.error || 'Failed to update payment status');
+      } else {
+        toast.success('Payment status updated');
+        setShowPaymentStatusDialog(false);
+        setInvoices(prev => prev.map(inv =>
+          inv.irn === selectedInvoice.irn ? { ...inv, paymentStatus: paymentStatusForm.status as PaymentStatus } : inv
+        ));
+        setSelectedInvoice(null);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update payment status');
+    } finally {
+      setUpdatingPaymentStatus(false);
+    }
+  };
+
   const downloadQrCode = (qrCode: string, filename = 'qrcode') => {
     const a = document.createElement('a');
     a.href = qrCode;
@@ -469,7 +513,7 @@ export default function AdminTransactionLogs() {
     },
     {
       key: 'status',
-      header: 'Status',
+      header: 'Invoice Status',
       sortable: true,
       accessor: (inv) => (
         <div className="flex items-center gap-2">
@@ -477,6 +521,27 @@ export default function AdminTransactionLogs() {
           <StatusBadge status={inv.status} />
         </div>
       ),
+    },
+    {
+      key: 'paymentStatus',
+      header: 'Payment Status',
+      sortable: true,
+      accessor: (inv) => {
+        if (!inv.paymentStatus) {
+          return <span className="text-muted-foreground text-xs">&mdash;</span>;
+        }
+        const s = inv.paymentStatus.toUpperCase();
+        const styles: Record<string, string> = {
+          PAID: 'bg-success/10 text-success',
+          REJECTED: 'bg-destructive/10 text-destructive',
+          PENDING: 'bg-warning/10 text-warning',
+        };
+        return (
+          <Badge className={cn('text-xs capitalize', styles[s] ?? 'bg-muted text-muted-foreground')}>
+            {inv.paymentStatus}
+          </Badge>
+        );
+      },
     },
     // {
     //   key: 'customerName',
@@ -599,6 +664,27 @@ export default function AdminTransactionLogs() {
           <Download className="w-4 h-4 mr-2" />
           Download QR Code
         </DropdownMenuItem>
+      )}
+      {inv.type === 'inbound' && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => {
+              setSelectedInvoice(inv);
+              setPaymentStatusForm({
+                status: inv.paymentStatus || 'PENDING',
+                paymentDate: '',
+                paymentAmount: '',
+                paymentReference: '',
+                rejectionReason: '',
+              });
+              setShowPaymentStatusDialog(true);
+            }}
+          >
+            <CreditCard className="w-4 h-4 mr-2" />
+            Update Payment Status
+          </DropdownMenuItem>
+        </>
       )}
       {inv.type === 'outbound' && (hasJobError(inv) || hasIncompleteSteps(inv.workflowState)) && (
         <DropdownMenuSeparator />
@@ -930,8 +1016,8 @@ export default function AdminTransactionLogs() {
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-xs text-muted-foreground">
                               {transformDone === false
-                                ? 'Invoice has not been transformed yet — showing raw source data.'
-                                : 'Structured view unavailable — showing raw invoice data.'}
+                                ? 'Invoice has not been transformed yet — showing full raw source data.'
+                                : 'Structured view unavailable — showing full raw invoice data.'}
                             </p>
                             <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied'); }}>
                               <Copy className="w-3.5 h-3.5 mr-1.5" />
@@ -1353,6 +1439,73 @@ export default function AdminTransactionLogs() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Update Payment Status Dialog */}
+      <Dialog open={showPaymentStatusDialog} onOpenChange={(open) => {
+        setShowPaymentStatusDialog(open);
+        if (!open) setSelectedInvoice(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Payment Status</DialogTitle>
+            <DialogDescription>
+              Update the payment status for invoice {selectedInvoice?.irn}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Status *</Label>
+              <Select
+                value={paymentStatusForm.status}
+                onValueChange={(v) => setPaymentStatusForm(f => ({ ...f, status: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PAID">Paid</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="REJECTED">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Date</Label>
+              <Input
+                type="date"
+                value={paymentStatusForm.paymentDate}
+                onChange={(e) => setPaymentStatusForm(f => ({ ...f, paymentDate: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Amount</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="e.g. 220731.45"
+                value={paymentStatusForm.paymentAmount}
+                onChange={(e) => setPaymentStatusForm(f => ({ ...f, paymentAmount: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Reference</Label>
+              <Input
+                placeholder="e.g. TRF-20260406-XXXXX"
+                value={paymentStatusForm.paymentReference}
+                onChange={(e) => setPaymentStatusForm(f => ({ ...f, paymentReference: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPaymentStatusDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdatePaymentStatus} disabled={updatingPaymentStatus}>
+              {updatingPaymentStatus ? 'Updating...' : 'Update Status'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

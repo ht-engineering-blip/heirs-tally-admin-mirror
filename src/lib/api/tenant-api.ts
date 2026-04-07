@@ -30,6 +30,14 @@ export function createTenantApi() {
     updateInvoiceIdKey: (tenantId: string, invoiceIdKey: string) =>
       api.v1.tenants({ tenantId })['invoice-id-key'].put({ invoiceIdKey }),
 
+    updatePaymentStatus: (irn: string, data: {
+      status: string;
+      paymentDate?: string;
+      paymentAmount?: number;
+      paymentReference?: string;
+    }) =>
+      (api as any).v1.invoicing({ irn }).status.patch(data),
+
     testWebhook: (tenantId: string, testPayload?: Record<string, unknown>) =>
       api.v1.tenants({ tenantId }).webhook.test.post({ testPayload: testPayload || {} }),
 

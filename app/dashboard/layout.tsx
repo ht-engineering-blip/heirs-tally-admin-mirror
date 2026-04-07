@@ -27,7 +27,6 @@ export default function DashboardLayoutBase({
     useEffect(() => {
         
         if (!isLoading) {
-            console.log({ isAuthenticated, isSuperAdmin, isBusinessAdmin, isBusinessTeamMember });
             
             if (!isAuthenticated) {
                 router.push('/auth/login')
