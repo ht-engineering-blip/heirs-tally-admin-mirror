@@ -27,6 +27,9 @@ export function createTenantApi() {
     generateWebhook: (tenantId: string, invoiceIdKey?: string) =>
       api.v1.tenants({ tenantId }).webhook.generate.post({ ...(invoiceIdKey ? { invoiceIdKey } : {}) }),
 
+    updateInvoiceIdKey: (tenantId: string, invoiceIdKey: string) =>
+      api.v1.tenants({ tenantId })['invoice-id-key'].put({ invoiceIdKey }),
+
     testWebhook: (tenantId: string, testPayload?: Record<string, unknown>) =>
       api.v1.tenants({ tenantId }).webhook.test.post({ testPayload: testPayload || {} }),
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Eye, Edit, Trash2, Power, Building2, Webhook, CheckCircle2, XCircle, Copy, Loader2, EyeOff, RefreshCw, AlertCircle } from 'lucide-react';
-import { DataTable, Column, FilterOption, StatusBadge, EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
+import { DataTable, Column, FilterOption, StatusBadge, EventMappingEditor, InvoiceIdKeyEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +42,7 @@ interface WebhookConfigEntry {
   webhookUrl?: string;
   webhookEnabled: boolean;
   webhookPath?: string;
+  invoiceIdKey?: string;
   eventMappings: EventMapping[];
   tenantStatus: 'active' | 'pending' | 'suspended' | 'inactive';
   createdAt: string;
@@ -161,6 +162,7 @@ export default function AdminWebhookConfig() {
                 webhookUrl: config.webhookUrl || metadata.webhookUrl || '',
                 webhookEnabled: config.webhookEnabled ?? metadata.webhookEnabled ?? false,
                 webhookPath: config.webhookPath || metadata.webhookPath || '',
+                invoiceIdKey: config.invoiceIdKey || metadata.invoiceIdKey || '',
                 eventMappings,
                 tenantStatus: t.status || 'inactive',
                 createdAt: t.createdAt,
@@ -338,7 +340,7 @@ export default function AdminWebhookConfig() {
   const openGenerateModal = (config: WebhookConfigEntry) => {
     setSelectedConfig(config);
     setGeneratedWebhook(null);
-    setInvoiceIdKey('');
+    setInvoiceIdKey(config.invoiceIdKey || '');
     setSecretVisible(false);
     setShowGenerateModal(true);
   };
@@ -941,19 +943,41 @@ export default function AdminWebhookConfig() {
               </div>
             )}
 
-            {/* Invoice ID Key input + action */}
-            <div className="space-y-2 pt-1 border-t">
-              <Label htmlFor="gen-invoiceIdKey" className="text-xs text-muted-foreground">
-                Invoice ID Key <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="gen-invoiceIdKey"
-                value={invoiceIdKey}
-                onChange={(e) => setInvoiceIdKey(e.target.value)}
-                placeholder="e.g. invoice.documentId"
-                className="font-mono text-xs"
-              />
+            {/* Invoice ID Key */}
+            <div className="pt-1 border-t">
+              {selectedConfig?.webhookUrl && !generatedWebhook ? (
+                <InvoiceIdKeyEditor
+                  initialValue={selectedConfig.invoiceIdKey || ''}
+                  onSave={async (key) => {
+                    const res = await (api as any).v1.tenants({ tenantId: selectedConfig.tenantId })['invoice-id-key'].put({ invoiceIdKey: key });
+                    if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update invoice ID key');
+                  }}
+                  onSaved={(key) => {
+                    setSelectedConfig({ ...selectedConfig, invoiceIdKey: key });
+                    setInvoiceIdKey(key);
+                  }}
+                />
+              ) : !generatedWebhook ? (
+                <div className="space-y-2">
+                  <Label htmlFor="gen-invoiceIdKey" className="text-xs text-muted-foreground">
+                    Invoice ID Key <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="gen-invoiceIdKey"
+                    value={invoiceIdKey}
+                    onChange={(e) => setInvoiceIdKey(e.target.value)}
+                    placeholder="e.g. invoice.documentId"
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Dot-notation path to the invoice ID field in the webhook payload
+                  </p>
+                </div>
+              ) : null}
+            </div>
 
+            {/* Regenerate / Generate action */}
+            <div className="space-y-2 pt-1 border-t">
               {selectedConfig?.webhookUrl ? (
                 <>
                   <AlertDialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>

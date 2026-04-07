@@ -1,6 +1,6 @@
 'use client'
 
-import { Column, DEFAULT_EVENT_MAPPINGS, DataTable, EventMappingEditor, StatusBadge, type EventMapping } from '@/components/shared'
+import { Column, DEFAULT_EVENT_MAPPINGS, DataTable, EventMappingEditor, InvoiceIdKeyEditor, StatusBadge, type EventMapping } from '@/components/shared'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -878,19 +878,21 @@ export default function WebhookSettingsPage() {
                         <p>Send your webhook secret in the request headers as <code className="font-mono bg-info/10 px-1 py-0.5 rounded">X-Webhook-Key</code>. Requests without this header or with an incorrect value will be rejected.</p>
                       </AlertDescription>
                     </Alert>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
-                      <Input
-                        value={invoiceIdKey}
-                        onChange={(e) => setInvoiceIdKey(e.target.value)}
-                        placeholder='e.g. invoice.documentId'
-                        className="font-mono text-xs"
+                    {tenantId && (
+                      <InvoiceIdKeyEditor
+                        initialValue={invoiceIdKey}
+                        onSave={async (key) => {
+                          const api = createTenantApi()
+                          const res = await api.updateInvoiceIdKey(tenantId, key)
+                          if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update invoice ID key')
+                        }}
+                        onSaved={(key) => {
+                          setInvoiceIdKey(key)
+                          setWebhookConfig((prev) => prev ? { ...prev, invoiceIdKey: key } : prev)
+                        }}
                         disabled={!canUpdate}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Dot-notation path to the invoice ID field in the webhook payload
-                      </p>
-                    </div>
+                    )}
                     {canUpdate && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
