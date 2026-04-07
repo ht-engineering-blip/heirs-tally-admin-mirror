@@ -78,7 +78,6 @@ export function createTenantApi() {
       timeout?: number;
       retryConfig?: { maxRetries: number; retryDelay: number; retryOn?: number[] };
       responseMapping?: Record<string, string>;
-      triggerEvents?: ('invoice.validated' | 'invoice.signed' | 'invoice.transmitted' | 'invoice.received' | 'invoice.acknowledged')[];
     }) =>
       api.v1.tenants({ tenantId })['erp-sync'].put(config),
 

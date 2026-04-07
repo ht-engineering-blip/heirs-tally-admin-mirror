@@ -1,8 +1,8 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, Eye, Edit, Trash2, Power, Building2, Server, ArrowLeft, Settings, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, Power, Building2, Server, CheckCircle2, XCircle } from 'lucide-react';
 import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -16,7 +16,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -39,12 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
-import { X, Trash2 as TrashIcon } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Checkbox } from '@/components/ui/checkbox';
+import { ErpSyncForm, ErpSyncPayload, ErpSyncDefaultValues } from '@/components/shared/ErpSyncForm';
 
 interface ErpSyncConfig {
   id: string;
@@ -82,27 +77,9 @@ interface ErpSyncConfig {
       retryOn?: number[];
     };
     responseMapping?: Record<string, string>;
-    triggerEvents?: string[];
   };
 }
 
-const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
-
-const AUTH_TYPES = [
-  { value: 'none', label: 'None' },
-  { value: 'basic', label: 'Basic Auth' },
-  { value: 'bearer', label: 'Bearer Token' },
-  { value: 'api-key', label: 'API Key' },
-  { value: 'oauth2', label: 'OAuth 2.0' },
-] as const;
-
-const TRIGGER_EVENTS = [
-  'invoice.validated',
-  'invoice.signed',
-  'invoice.transmitted',
-  'invoice.received',
-  'invoice.acknowledged',
-] as const;
 
 const erpSyncFilters: FilterOption[] = [
   {
@@ -151,71 +128,10 @@ export default function AdminErpSyncConfig() {
   const [selectedConfig, setSelectedConfig] = useState<ErpSyncConfig | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form states
-  const [formData, setFormData] = useState<{
-    tenantId: string;
-    erpType: string;
-    name: string;
-    description: string;
-    enabled: boolean;
-    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-    baseUrl: string;
-    endpoint: string;
-    headers: Record<string, string>;
-    queryParams: Record<string, string>;
-    bodyTemplate: string;
-    authentication: {
-      type: 'none' | 'basic' | 'bearer' | 'api-key' | 'oauth2';
-      token: string;
-      username: string;
-      password: string;
-      apiKeyName: string;
-      apiKeyValue: string;
-      apiKeyLocation: 'header' | 'query';
-    };
-    timeout: number;
-    retryConfig: {
-      maxRetries: number;
-      retryDelay: number;
-      retryOn: number[];
-    };
-    responseMapping: Record<string, string>;
-    triggerEvents: string[];
-  }>({
-    tenantId: '',
-    erpType: '',
-    name: '',
-    description: '',
-    enabled: true,
-    method: 'POST',
-    baseUrl: '',
-    endpoint: '',
-    headers: { 'Content-Type': 'application/json' },
-    queryParams: {},
-    bodyTemplate: '{"invoice": {{invoice}}}',
-    authentication: {
-      type: 'none',
-      token: '',
-      username: '',
-      password: '',
-      apiKeyName: '',
-      apiKeyValue: '',
-      apiKeyLocation: 'header',
-    },
-    timeout: 30000,
-    retryConfig: {
-      maxRetries: 3,
-      retryDelay: 1000,
-      retryOn: [500, 502, 503, 504],
-    },
-    responseMapping: {},
-    triggerEvents: [...TRIGGER_EVENTS],
-  });
-
-  // Helper states for key-value editors
-  const [headersEntries, setHeadersEntries] = useState<Array<{ key: string; value: string }>>([{ key: 'Content-Type', value: 'application/json' }]);
-  const [queryParamsEntries, setQueryParamsEntries] = useState<Array<{ key: string; value: string }>>([]);
-  const [responseMappingEntries, setResponseMappingEntries] = useState<Array<{ key: string; value: string }>>([]);
+  // Form states â€” only admin-specific fields; the rest live in ErpSyncForm
+  const [adminTenantId, setAdminTenantId] = useState('');
+  const [adminErpType, setAdminErpType] = useState('');
+  const [syncDefaultValues, setSyncDefaultValues] = useState<ErpSyncDefaultValues | undefined>();
 
   const fetchConfigs = async () => {
     setIsLoading(true);
@@ -263,7 +179,6 @@ export default function AdminErpSyncConfig() {
                 timeout: syncConfig.timeout,
                 retryConfig: syncConfig.retryConfig,
                 responseMapping: syncConfig.responseMapping,
-                triggerEvents: syncConfig.triggerEvents,
               } : undefined,
             };
           });
@@ -290,158 +205,26 @@ export default function AdminErpSyncConfig() {
     fetchConfigs();
   }, [page, searchQuery, filters]);
 
-  const handleCreate = async () => {
-    if (!formData.tenantId || !formData.erpType || !formData.name || !formData.baseUrl || !formData.endpoint) {
-      toast.error('Please fill in all required fields (Tenant, ERP Type, Name, Base URL, Endpoint)');
+  const handleFormSubmit = async (payload: ErpSyncPayload) => {
+    if (!isEditMode && (!adminTenantId || !adminErpType)) {
+      toast.error('Please select a tenant and ERP type');
       return;
     }
-
-    if (formData.name.length < 3 || formData.name.length > 100) {
-      toast.error('Name must be between 3 and 100 characters');
-      return;
-    }
-
-    if (formData.description && formData.description.length > 500) {
-      toast.error('Description must be less than 500 characters');
-      return;
-    }
-
     setSaving(true);
     try {
-      // Build authentication object based on type
-      let finalAuth: any = undefined;
-      if (formData.authentication.type !== 'none') {
-        const auth: any = { type: formData.authentication.type };
-        if (formData.authentication.type === 'bearer' && formData.authentication.token) {
-          auth.token = formData.authentication.token;
-        } else if (formData.authentication.type === 'basic') {
-          if (formData.authentication.username) auth.username = formData.authentication.username;
-          if (formData.authentication.password) auth.password = formData.authentication.password;
-        } else if (formData.authentication.type === 'api-key') {
-          if (formData.authentication.apiKeyName) auth.apiKeyName = formData.authentication.apiKeyName;
-          if (formData.authentication.apiKeyValue) auth.apiKeyValue = formData.authentication.apiKeyValue;
-          auth.apiKeyLocation = formData.authentication.apiKeyLocation;
-        }
-        finalAuth = auth;
-      }
-
-      // Build sync configuration
-      const syncConfig = {
-        name: formData.name,
-        description: formData.description || undefined,
-        enabled: formData.enabled,
-        method: formData.method,
-        baseUrl: formData.baseUrl,
-        endpoint: formData.endpoint,
-        headers: Object.keys(entriesToObject(headersEntries)).length > 0 ? entriesToObject(headersEntries) : undefined,
-        queryParams: Object.keys(entriesToObject(queryParamsEntries)).length > 0 ? entriesToObject(queryParamsEntries) : undefined,
-        bodyTemplate: formData.bodyTemplate || undefined,
-        authentication: finalAuth,
-        timeout: formData.timeout,
-        retryConfig: {
-          maxRetries: formData.retryConfig.maxRetries,
-          retryDelay: formData.retryConfig.retryDelay,
-          retryOn: formData.retryConfig.retryOn,
-        },
-        responseMapping: Object.keys(entriesToObject(responseMappingEntries)).length > 0 ? entriesToObject(responseMappingEntries) : undefined,
-        triggerEvents: formData.triggerEvents.length > 0 ? formData.triggerEvents : undefined,
-      };
-
-      // Update tenant with ERP sync configuration
-      const response = await api.v1.tenants({ tenantId: formData.tenantId })['erp-sync'].put(syncConfig);
-
+      const tenantId = isEditMode ? selectedConfig!.tenantId : adminTenantId;
+      const response = await api.v1.tenants({ tenantId })['erp-sync'].put(payload);
       if (response.error) {
-        const errorMessage = (response.error as any)?.value?.error || 'Failed to create ERP sync configuration';
-        toast.error(errorMessage);
+        toast.error((response.error as any)?.value?.error || `Failed to ${isEditMode ? 'update' : 'create'} ERP sync configuration`);
       } else if (response.data?.data) {
-        toast.success('ERP sync configuration created successfully');
+        toast.success(`ERP sync configuration ${isEditMode ? 'updated' : 'created'} successfully`);
         setShowConfigModal(false);
-        resetForm();
         setSelectedConfig(null);
         setIsEditMode(false);
         fetchConfigs();
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to create ERP sync configuration');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleUpdate = async () => {
-    if (!selectedConfig) return;
-
-    if (!formData.name || !formData.baseUrl || !formData.endpoint) {
-      toast.error('Please fill in all required fields (Name, Base URL, Endpoint)');
-      return;
-    }
-
-    if (formData.name.length < 3 || formData.name.length > 100) {
-      toast.error('Name must be between 3 and 100 characters');
-      return;
-    }
-
-    if (formData.description && formData.description.length > 500) {
-      toast.error('Description must be less than 500 characters');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // Build authentication object based on type
-      let finalAuth: any = undefined;
-      if (formData.authentication.type !== 'none') {
-        const auth: any = { type: formData.authentication.type };
-        if (formData.authentication.type === 'bearer' && formData.authentication.token) {
-          auth.token = formData.authentication.token;
-        } else if (formData.authentication.type === 'basic') {
-          if (formData.authentication.username) auth.username = formData.authentication.username;
-          if (formData.authentication.password) auth.password = formData.authentication.password;
-        } else if (formData.authentication.type === 'api-key') {
-          if (formData.authentication.apiKeyName) auth.apiKeyName = formData.authentication.apiKeyName;
-          if (formData.authentication.apiKeyValue) auth.apiKeyValue = formData.authentication.apiKeyValue;
-          auth.apiKeyLocation = formData.authentication.apiKeyLocation;
-        }
-        finalAuth = auth;
-      }
-
-      // Build sync configuration
-      const syncConfig = {
-        name: formData.name,
-        description: formData.description || undefined,
-        enabled: formData.enabled,
-        method: formData.method,
-        baseUrl: formData.baseUrl,
-        endpoint: formData.endpoint,
-        headers: Object.keys(entriesToObject(headersEntries)).length > 0 ? entriesToObject(headersEntries) : undefined,
-        queryParams: Object.keys(entriesToObject(queryParamsEntries)).length > 0 ? entriesToObject(queryParamsEntries) : undefined,
-        bodyTemplate: formData.bodyTemplate || undefined,
-        authentication: finalAuth,
-        timeout: formData.timeout,
-        retryConfig: {
-          maxRetries: formData.retryConfig.maxRetries,
-          retryDelay: formData.retryConfig.retryDelay,
-          retryOn: formData.retryConfig.retryOn,
-        },
-        responseMapping: Object.keys(entriesToObject(responseMappingEntries)).length > 0 ? entriesToObject(responseMappingEntries) : undefined,
-        triggerEvents: formData.triggerEvents.length > 0 ? formData.triggerEvents : undefined,
-      };
-
-      const response = await api.v1.tenants({ tenantId: selectedConfig.tenantId })['erp-sync'].put(syncConfig);
-
-      if (response.error) {
-        const errorMessage = (response.error as any)?.value?.error || 'Failed to update ERP sync configuration';
-        toast.error(errorMessage);
-      } else if (response.data?.data) {
-        toast.success('ERP sync configuration updated successfully');
-        setShowConfigModal(false);
-        resetForm();
-        setSelectedConfig(null);
-        setIsEditMode(false);
-        fetchConfigs();
-      }
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to update ERP sync configuration');
+      toast.error(error?.message || 'Failed to save ERP sync configuration');
     } finally {
       setSaving(false);
     }
@@ -459,14 +242,11 @@ export default function AdminErpSyncConfig() {
         enabled: enabled,
       };
 
-      const response = await api.v1.tenants[':tenantId'].patch({
-        params: { tenantId: selectedConfig.tenantId },
-        body: {
-          config: {
-            erpSyncConfig: updatedSyncConfig,
-          },
+      const response = await api.v1.tenants({ tenantId: selectedConfig.tenantId }).patch({
+        config: {
+          erpSyncConfig: updatedSyncConfig,
         },
-      });
+      } as any);
 
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || `Failed to ${enabled ? 'enable' : 'disable'} ERP sync`;
@@ -491,14 +271,11 @@ export default function AdminErpSyncConfig() {
     setSaving(true);
     try {
       // Remove ERP sync configuration
-      const response = await api.v1.tenants[':tenantId'].patch({
-        params: { tenantId: selectedConfig.tenantId },
-        body: {
-          config: {
-            erpSyncConfig: undefined,
-          },
+      const response = await api.v1.tenants({ tenantId: selectedConfig.tenantId }).patch({
+        config: {
+          erpSyncConfig: null,
         },
-      });
+      } as any);
 
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to delete ERP sync configuration';
@@ -516,101 +293,34 @@ export default function AdminErpSyncConfig() {
     }
   };
 
-  // Helper function to convert object to key-value pairs
-  const objectToEntries = (obj: Record<string, string> | undefined): Array<{ key: string; value: string }> => {
-    if (!obj) return [];
-    return Object.entries(obj).map(([key, value]) => ({ key, value }));
-  };
-
-  // Helper function to convert key-value pairs to object
-  const entriesToObject = (entries: Array<{ key: string; value: string }>): Record<string, string> => {
-    const obj: Record<string, string> = {};
-    entries.forEach(({ key, value }) => {
-      if (key.trim()) {
-        obj[key.trim()] = value;
-      }
-    });
-    return obj;
-  };
-
-  const resetForm = () => {
-    setFormData({
-      tenantId: '',
-      erpType: '',
-      name: '',
-      description: '',
-      enabled: true,
-      method: 'POST',
-      baseUrl: '',
-      endpoint: '',
-      headers: { 'Content-Type': 'application/json' },
-      queryParams: {},
-      bodyTemplate: '{"invoice": {{invoice}}}',
-      authentication: {
-        type: 'none',
-        token: '',
-        username: '',
-        password: '',
-        apiKeyName: '',
-        apiKeyValue: '',
-        apiKeyLocation: 'header',
-      },
-      timeout: 30000,
-      retryConfig: {
-        maxRetries: 3,
-        retryDelay: 1000,
-        retryOn: [500, 502, 503, 504],
-      },
-      responseMapping: {},
-      triggerEvents: [...TRIGGER_EVENTS],
-    });
-    setHeadersEntries([{ key: 'Content-Type', value: 'application/json' }]);
-    setQueryParamsEntries([]);
-    setResponseMappingEntries([]);
-  };
-
   const openConfigModal = (config?: ErpSyncConfig) => {
     if (config) {
       setSelectedConfig(config);
       setIsEditMode(true);
-      const syncConfig = config.syncConfig || {} as ErpSyncConfig['syncConfig'];
-      setFormData({
-        tenantId: config.tenantId,
-        erpType: config.erpType,
-        name: syncConfig.name || '',
-        description: syncConfig.description || '',
-        enabled: syncConfig.enabled !== false,
-        method: syncConfig.method || 'POST',
-        baseUrl: syncConfig.baseUrl || '',
-        endpoint: syncConfig.endpoint || '',
-        headers: syncConfig.headers || {},
-        queryParams: syncConfig.queryParams || {},
-        bodyTemplate: syncConfig.bodyTemplate || '',
-        authentication: {
-          type: (syncConfig.authentication?.type || 'none') as 'none' | 'basic' | 'bearer' | 'api-key' | 'oauth2',
-          token: syncConfig.authentication?.token || '',
-          username: syncConfig.authentication?.username || '',
-          password: syncConfig.authentication?.password || '',
-          apiKeyName: syncConfig.authentication?.apiKeyName || '',
-          apiKeyValue: syncConfig.authentication?.apiKeyValue || '',
-          apiKeyLocation: (syncConfig.authentication?.apiKeyLocation || 'header') as 'header' | 'query',
-        },
-        timeout: syncConfig.timeout || 30000,
-        retryConfig: {
-          maxRetries: syncConfig.retryConfig?.maxRetries || 3,
-          retryDelay: syncConfig.retryConfig?.retryDelay || 1000,
-          retryOn: syncConfig.retryConfig?.retryOn || [500, 502, 503, 504],
-        },
-        responseMapping: syncConfig.responseMapping || {},
-        triggerEvents: syncConfig.triggerEvents || [...TRIGGER_EVENTS],
-      });
-      setHeadersEntries(objectToEntries(syncConfig.headers) || [{ key: 'Content-Type', value: 'application/json' }]);
-      setQueryParamsEntries(objectToEntries(syncConfig.queryParams));
-      setResponseMappingEntries(objectToEntries(syncConfig.responseMapping));
+      setAdminTenantId(config.tenantId);
+      setAdminErpType(config.erpType);
+      const s = config.syncConfig;
+      setSyncDefaultValues(s ? {
+        name: s.name,
+        description: s.description,
+        enabled: s.enabled !== false,
+        method: s.method,
+        baseUrl: s.baseUrl,
+        endpoint: s.endpoint,
+        timeout: s.timeout,
+        bodyTemplate: s.bodyTemplate,
+        headers: s.headers,
+        queryParams: s.queryParams,
+        authentication: s.authentication,
+        retryConfig: s.retryConfig,
+        responseMapping: s.responseMapping,
+      } : undefined);
     } else {
       setSelectedConfig(null);
       setIsEditMode(false);
-      resetForm();
+      setAdminTenantId('');
+      setAdminErpType('');
+      setSyncDefaultValues(undefined);
     }
     setShowConfigModal(true);
   };
@@ -913,7 +623,9 @@ export default function AdminErpSyncConfig() {
       <Dialog open={showConfigModal} onOpenChange={(open) => {
         setShowConfigModal(open);
         if (!open) {
-          resetForm();
+          setAdminTenantId('');
+          setAdminErpType('');
+          setSyncDefaultValues(undefined);
           setSelectedConfig(null);
           setIsEditMode(false);
         }
@@ -929,33 +641,25 @@ export default function AdminErpSyncConfig() {
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="basic">Basic</TabsTrigger>
-              <TabsTrigger value="request">Request</TabsTrigger>
-              <TabsTrigger value="auth">Authentication</TabsTrigger>
-              <TabsTrigger value="retry">Retry</TabsTrigger>
-              <TabsTrigger value="advanced">Advanced</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="basic" className="space-y-4 mt-4">
+          <ErpSyncForm
+            defaultValues={syncDefaultValues}
+            isSaving={saving}
+            onSubmit={handleFormSubmit}
+            onCancel={() => {
+              setShowConfigModal(false);
+              setSelectedConfig(null);
+              setIsEditMode(false);
+            }}
+            submitLabel={isEditMode ? 'Update Configuration' : 'Create Configuration'}
+            topSlot={
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="tenantId">Tenant {!isEditMode && '*'}</Label>
+                  <Label>Tenant {!isEditMode && '*'}</Label>
                   {isEditMode ? (
-                    <Input
-                      id="tenantId"
-                      value={selectedConfig?.tenantName || selectedConfig?.tenantId || ''}
-                      disabled
-                    />
+                    <Input value={selectedConfig?.tenantName || selectedConfig?.tenantId || ''} disabled />
                   ) : (
-                    <Select
-                      value={formData.tenantId}
-                      onValueChange={(value) => setFormData({ ...formData, tenantId: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select tenant" />
-                      </SelectTrigger>
+                    <Select value={adminTenantId} onValueChange={setAdminTenantId}>
+                      <SelectTrigger><SelectValue placeholder="Select tenant" /></SelectTrigger>
                       <SelectContent>
                         {tenants.map((tenant) => (
                           <SelectItem key={tenant.tenantId || tenant.id || tenant._id} value={tenant.tenantId || tenant.id || tenant._id}>
@@ -967,477 +671,19 @@ export default function AdminErpSyncConfig() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="erpType">ERP System *</Label>
-                  <Select
-                    value={formData.erpType}
-                    onValueChange={(value) => setFormData({ ...formData, erpType: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select ERP system" />
-                    </SelectTrigger>
+                  <Label>ERP System *</Label>
+                  <Select value={adminErpType} onValueChange={setAdminErpType}>
+                    <SelectTrigger><SelectValue placeholder="Select ERP system" /></SelectTrigger>
                     <SelectContent>
                       {ERP_OPTIONS.map((erp) => (
-                        <SelectItem key={erp} value={erp}>
-                          {formatErpName(erp)}
-                        </SelectItem>
+                        <SelectItem key={erp} value={erp}>{formatErpName(erp)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Configuration Name *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., Invoice Sync to SAP"
-                  minLength={3}
-                  maxLength={100}
-                />
-                <p className="text-xs text-muted-foreground">3-100 characters</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="e.g., Sync validated invoices to SAP Business One"
-                  maxLength={500}
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">Max 500 characters</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="enabled">Enabled</Label>
-                <Switch
-                  id="enabled"
-                  checked={formData.enabled}
-                  onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
-                />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="request" className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="method">HTTP Method *</Label>
-                  <Select
-                    value={formData.method}
-                    onValueChange={(value: any) => setFormData({ ...formData, method: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {HTTP_METHODS.map((method) => (
-                        <SelectItem key={method} value={method}>
-                          {method}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="timeout">Timeout (ms) *</Label>
-                  <Input
-                    id="timeout"
-                    type="number"
-                    min={1000}
-                    max={300000}
-                    value={formData.timeout}
-                    onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) || 30000 })}
-                  />
-                  <p className="text-xs text-muted-foreground">1000-300000 ms</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="baseUrl">Base URL *</Label>
-                <Input
-                  id="baseUrl"
-                  type="url"
-                  value={formData.baseUrl}
-                  onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-                  placeholder="https://erp.example.com/api"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endpoint">Endpoint *</Label>
-                <Input
-                  id="endpoint"
-                  value={formData.endpoint}
-                  onChange={(e) => setFormData({ ...formData, endpoint: e.target.value })}
-                  placeholder="/invoices"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Headers</Label>
-                <div className="space-y-2">
-                  {headersEntries.map((entry, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        placeholder="Header name"
-                        value={entry.key}
-                        onChange={(e) => {
-                          const newEntries = [...headersEntries];
-                          newEntries[index].key = e.target.value;
-                          setHeadersEntries(newEntries);
-                        }}
-                      />
-                      <Input
-                        placeholder="Header value"
-                        value={entry.value}
-                        onChange={(e) => {
-                          const newEntries = [...headersEntries];
-                          newEntries[index].value = e.target.value;
-                          setHeadersEntries(newEntries);
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setHeadersEntries(headersEntries.filter((_, i) => i !== index))}
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setHeadersEntries([...headersEntries, { key: '', value: '' }])}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Header
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Query Parameters</Label>
-                <div className="space-y-2">
-                  {queryParamsEntries.map((entry, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        placeholder="Parameter name"
-                        value={entry.key}
-                        onChange={(e) => {
-                          const newEntries = [...queryParamsEntries];
-                          newEntries[index].key = e.target.value;
-                          setQueryParamsEntries(newEntries);
-                        }}
-                      />
-                      <Input
-                        placeholder="Parameter value"
-                        value={entry.value}
-                        onChange={(e) => {
-                          const newEntries = [...queryParamsEntries];
-                          newEntries[index].value = e.target.value;
-                          setQueryParamsEntries(newEntries);
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setQueryParamsEntries(queryParamsEntries.filter((_, i) => i !== index))}
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setQueryParamsEntries([...queryParamsEntries, { key: '', value: '' }])}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Query Parameter
-                  </Button>
-                </div>
-              </div>
-              {['POST', 'PUT', 'PATCH'].includes(formData.method) && (
-                <div className="space-y-2">
-                  <Label htmlFor="bodyTemplate">Body Template</Label>
-                  <Textarea
-                    id="bodyTemplate"
-                    value={formData.bodyTemplate}
-                    onChange={(e) => setFormData({ ...formData, bodyTemplate: e.target.value })}
-                    placeholder='{"invoice": {{"invoice"}}, "status": "{{status}}"}'
-                    rows={5}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">Use {'{{'}variable{'}}'} for dynamic values</p>
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="auth" className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="authType">Authentication Type *</Label>
-                <Select
-                  value={formData.authentication.type}
-                  onValueChange={(value: any) => setFormData({
-                    ...formData,
-                    authentication: { ...formData.authentication, type: value }
-                  })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AUTH_TYPES.map((auth) => (
-                      <SelectItem key={auth.value} value={auth.value}>
-                        {auth.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {formData.authentication.type === 'bearer' && (
-                <div className="space-y-2">
-                  <Label htmlFor="bearerToken">Bearer Token *</Label>
-                  <Input
-                    id="bearerToken"
-                    type="password"
-                    value={formData.authentication.token}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      authentication: { ...formData.authentication, token: e.target.value }
-                    })}
-                    placeholder="Enter bearer token"
-                  />
-                </div>
-              )}
-
-              {(formData.authentication.type as string) === 'basic' && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username *</Label>
-                    <Input
-                      id="username"
-                      value={formData.authentication.username}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        authentication: { ...formData.authentication, username: e.target.value }
-                      })}
-                      placeholder="Enter username"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password *</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formData.authentication.password}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        authentication: { ...formData.authentication, password: e.target.value }
-                      })}
-                      placeholder="Enter password"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {(formData.authentication.type as string) === 'api-key' && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="apiKeyName">API Key Name *</Label>
-                    <Input
-                      id="apiKeyName"
-                      value={formData.authentication.apiKeyName}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        authentication: { ...formData.authentication, apiKeyName: e.target.value }
-                      })}
-                      placeholder="e.g., X-API-Key"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="apiKeyValue">API Key Value *</Label>
-                    <Input
-                      id="apiKeyValue"
-                      type="password"
-                      value={formData.authentication.apiKeyValue}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        authentication: { ...formData.authentication, apiKeyValue: e.target.value }
-                      })}
-                      placeholder="Enter API key"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="apiKeyLocation">API Key Location *</Label>
-                    <Select
-                      value={formData.authentication.apiKeyLocation}
-                      onValueChange={(value: any) => setFormData({
-                        ...formData,
-                        authentication: { ...formData.authentication, apiKeyLocation: value }
-                      })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="header">Header</SelectItem>
-                        <SelectItem value="query">Query Parameter</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="retry" className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="maxRetries">Max Retries *</Label>
-                  <Input
-                    id="maxRetries"
-                    type="number"
-                    min={0}
-                    max={5}
-                    value={formData.retryConfig.maxRetries}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      retryConfig: { ...formData.retryConfig, maxRetries: parseInt(e.target.value) || 3 }
-                    })}
-                  />
-                  <p className="text-xs text-muted-foreground">0-5 retries</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="retryDelay">Retry Delay (ms) *</Label>
-                  <Input
-                    id="retryDelay"
-                    type="number"
-                    min={100}
-                    max={10000}
-                    value={formData.retryConfig.retryDelay}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      retryConfig: { ...formData.retryConfig, retryDelay: parseInt(e.target.value) || 1000 }
-                    })}
-                  />
-                  <p className="text-xs text-muted-foreground">100-10000 ms</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Retry On Status Codes</Label>
-                <div className="flex flex-wrap gap-2">
-                  {[500, 502, 503, 504].map((code) => (
-                    <div key={code} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`retry-${code}`}
-                        checked={formData.retryConfig.retryOn.includes(code)}
-                        onCheckedChange={(checked) => {
-                          const newRetryOn = checked
-                            ? [...formData.retryConfig.retryOn, code]
-                            : formData.retryConfig.retryOn.filter(c => c !== code);
-                          setFormData({
-                            ...formData,
-                            retryConfig: { ...formData.retryConfig, retryOn: newRetryOn }
-                          });
-                        }}
-                      />
-                      <Label htmlFor={`retry-${code}`} className="cursor-pointer">{code}</Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="advanced" className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label>Response Mapping</Label>
-                <div className="space-y-2">
-                  {responseMappingEntries.map((entry, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        placeholder="Response field path"
-                        value={entry.key}
-                        onChange={(e) => {
-                          const newEntries = [...responseMappingEntries];
-                          newEntries[index].key = e.target.value;
-                          setResponseMappingEntries(newEntries);
-                        }}
-                      />
-                      <Input
-                        placeholder="Map to field"
-                        value={entry.value}
-                        onChange={(e) => {
-                          const newEntries = [...responseMappingEntries];
-                          newEntries[index].value = e.target.value;
-                          setResponseMappingEntries(newEntries);
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setResponseMappingEntries(responseMappingEntries.filter((_, i) => i !== index))}
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setResponseMappingEntries([...responseMappingEntries, { key: '', value: '' }])}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Mapping
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">e.g., response.data.invoiceId → invoiceId</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Trigger Events</Label>
-                <div className="space-y-2">
-                  {TRIGGER_EVENTS.map((event) => (
-                    <div key={event} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`trigger-${event}`}
-                        checked={formData.triggerEvents.includes(event)}
-                        onCheckedChange={(checked) => {
-                          const newEvents = checked
-                            ? [...formData.triggerEvents, event]
-                            : formData.triggerEvents.filter(e => e !== event);
-                          setFormData({ ...formData, triggerEvents: newEvents });
-                        }}
-                      />
-                      <Label htmlFor={`trigger-${event}`} className="cursor-pointer font-mono text-sm">
-                        {event}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowConfigModal(false);
-              resetForm();
-              setSelectedConfig(null);
-              setIsEditMode(false);
-            }}>
-              Cancel
-            </Button>
-            <Button
-              onClick={isEditMode ? handleUpdate : handleCreate}
-              disabled={saving || !formData.tenantId || !formData.erpType || !formData.name || !formData.baseUrl || !formData.endpoint}
-            >
-              {saving ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Configuration' : 'Create Configuration')}
-            </Button>
-          </DialogFooter>
+            }
+          />
         </DialogContent>
       </Dialog>
 
@@ -1546,16 +792,6 @@ export default function AdminErpSyncConfig() {
                           <span className="text-xs text-muted-foreground">Retry Delay</span>
                           <span className="text-sm">{selectedConfig.syncConfig.retryConfig.retryDelay} ms</span>
                         </div>
-                        {selectedConfig.syncConfig.retryConfig.retryOn && selectedConfig.syncConfig.retryConfig.retryOn.length > 0 && (
-                          <div>
-                            <span className="text-xs text-muted-foreground">Retry On</span>
-                            <div className="flex gap-1 mt-1">
-                              {selectedConfig.syncConfig.retryConfig.retryOn.map((code) => (
-                                <Badge key={code} variant="outline" className="text-xs">{code}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
                   </CardContent>
@@ -1578,20 +814,18 @@ export default function AdminErpSyncConfig() {
               )}
             </div>
           )}
-          <DialogFooter>
+          <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowViewModal(false)}>
               Close
             </Button>
             <Button onClick={() => {
               setShowViewModal(false);
-              if (selectedConfig) {
-                openConfigModal(selectedConfig);
-              }
+              if (selectedConfig) openConfigModal(selectedConfig);
             }}>
               <Edit className="w-4 h-4 mr-2" />
               Edit Configuration
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
