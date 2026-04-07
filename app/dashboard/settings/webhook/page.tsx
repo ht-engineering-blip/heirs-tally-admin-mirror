@@ -36,6 +36,7 @@ import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
   Copy,
   FileJson,
   Link2,
@@ -136,6 +137,68 @@ function flattenObject(obj: any, prefix = ''): { key: string; type: string }[] {
     }
   }
   return result
+}
+
+// ===== Event Card (expandable) =====
+
+function EventCard({
+  evt,
+  eventJson,
+  isLong,
+  onMap,
+}: {
+  evt: any
+  eventJson: string
+  isLong: boolean
+  onMap: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div className="p-3 rounded-lg border bg-card">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-[10px]">
+            {evt.eventType || evt.event || 'event'}
+          </Badge>
+          {evt.eventId && (
+            <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[120px]">
+              {evt.eventId}
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] text-muted-foreground shrink-0">
+          {evt._receivedAt ? format(new Date(evt._receivedAt), 'HH:mm:ss') : ''}
+        </span>
+      </div>
+      <pre className={cn(
+        'text-xs font-mono bg-muted p-2 rounded overflow-x-auto transition-all',
+        !expanded && isLong ? 'max-h-[160px] overflow-y-hidden' : ''
+      )}>
+        {eventJson}
+      </pre>
+      <div className="flex items-center gap-2 mt-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onMap}
+        >
+          <Link2 className="w-3 h-3 mr-2" />
+          Map this Event
+        </Button>
+        {isLong && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs text-muted-foreground"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            <ChevronDown className={cn('w-3 h-3 mr-1 transition-transform', expanded && 'rotate-180')} />
+            {expanded ? 'Collapse' : 'Expand'}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 // ===== Main Component =====
@@ -1264,44 +1327,24 @@ export default function WebhookSettingsPage() {
                           Clear
                         </Button>
                       </div>
-                      <ScrollArea className="max-h-[400px]">
-                        <div className="space-y-2 pr-2">
-                          {listenedEvents.map((evt, idx) => (
-                            <div key={idx} className="p-3 rounded-lg border bg-card">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="secondary" className="text-[10px]">
-                                    {evt.eventType || evt.event || 'event'}
-                                  </Badge>
-                                  {evt.eventId && (
-                                    <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[120px]">
-                                      {evt.eventId}
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="text-[10px] text-muted-foreground shrink-0">
-                                  {evt._receivedAt ? format(new Date(evt._receivedAt), 'HH:mm:ss') : ''}
-                                </span>
-                              </div>
-                              <pre className="text-xs font-mono bg-muted p-2 rounded overflow-x-auto max-h-[120px]">
-                                {JSON.stringify(evt.data || evt.payload || evt, null, 2)}
-                              </pre>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="mt-2"
-                                onClick={() => {
-                                  setReceivedPayload(evt.payload || evt.data || evt)
-                                  handleOpenMapper()
-                                }}
-                              >
-                                <Link2 className="w-3 h-3 mr-2" />
-                                Map this Event
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
+                      <div className="space-y-2">
+                        {listenedEvents.map((evt, idx) => {
+                          const eventJson = JSON.stringify(evt.data || evt.payload || evt, null, 2)
+                          const isLong = eventJson.split('\n').length > 8
+                          return (
+                            <EventCard
+                              key={idx}
+                              evt={evt}
+                              eventJson={eventJson}
+                              isLong={isLong}
+                              onMap={() => {
+                                setReceivedPayload(evt.payload || evt.data || evt)
+                                handleOpenMapper()
+                              }}
+                            />
+                          )
+                        })}
+                      </div>
                     </div>
                   ) : isListening ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center">

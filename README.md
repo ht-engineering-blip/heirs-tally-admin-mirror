@@ -1,4 +1,4 @@
-# Heirs Tally Admin Dashboard
+# Heirs EInvoicing Admin Dashboard
 
 A management and administration platform for the Heirs Tally e-invoicing system. Provides centralized control for Super Admins managing all tenants and system operations, and Business Admins managing their own tenant's invoicing, team, and integrations.
 
