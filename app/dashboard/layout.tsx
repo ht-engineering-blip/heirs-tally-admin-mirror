@@ -16,7 +16,7 @@ export default function DashboardLayoutBase({
     children: React.ReactNode
 }) {
     const { isAuthenticated, isLoading, isSuperAdmin, isBusinessAdmin, isBusinessTeamMember } = useSession()
-    const { isOnboardingComplete, isLoading: isTenantLoading } = useTenant()
+    const { isOnboardingComplete, isLoading: isTenantLoading, error: tenantError } = useTenant()
     const router = useRouter()
     const pathname = usePathname()
     const isMobile = useIsMobile()
@@ -39,11 +39,14 @@ export default function DashboardLayoutBase({
         
     }, [isAuthenticated, isLoading, isSuperAdmin, isBusinessAdmin, isBusinessTeamMember, router])
 
-    // Onboarding redirect — if not complete, send to onboarding page
+    // Onboarding redirect — if not complete, send to onboarding page.
+    // Only redirect when we have confirmed data (no fetch error); if /me failed
+    // we can't reliably know the onboarding status so we leave the user in place.
     useEffect(() => {
         if (
             !isLoading &&
             !isTenantLoading &&
+            !tenantError &&
             isAuthenticated &&
             (isBusinessAdmin || isBusinessTeamMember) &&
             !isOnboardingComplete &&
@@ -52,7 +55,7 @@ export default function DashboardLayoutBase({
         ) {
             router.push('/dashboard/onboarding')
         }
-    }, [isLoading, isTenantLoading, isAuthenticated, isBusinessAdmin, isBusinessTeamMember, isOnboardingComplete, pathname, router])
+    }, [isLoading, isTenantLoading, tenantError, isAuthenticated, isBusinessAdmin, isBusinessTeamMember, isOnboardingComplete, pathname, router])
 
     if (isLoading || isTenantLoading) {
         return <FullScreenLoader />
