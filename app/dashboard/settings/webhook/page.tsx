@@ -941,6 +941,13 @@ export default function WebhookSettingsPage() {
                         <p>Send your webhook secret in the request headers as <code className="font-mono bg-info/10 px-1 py-0.5 rounded">X-Webhook-Key</code>. Requests without this header or with an incorrect value will be rejected.</p>
                       </AlertDescription>
                     </Alert>
+                    <Alert className="border-warning/30 bg-warning/5">
+                      <AlertCircle className="h-4 w-4 text-warning" />
+                      <AlertDescription className="text-xs space-y-1 text-warning">
+                        <p><strong>Also required — X-Event-Type header:</strong></p>
+                        <p>Each request must also include an <code className="font-mono bg-warning/10 px-1 py-0.5 rounded">X-Event-Type</code> header. The value should match the event type for the action being triggered — copy it from the <strong>Event Routing</strong> tab and use it as this header&apos;s value.</p>
+                      </AlertDescription>
+                    </Alert>
                     {tenantId && (
                       <InvoiceIdKeyEditor
                         initialValue={invoiceIdKey}

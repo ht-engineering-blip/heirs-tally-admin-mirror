@@ -851,16 +851,16 @@ export default function AdminTransactionLogs() {
               <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : invoiceDetails ? (
-            <ScrollArea className="max-h-[65vh]">
-              <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="w-full flex overflow-x-auto">
-                  <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
-                  <TabsTrigger value="data" className="text-xs sm:text-sm">Invoice Data</TabsTrigger>
-                  <TabsTrigger value="history" className="text-xs sm:text-sm">History</TabsTrigger>
-                  {selectedInvoice?.type === 'outbound' && (
-                    <TabsTrigger value="webhooks" className="text-xs sm:text-sm">Webhooks</TabsTrigger>
-                  )}
-                </TabsList>
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="w-full flex overflow-x-auto">
+                <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+                <TabsTrigger value="data" className="text-xs sm:text-sm">Invoice Data</TabsTrigger>
+                <TabsTrigger value="history" className="text-xs sm:text-sm">History</TabsTrigger>
+                {selectedInvoice?.type === 'outbound' && (
+                  <TabsTrigger value="webhooks" className="text-xs sm:text-sm">Webhooks</TabsTrigger>
+                )}
+              </TabsList>
+              <ScrollArea className="max-h-[65vh]">
 
                 {/* OVERVIEW */}
                 <TabsContent value="overview" className="space-y-4 mt-4">
@@ -1024,8 +1024,8 @@ export default function AdminTransactionLogs() {
                               Copy Raw
                             </Button>
                           </div>
-                          <div className="p-4 bg-muted rounded-lg">
-                            <pre className="text-xs overflow-auto whitespace-pre-wrap">{rawJson}</pre>
+                          <div className="p-4 bg-muted rounded-lg overflow-auto max-h-[50vh]">
+                            <pre className="text-xs whitespace-pre-wrap break-all">{rawJson}</pre>
                           </div>
                         </div>
                       );
@@ -1332,8 +1332,8 @@ export default function AdminTransactionLogs() {
                     )}
                   </TabsContent>
                 )}
-              </Tabs>
-            </ScrollArea>
+              </ScrollArea>
+            </Tabs>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
             {selectedInvoice && hasJobError(selectedInvoice) && (

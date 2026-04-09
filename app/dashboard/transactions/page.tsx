@@ -858,16 +858,16 @@ export default function TransactionsPage() {
               <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : invoiceDetails ? (
-            <ScrollArea className="max-h-[65vh]">
-              <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="w-full flex overflow-x-auto">
-                  <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
-                  <TabsTrigger value="data" className="text-xs sm:text-sm">Invoice Data</TabsTrigger>
-                  <TabsTrigger value="history" className="text-xs sm:text-sm">History</TabsTrigger>
-                  {selectedInvoice?.type === 'outbound' && (
-                    <TabsTrigger value="webhooks" className="text-xs sm:text-sm">Webhooks</TabsTrigger>
-                  )}
-                </TabsList>
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="w-full flex overflow-x-auto">
+                <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+                <TabsTrigger value="data" className="text-xs sm:text-sm">Invoice Data</TabsTrigger>
+                <TabsTrigger value="history" className="text-xs sm:text-sm">History</TabsTrigger>
+                {selectedInvoice?.type === 'outbound' && (
+                  <TabsTrigger value="webhooks" className="text-xs sm:text-sm">Webhooks</TabsTrigger>
+                )}
+              </TabsList>
+              <ScrollArea className="max-h-[65vh]">
 
                 {/* ── OVERVIEW ── */}
                 <TabsContent value="overview" className="space-y-4 mt-4">
@@ -1028,7 +1028,7 @@ export default function TransactionsPage() {
                       return (
                         <div className="space-y-3">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs text-muted-foreground font-semibold">
+                            <p className="text-xs text-muted-foreground">
                               {transformDone === false
                                 ? 'Invoice has not been transformed yet — showing full raw source data.'
                                 : 'Structured view unavailable — showing full raw invoice data.'}
@@ -1038,14 +1038,14 @@ export default function TransactionsPage() {
                               Copy Raw
                             </Button>
                           </div>
-                          <div className="p-4 bg-muted rounded-lg">
-                            <pre className="text-xs overflow-auto whitespace-pre-wrap">{rawJson}</pre>
+                          <div className="p-4 bg-muted rounded-lg overflow-auto max-h-[50vh]">
+                            <pre className="text-xs whitespace-pre-wrap break-all">{rawJson}</pre>
                           </div>
                         </div>
                       )
                     }
                     return (
-                      <div className="space-y-4">
+                      <div className="space-y-4 ">
                         <div className="flex justify-end">
                           <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied') }}>
                             <Copy className="w-3.5 h-3.5 mr-1.5" />
@@ -1401,8 +1401,8 @@ export default function TransactionsPage() {
                     )}
                   </TabsContent>
                 )}
-              </Tabs>
-            </ScrollArea>
+              </ScrollArea>
+            </Tabs>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
             {selectedInvoice && hasJobError(selectedInvoice) && (

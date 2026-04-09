@@ -720,6 +720,14 @@ export default function AdminWebhookConfig() {
                 </Card>
               </div>
 
+              <Alert className="border-warning/30 bg-warning/5">
+                <AlertCircle className="h-4 w-4 text-warning" />
+                <AlertDescription className="text-xs space-y-1 text-warning">
+                  <p><strong>Required request headers:</strong></p>
+                  <p>Each incoming webhook request must include <code className="font-mono bg-warning/10 px-1 py-0.5 rounded">X-Webhook-Key</code> (the webhook secret) and <code className="font-mono bg-warning/10 px-1 py-0.5 rounded">X-Event-Type</code> (the event type). The event type value can be copied from the Event Routes section below.</p>
+                </AlertDescription>
+              </Alert>
+
               {/* Event Routing Rules */}
               <Card>
                 <CardHeader>

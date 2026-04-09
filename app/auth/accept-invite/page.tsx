@@ -76,9 +76,8 @@ function AcceptInvitePage() {
 
     try {
       // Call accept-invite endpoint
-      const acceptInviteResponse = await api.v1.team['accept-invite'][':token'].post({
-        params: { token },
-        body: { password: data.password },
+      const acceptInviteResponse = await api.v1.team['accept-invite']({ token }).post({
+        password: data.password,
       })
 
       if (acceptInviteResponse.error) {
