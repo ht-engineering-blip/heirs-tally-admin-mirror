@@ -1045,7 +1045,7 @@ export default function TransactionsPage() {
                       )
                     }
                     return (
-                      <div className="space-y-4 ">
+                      <div className="space-y-4 overflow-auto max-h-[50vh]">
                         <div className="flex justify-end">
                           <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied') }}>
                             <Copy className="w-3.5 h-3.5 mr-1.5" />
@@ -1225,7 +1225,7 @@ export default function TransactionsPage() {
                 </TabsContent>
 
                 {/* ── HISTORY ── */}
-                <TabsContent value="history" className="space-y-3 mt-4">
+                <TabsContent value="history" className="space-y-3 mt-4 overflow-auto max-h-[50vh]">
                   {invoiceDetails.statusHistory?.length > 0 ? (
                     <div className="relative">
                       {/* vertical timeline line */}
@@ -1306,7 +1306,7 @@ export default function TransactionsPage() {
 
                 {/* ── WEBHOOKS ── */}
                 {selectedInvoice?.type === 'outbound' && (
-                  <TabsContent value="webhooks" className="space-y-4 mt-4">
+                  <TabsContent value="webhooks" className="space-y-4 mt-4 overflow-auto max-h-[50vh]">
                     {invoiceDetails.webhookEvents?.length > 0 ? (
                       <div className="space-y-4">
                         {invoiceDetails.webhookEvents.map((event: any, idx: number) => (
