@@ -74,7 +74,7 @@ export default function OnboardingPage() {
   useEffect(() => {
     let total = steps.length,
       completed = steps.reduce((_, curr) => curr.status == 'completed' ? _ += 1 : _ += 0, 0)
-    let progress = (completed / total) * 100
+    let progress = Math.floor((completed / total) * 100)
     setOnboardingProgress(progress)
   }, [steps])
   // Current active step:

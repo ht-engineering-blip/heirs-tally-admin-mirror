@@ -27,6 +27,17 @@ export function createTenantApi() {
     generateWebhook: (tenantId: string, invoiceIdKey?: string) =>
       api.v1.tenants({ tenantId }).webhook.generate.post({ ...(invoiceIdKey ? { invoiceIdKey } : {}) }),
 
+    updateInvoiceIdKey: (tenantId: string, invoiceIdKey: string) =>
+      api.v1.tenants({ tenantId })['invoice-id-key'].put({ invoiceIdKey }),
+
+    updatePaymentStatus: (irn: string, data: {
+      status: string;
+      paymentDate?: string;
+      paymentAmount?: number;
+      paymentReference?: string;
+    }) =>
+      (api as any).v1.invoicing({ irn }).status.patch(data),
+
     testWebhook: (tenantId: string, testPayload?: Record<string, unknown>) =>
       api.v1.tenants({ tenantId }).webhook.test.post({ testPayload: testPayload || {} }),
 
@@ -78,7 +89,6 @@ export function createTenantApi() {
       timeout?: number;
       retryConfig?: { maxRetries: number; retryDelay: number; retryOn?: number[] };
       responseMapping?: Record<string, string>;
-      triggerEvents?: ('invoice.validated' | 'invoice.signed' | 'invoice.transmitted' | 'invoice.received' | 'invoice.acknowledged')[];
     }) =>
       api.v1.tenants({ tenantId })['erp-sync'].put(config),
 

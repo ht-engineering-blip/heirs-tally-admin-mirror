@@ -19,6 +19,11 @@ function clearAccessTokenCookie() {
 }
 
 function handle401(response: Response) {
+  // /auth/me is a background status check used throughout the dashboard.
+  // A 401 there (e.g. expired token) should not immediately sign the user out —
+  // the dashboard handles that error state gracefully.
+  if (response.url?.includes('/auth/me')) return
+
   if (response.status === 401 && !isHandling401 && typeof window !== 'undefined') {
     isHandling401 = true
     clearAccessTokenCookie()

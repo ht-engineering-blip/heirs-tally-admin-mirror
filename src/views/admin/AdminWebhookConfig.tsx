@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Eye, Edit, Trash2, Power, Building2, Webhook, CheckCircle2, XCircle, Copy, Loader2, EyeOff, RefreshCw, AlertCircle } from 'lucide-react';
-import { DataTable, Column, FilterOption, StatusBadge, EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
+import { DataTable, Column, FilterOption, StatusBadge, EventMappingEditor, InvoiceIdKeyEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -42,8 +42,9 @@ interface WebhookConfigEntry {
   webhookUrl?: string;
   webhookEnabled: boolean;
   webhookPath?: string;
+  invoiceIdKey?: string;
   eventMappings: EventMapping[];
-  tenantStatus: 'active' | 'pending' | 'suspended' | 'inactive';
+  tenantStatus: 'active' | 'pending' | 'suspended' | 'inactive' | 'onboarding';
   createdAt: string;
   updatedAt?: string;
 }
@@ -135,7 +136,7 @@ export default function AdminWebhookConfig() {
           page: page,
           limit: 100,
           ...(searchQuery && { search: searchQuery }),
-          ...(filters.status && filters.status !== 'all' && { status: filters.status }),
+          ...(filters.status && filters.status !== 'all' && { status: filters.status === 'active' ? undefined : filters.status }),
         },
       });
 
@@ -161,6 +162,7 @@ export default function AdminWebhookConfig() {
                 webhookUrl: config.webhookUrl || metadata.webhookUrl || '',
                 webhookEnabled: config.webhookEnabled ?? metadata.webhookEnabled ?? false,
                 webhookPath: config.webhookPath || metadata.webhookPath || '',
+                invoiceIdKey: config.invoiceIdKey || metadata.invoiceIdKey || '',
                 eventMappings,
                 tenantStatus: t.status || 'inactive',
                 createdAt: t.createdAt,
@@ -169,10 +171,16 @@ export default function AdminWebhookConfig() {
             })
         );
 
-        // Apply enabled filter
         let filtered = mappedConfigs;
+        if (filters.status && filters.status !== 'all') {
+          filtered = filtered.filter((c) => {
+            const displayStatus = c.tenantStatus === 'onboarding' ? 'active' : c.tenantStatus;
+            return displayStatus === filters.status;
+          });
+        }
+
         if (filters.enabled && filters.enabled !== 'all') {
-          filtered = mappedConfigs.filter((c) =>
+          filtered = filtered.filter((c) =>
             filters.enabled === 'enabled' ? c.webhookEnabled : !c.webhookEnabled
           );
         }
@@ -338,7 +346,7 @@ export default function AdminWebhookConfig() {
   const openGenerateModal = (config: WebhookConfigEntry) => {
     setSelectedConfig(config);
     setGeneratedWebhook(null);
-    setInvoiceIdKey('');
+    setInvoiceIdKey(config.invoiceIdKey || '');
     setSecretVisible(false);
     setShowGenerateModal(true);
   };
@@ -477,7 +485,7 @@ export default function AdminWebhookConfig() {
       key: 'tenantStatus',
       header: 'Tenant Status',
       sortable: true,
-      accessor: (config) => <StatusBadge status={config.tenantStatus} />,
+      accessor: (config) => <StatusBadge status={config.tenantStatus === 'onboarding' ? 'active' : config.tenantStatus} />,
     },
     {
       key: 'createdAt',
@@ -553,7 +561,7 @@ export default function AdminWebhookConfig() {
     total: configs.length,
     enabled: configs.filter(c => c.webhookEnabled).length,
     disabled: configs.filter(c => !c.webhookEnabled).length,
-    active: configs.filter(c => c.tenantStatus === 'active').length,
+    active: configs.filter(c => c.tenantStatus === 'active' || c.tenantStatus === 'onboarding').length,
   };
 
   // ===== Render =====
@@ -671,7 +679,7 @@ export default function AdminWebhookConfig() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Status</p>
-                      <StatusBadge status={selectedConfig.tenantStatus} />
+                      <StatusBadge status={selectedConfig.tenantStatus === 'onboarding' ? 'active' : selectedConfig.tenantStatus} />
                     </div>
                   </CardContent>
                 </Card>
@@ -711,6 +719,14 @@ export default function AdminWebhookConfig() {
                   </CardContent>
                 </Card>
               </div>
+
+              <Alert className="border-warning/30 bg-warning/5">
+                <AlertCircle className="h-4 w-4 text-warning" />
+                <AlertDescription className="text-xs space-y-1 text-warning">
+                  <p><strong>Required request headers:</strong></p>
+                  <p>Each incoming webhook request must include <code className="font-mono bg-warning/10 px-1 py-0.5 rounded">X-Webhook-Key</code> (the webhook secret) and <code className="font-mono bg-warning/10 px-1 py-0.5 rounded">X-Event-Type</code> (the event type). The event type value can be copied from the Event Routes section below.</p>
+                </AlertDescription>
+              </Alert>
 
               {/* Event Routing Rules */}
               <Card>
@@ -941,19 +957,41 @@ export default function AdminWebhookConfig() {
               </div>
             )}
 
-            {/* Invoice ID Key input + action */}
-            <div className="space-y-2 pt-1 border-t">
-              <Label htmlFor="gen-invoiceIdKey" className="text-xs text-muted-foreground">
-                Invoice ID Key <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="gen-invoiceIdKey"
-                value={invoiceIdKey}
-                onChange={(e) => setInvoiceIdKey(e.target.value)}
-                placeholder="e.g. invoice.documentId"
-                className="font-mono text-xs"
-              />
+            {/* Invoice ID Key */}
+            <div className="pt-1 border-t">
+              {selectedConfig?.webhookUrl && !generatedWebhook ? (
+                <InvoiceIdKeyEditor
+                  initialValue={selectedConfig.invoiceIdKey || ''}
+                  onSave={async (key) => {
+                    const res = await (api as any).v1.tenants({ tenantId: selectedConfig.tenantId })['invoice-id-key'].put({ invoiceIdKey: key });
+                    if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update invoice ID key');
+                  }}
+                  onSaved={(key) => {
+                    setSelectedConfig({ ...selectedConfig, invoiceIdKey: key });
+                    setInvoiceIdKey(key);
+                  }}
+                />
+              ) : !generatedWebhook ? (
+                <div className="space-y-2">
+                  <Label htmlFor="gen-invoiceIdKey" className="text-xs text-muted-foreground">
+                    Invoice ID Key <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="gen-invoiceIdKey"
+                    value={invoiceIdKey}
+                    onChange={(e) => setInvoiceIdKey(e.target.value)}
+                    placeholder="e.g. invoice.documentId"
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Dot-notation path to the invoice ID field in the webhook payload
+                  </p>
+                </div>
+              ) : null}
+            </div>
 
+            {/* Regenerate / Generate action */}
+            <div className="space-y-2 pt-1 border-t">
               {selectedConfig?.webhookUrl ? (
                 <>
                   <AlertDialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>

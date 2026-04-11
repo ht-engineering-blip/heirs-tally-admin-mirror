@@ -18,7 +18,7 @@ import { formatErpName } from '@/hooks/use-supported-erps'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { APP_ENV } from '@/lib/envData'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, ArrowRight, Building2, CheckCircle2, FlaskConical, Loader2, Lock, Mail } from 'lucide-react'
+import { AlertCircle, ArrowRight, Building2, CheckCircle2, Eye, EyeOff, FlaskConical, Loader2, Lock, Mail } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
@@ -51,6 +51,7 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) {
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [useMock, setUseMock] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const form = useForm<FirsOAuthFormValues>({
     resolver: zodResolver(firsOAuthSchema),
@@ -217,11 +218,19 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) {
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       placeholder="Enter your NRS password"
-                      className="pl-10"
+                      className="pl-10 pr-10"
                       {...field}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </FormControl>
                 <FormMessage />

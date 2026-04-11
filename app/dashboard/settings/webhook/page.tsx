@@ -1,6 +1,6 @@
 'use client'
 
-import { Column, DEFAULT_EVENT_MAPPINGS, DataTable, EventMappingEditor, StatusBadge, type EventMapping } from '@/components/shared'
+import { Column, DEFAULT_EVENT_MAPPINGS, DataTable, EventMappingEditor, InvoiceIdKeyEditor, StatusBadge, type EventMapping } from '@/components/shared'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -36,6 +36,7 @@ import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
   Copy,
   FileJson,
   Link2,
@@ -136,6 +137,68 @@ function flattenObject(obj: any, prefix = ''): { key: string; type: string }[] {
     }
   }
   return result
+}
+
+// ===== Event Card (expandable) =====
+
+function EventCard({
+  evt,
+  eventJson,
+  isLong,
+  onMap,
+}: {
+  evt: any
+  eventJson: string
+  isLong: boolean
+  onMap: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div className="p-3 rounded-lg border bg-card">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-[10px]">
+            {evt.eventType || evt.event || 'event'}
+          </Badge>
+          {evt.eventId && (
+            <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[120px]">
+              {evt.eventId}
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] text-muted-foreground shrink-0">
+          {evt._receivedAt ? format(new Date(evt._receivedAt), 'HH:mm:ss') : ''}
+        </span>
+      </div>
+      <pre className={cn(
+        'text-xs font-mono bg-muted p-2 rounded overflow-x-auto transition-all',
+        !expanded && isLong ? 'max-h-[160px] overflow-y-hidden' : ''
+      )}>
+        {eventJson}
+      </pre>
+      <div className="flex items-center gap-2 mt-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onMap}
+        >
+          <Link2 className="w-3 h-3 mr-2" />
+          Map this Event
+        </Button>
+        {isLong && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs text-muted-foreground"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            <ChevronDown className={cn('w-3 h-3 mr-1 transition-transform', expanded && 'rotate-180')} />
+            {expanded ? 'Collapse' : 'Expand'}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 // ===== Main Component =====
@@ -878,19 +941,28 @@ export default function WebhookSettingsPage() {
                         <p>Send your webhook secret in the request headers as <code className="font-mono bg-info/10 px-1 py-0.5 rounded">X-Webhook-Key</code>. Requests without this header or with an incorrect value will be rejected.</p>
                       </AlertDescription>
                     </Alert>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
-                      <Input
-                        value={invoiceIdKey}
-                        onChange={(e) => setInvoiceIdKey(e.target.value)}
-                        placeholder='e.g. invoice.documentId'
-                        className="font-mono text-xs"
+                    <Alert className="border-warning/30 bg-warning/5">
+                      <AlertCircle className="h-4 w-4 text-warning" />
+                      <AlertDescription className="text-xs space-y-1 text-warning">
+                        <p><strong>Also required — X-Event-Type header:</strong></p>
+                        <p>Each request must also include an <code className="font-mono bg-warning/10 px-1 py-0.5 rounded">X-Event-Type</code> header. The value should match the event type for the action being triggered — copy it from the <strong>Event Routing</strong> tab and use it as this header&apos;s value.</p>
+                      </AlertDescription>
+                    </Alert>
+                    {tenantId && (
+                      <InvoiceIdKeyEditor
+                        initialValue={invoiceIdKey}
+                        onSave={async (key) => {
+                          const api = createTenantApi()
+                          const res = await api.updateInvoiceIdKey(tenantId, key)
+                          if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update invoice ID key')
+                        }}
+                        onSaved={(key) => {
+                          setInvoiceIdKey(key)
+                          setWebhookConfig((prev) => prev ? { ...prev, invoiceIdKey: key } : prev)
+                        }}
                         disabled={!canUpdate}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Dot-notation path to the invoice ID field in the webhook payload
-                      </p>
-                    </div>
+                    )}
                     {canUpdate && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -1262,44 +1334,24 @@ export default function WebhookSettingsPage() {
                           Clear
                         </Button>
                       </div>
-                      <ScrollArea className="max-h-[400px]">
-                        <div className="space-y-2 pr-2">
-                          {listenedEvents.map((evt, idx) => (
-                            <div key={idx} className="p-3 rounded-lg border bg-card">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="secondary" className="text-[10px]">
-                                    {evt.eventType || evt.event || 'event'}
-                                  </Badge>
-                                  {evt.eventId && (
-                                    <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[120px]">
-                                      {evt.eventId}
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="text-[10px] text-muted-foreground shrink-0">
-                                  {evt._receivedAt ? format(new Date(evt._receivedAt), 'HH:mm:ss') : ''}
-                                </span>
-                              </div>
-                              <pre className="text-xs font-mono bg-muted p-2 rounded overflow-x-auto max-h-[120px]">
-                                {JSON.stringify(evt.data || evt.payload || evt, null, 2)}
-                              </pre>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="mt-2"
-                                onClick={() => {
-                                  setReceivedPayload(evt.payload || evt.data || evt)
-                                  handleOpenMapper()
-                                }}
-                              >
-                                <Link2 className="w-3 h-3 mr-2" />
-                                Map this Event
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
+                      <div className="space-y-2">
+                        {listenedEvents.map((evt, idx) => {
+                          const eventJson = JSON.stringify(evt.data || evt.payload || evt, null, 2)
+                          const isLong = eventJson.split('\n').length > 8
+                          return (
+                            <EventCard
+                              key={idx}
+                              evt={evt}
+                              eventJson={eventJson}
+                              isLong={isLong}
+                              onMap={() => {
+                                setReceivedPayload(evt.payload || evt.data || evt)
+                                handleOpenMapper()
+                              }}
+                            />
+                          )
+                        })}
+                      </div>
                     </div>
                   ) : isListening ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center">
