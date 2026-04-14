@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server'
 const API_BASE_URL = process.env.API_BASE_URL || 'https://e-invoicing-middleware.vercel.app'
 
 const tenantRoutes = new Elysia({ prefix: '/tenants' })
-  .all('/*', async ({ request, path, cookie }) => {
+  .all('/*', async ({ request, path }) => {
     try {
       // Extract the path after /api/v1/tenants
       const apiPath = path.replace('/api/v1/tenants', '')
@@ -19,40 +19,42 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
       // Get Bearer token from available sources
       let bearerToken: string | undefined
 
-      // 1. Check Authorization header
+      // 1. Explicit Authorization header (e.g. from server-side callers)
       const authHeader = request.headers.get('Authorization')
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        bearerToken = authHeader.replace('Bearer ', '')
+      if (authHeader?.startsWith('Bearer ')) {
+        bearerToken = authHeader.slice(7)
       }
 
-      // 2. Check access_token cookie (set during login)
+      // 2. access_token cookie — set as a plain cookie during tenant login
       if (!bearerToken) {
         const cookieHeader = request.headers.get('Cookie') || ''
-        const cookieName = 'authjs.session-token'
-        const accessTokenMatch = cookieHeader.match(/(?:^|;\s*)access_token=([^;]+)/)
-        const sessionToken = cookie[cookieName] 
-        if (accessTokenMatch || (sessionToken && sessionToken.value)) {
-
-          bearerToken = sessionToken.value as string || accessTokenMatch[1]
+        const match = cookieHeader.match(/(?:^|;\s*)access_token=([^;]+)/)
+        if (match) {
+          bearerToken = match[1]
         }
       }
 
-      // 3. Fallback: decrypt the NextAuth session token 
+      // 3. NextAuth session token 
       if (!bearerToken) {
         try {
           const nextRequest = new NextRequest(request.url, {
             method: request.method,
             headers: new Headers(request.headers),
           })
-          const cookieName = 'authjs.session-token'
-          //Retrieve the cookie directly here
+
+          const cookieHeader = request.headers.get('Cookie') || ''
+          const isSecure = /__Secure-authjs\.session-token/.test(cookieHeader)
+          const cookieName = isSecure
+            ? '__Secure-authjs.session-token'
+            : 'authjs.session-token'
+
           const token = await getToken({
             req: nextRequest,
             secret: process.env.NEXTAUTH_SECRET || 'next-auth-secret-key',
             cookieName,
             salt: cookieName,
           })
-          console.log({ token })
+
           if (token?.token) {
             bearerToken = token.token as string
           }
@@ -61,67 +63,47 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
         }
       }
 
-
       // Get request body if present
       let body: string | undefined
       if (request.method !== 'GET' && request.method !== 'HEAD') {
         body = await request.text()
       }
 
-      console.log({
-        'Content-Type': 'application/json',
-        // Use Bearer token if available
-        ...(bearerToken && {
-          'Authorization': `Bearer ${bearerToken}`,
-        }),
-      })
-
       // Forward the request to the tenant API
       const response = await fetch(targetUrl, {
         method: request.method,
         headers: {
           'Content-Type': 'application/json',
-          // Use Bearer token if available
-          ...(bearerToken && {
-            'Authorization': `Bearer ${bearerToken}`,
-          }),
+          ...(bearerToken && { Authorization: `Bearer ${bearerToken}` }),
         },
         body,
       })
 
-      // Get the response text first to handle both JSON and non-JSON responses
       const responseText = await response.text()
-      console.log({responseText})
-      // Try to parse as JSON, but if it fails, return the raw text
+
+      console.log("Proxy Resp: "+ responseText)
       let data: any
       try {
         data = responseText ? JSON.parse(responseText) : {}
       } catch {
-        // If parsing fails, return the raw text as the error message
         data = { error: responseText || 'Unknown error' }
       }
 
-      // Return the API response as-is, preserving status code and error structure
       return new Response(JSON.stringify(data), {
         status: response.status,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       })
     } catch (error) {
-      // Only catch actual network/parsing errors, not HTTP error responses
       console.error('Elysia tenant proxy error:', error)
       return new Response(
         JSON.stringify({
           error: 'Proxy error',
           message: error instanceof Error ? error.message : 'Unknown error',
-          statusCode: 500
+          statusCode: 500,
         }),
         {
           status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         }
       )
     }

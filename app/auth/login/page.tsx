@@ -87,7 +87,7 @@ function LoginPage() {
       const tenantId = loginData.tenant?.id
 
       // Set access_token cookie so the API proxy can read it directly
-      document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+      //document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
 
       // Step 2: Fetch user data from /me
       const meResponse = await tenantApi.getMeWithToken(authToken)
