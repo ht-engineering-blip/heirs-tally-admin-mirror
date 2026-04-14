@@ -103,7 +103,7 @@ function LoginPage() {
       }
 
       let userName = loginData.tenant?.businessName || 'User'
-      let userRole: string = 'BUSINESS_TEAM_MEMBER'
+      let userRole: string = 'BUSINESS_ADMIN'
 
       if (meResponse.data?.data) {
         const meData = meResponse.data.data as any
