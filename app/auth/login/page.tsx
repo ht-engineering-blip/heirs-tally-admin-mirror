@@ -90,7 +90,7 @@ function LoginPage() {
       document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
 
       // Step 2: Fetch user data from /me
-      const meResponse = await tenantApi.getMeWithToken("")
+      const meResponse = await tenantApi.getMeWithToken(authToken)
 
       if (meResponse.error) {
         const errorMessage = (meResponse.error as any)?.value?.error || 'Failed to fetch user data'
