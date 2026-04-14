@@ -85,12 +85,15 @@ function LoginPage() {
 
       const authToken = loginData.token
       const tenantId = loginData.tenant?.id
+      
 
       // Set access_token cookie so the API proxy can read it directly
       //document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
 
       // Step 2: Fetch user data from /me
       const meResponse = await tenantApi.getMeWithToken(authToken)
+
+      
 
       if (meResponse.error) {
         const errorMessage = (meResponse.error as any)?.value?.error || 'Failed to fetch user data'
@@ -100,7 +103,7 @@ function LoginPage() {
       }
 
       let userName = loginData.tenant?.businessName || 'User'
-      let userRole: string = 'BUSINESS_TEAM_MEMBER'
+      let userRole: string = 'BUSINESS_ADMIN'
 
       if (meResponse.data?.data) {
         const meData = meResponse.data.data as any
