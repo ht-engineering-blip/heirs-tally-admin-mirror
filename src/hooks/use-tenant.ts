@@ -9,7 +9,11 @@ export function useTenant() {
   const isTenantUser = isBusinessAdmin || isBusinessTeamMember
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['tenant-me', sessionTenantId],
+    // Do NOT include sessionTenantId in the key — /me returns data for the current
+    // bearer token, not for a specific tenantId. Including it causes an extra query
+    // every time the session hydrates (undefined → real id), which creates a loop
+    // when /me is failing.
+    queryKey: ['tenant-me'],
     queryFn: async () => {
       const api = getTenantApiClient()
       const response = await api.v1.auth.me.get()
@@ -20,7 +24,13 @@ export function useTenant() {
     },
     enabled: isAuthenticated && isTenantUser,
     staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    // retry: false — prevent 3 automatic retries when /me returns 401.
+    // Without this, a single 401 spawns 4 requests.
+    retry: false,
+    // refetchOnWindowFocus: false — prevent re-firing /me on every tab focus when
+    // the endpoint is returning errors. NextAuth's own session refresh already
+    // keeps the session fresh; we don't need React Query to pile on.
+    refetchOnWindowFocus: false,
   })
 
   // Resolve tenantId from /me response (tenant type has `id`, team member has `tenantId`)

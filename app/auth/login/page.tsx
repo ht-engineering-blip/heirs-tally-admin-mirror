@@ -1,14 +1,7 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { signIn } from 'next-auth/react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -18,10 +11,17 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Mail, Lock, ArrowRight, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/sonner'
 import { createTenantApi } from '@/lib/api/tenant-api'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, FileText, Loader2, Lock, Mail } from 'lucide-react'
+import { signIn } from 'next-auth/react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import * as z from 'zod'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -68,8 +68,8 @@ function LoginPage() {
       // Step 1: Login
       const loginResponse = await tenantApi.login(data.email, data.password)
  
-      if (loginResponse.error || loginResponse.data.error) {
-        const errorMessage = (loginResponse.error as any)?.value?.error || loginResponse.data.error  || 'Invalid credentials'
+      if (loginResponse.error || (loginResponse.data as any)?.error) {
+        const errorMessage = (loginResponse.error as any)?.value?.error || (loginResponse.data as any)?.error || 'Invalid credentials'
         setError(errorMessage)
         toast.error(errorMessage)
         return
@@ -90,12 +90,19 @@ function LoginPage() {
       document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
 
       // Step 2: Fetch user data from /me
-      const meResponse = await tenantApi.getMeWithToken(authToken)
+      const meResponse = await tenantApi.getMeWithToken("")
+
+      if (meResponse.error) {
+        const errorMessage = (meResponse.error as any)?.value?.error || 'Failed to fetch user data'
+        setError(errorMessage)
+        toast.error(errorMessage)
+        return
+      }
 
       let userName = loginData.tenant?.businessName || 'User'
-      let userRole: string = 'BUSINESS_ADMIN'
+      let userRole: string = 'BUSINESS_TEAM_MEMBER'
 
-      if (!meResponse.error && meResponse.data?.data) {
+      if (meResponse.data?.data) {
         const meData = meResponse.data.data as any
         if ('businessName' in meData) {
           userName = meData.businessName
@@ -125,7 +132,7 @@ function LoginPage() {
       }
 
       toast.success('Login successful!')
-      window.location.href = '/dashboard'
+      router.push('/dashboard')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in. Please try again.'
       setError(errorMessage)
