@@ -53,7 +53,7 @@ import {
   FileText,
   Package,
   QrCode,
-  RefreshCw,
+  RefreshCw
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -132,6 +132,9 @@ export default function TransactionsPage() {
   const [resending, setResending] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const abortRef = useRef<AbortController | null>(null)
+
+  // Invoice data tab — raw-only view mode (when no transformed payload)
+  const [rawDataView, setRawDataView] = useState<'table' | 'raw'>('table')
 
   // Payment status update
   const [showPaymentStatusDialog, setShowPaymentStatusDialog] = useState(false)
@@ -354,6 +357,7 @@ export default function TransactionsPage() {
 
   const handleViewDetails = (invoice: Invoice) => {
     setSelectedInvoice(invoice)
+    setRawDataView('table')
     fetchInvoiceDetails(invoice)
   }
 
@@ -997,7 +1001,7 @@ export default function TransactionsPage() {
                   {invoiceDetails.invoice?.lastJobError && Object.keys(invoiceDetails.invoice.lastJobError).length > 0 && (
                     <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                       <p className="text-sm font-medium text-destructive mb-1">Last Job Error</p>
-                      <pre className="text-xs text-foreground overflow-auto whitespace-pre-wrap">
+                      <pre className="text-xs text-foreground whitespace-pre-wrap break-all overflow-hidden">
                         {JSON.stringify(invoiceDetails.invoice.lastJobError, null, 2)}
                       </pre>
                     </div>
@@ -1024,28 +1028,91 @@ export default function TransactionsPage() {
                     const workflowState = invoiceDetails.workflowState || invoiceDetails.invoice?.workflowState
                     const transformDone = workflowState?.transformed
 
+                    const rawObj = invoiceDetails.invoice || invoiceDetails
+
                     if (!payload) {
                       return (
                         <div className="space-y-3">
+                          {/* Toolbar */}
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-xs text-muted-foreground">
                               {transformDone === false
-                                ? 'Invoice has not been transformed yet — showing full raw source data.'
-                                : 'Structured view unavailable — showing full raw invoice data.'}
+                                ? 'Invoice has not been transformed yet.'
+                                : 'Structured view unavailable.'}
                             </p>
-                            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied') }}>
-                              <Copy className="w-3.5 h-3.5 mr-1.5" />
-                              Copy Raw
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center rounded-md border overflow-hidden">
+                                <button
+                                  className={cn(
+                                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                                    rawDataView === 'table'
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted'
+                                  )}
+                                  onClick={() => setRawDataView('table')}
+                                >
+                                  Table
+                                </button>
+                                <button
+                                  className={cn(
+                                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors border-l',
+                                    rawDataView === 'raw'
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted'
+                                  )}
+                                  onClick={() => setRawDataView('raw')}
+                                >
+                                  Raw JSON
+                                </button>
+                              </div>
+                              <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied') }}>
+                                <Copy className="w-3.5 h-3.5 mr-1.5" />
+                                Copy Raw
+                              </Button>
+                            </div>
                           </div>
-                          <div className="p-4 bg-muted rounded-lg overflow-auto max-h-[50vh]">
-                            <pre className="text-xs whitespace-pre-wrap break-all">{rawJson}</pre>
-                          </div>
+
+                          {/* Table view */}
+                          {rawDataView === 'table' && (
+                            <div className="overflow-y-auto max-h-[50vh] rounded-lg border">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="bg-muted/50 border-b">
+                                    <th className="text-left px-3 py-2 font-medium text-muted-foreground w-2/5">Field</th>
+                                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Value</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                  {Object.entries(rawObj).map(([key, val]) => (
+                                    <tr key={key} className="hover:bg-muted/30">
+                                      <td className="px-3 py-2 font-mono text-muted-foreground align-top break-all">{key}</td>
+                                      <td className="px-3 py-2 align-top">
+                                        {val === null || val === undefined ? (
+                                          <span className="text-muted-foreground">—</span>
+                                        ) : typeof val === 'object' ? (
+                                          <pre className="whitespace-pre-wrap break-all font-mono text-xs">{JSON.stringify(val, null, 2)}</pre>
+                                        ) : (
+                                          <span className="break-all">{String(val)}</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {/* Raw JSON view */}
+                          {rawDataView === 'raw' && (
+                            <div className="p-4 bg-muted rounded-lg overflow-y-auto max-h-[50vh]">
+                              <pre className="text-xs whitespace-pre-wrap break-all">{rawJson}</pre>
+                            </div>
+                          )}
                         </div>
                       )
                     }
                     return (
-                      <div className="space-y-4 overflow-auto max-h-[50vh]">
+                      <div className="space-y-4 overflow-y-auto max-h-[50vh]">
                         <div className="flex justify-end">
                           <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied') }}>
                             <Copy className="w-3.5 h-3.5 mr-1.5" />
@@ -1225,14 +1292,14 @@ export default function TransactionsPage() {
                 </TabsContent>
 
                 {/* ── HISTORY ── */}
-                <TabsContent value="history" className="space-y-3 mt-4 overflow-auto max-h-[50vh]">
+                <TabsContent value="history" className="space-y-3 mt-4 overflow-y-auto max-h-[50vh]">
                   {invoiceDetails.statusHistory?.length > 0 ? (
                     <div className="relative">
                       {/* vertical timeline line */}
                       <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
                       <div className="space-y-4">
                         {invoiceDetails.statusHistory.map((entry: any, idx: number) => (
-                          <div key={idx} className="flex items-start gap-3 pl-1">
+                          <div key={idx} className="flex items-start gap-3 pl-1 whitespace-pre-wrap break-all ">
                             {/* dot */}
                             <div className={cn(
                               'w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center shrink-0 bg-background z-10',
@@ -1289,8 +1356,8 @@ export default function TransactionsPage() {
 
                               {/* error */}
                               {entry.error && (
-                                <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs text-foreground">
-                                  <span className="font-medium text-destructive">Error: </span>
+                                <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs text-foreground break-words overflow-hidden">
+                                  <span className="font-medium text-destructive whitespace-pre-wrap break-all">Error: </span>
                                   {entry.error}
                                 </div>
                               )}
@@ -1306,7 +1373,7 @@ export default function TransactionsPage() {
 
                 {/* ── WEBHOOKS ── */}
                 {selectedInvoice?.type === 'outbound' && (
-                  <TabsContent value="webhooks" className="space-y-4 mt-4 overflow-auto max-h-[50vh]">
+                  <TabsContent value="webhooks" className="space-y-4 mt-4 overflow-y-auto max-h-[50vh]">
                     {invoiceDetails.webhookEvents?.length > 0 ? (
                       <div className="space-y-4">
                         {invoiceDetails.webhookEvents.map((event: any, idx: number) => (
@@ -1350,7 +1417,7 @@ export default function TransactionsPage() {
                               {event.failureReason && (
                                 <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs">
                                   <p className="font-medium text-destructive mb-0.5">Failure Reason</p>
-                                  <p className="text-foreground">{event.failureReason}</p>
+                                  <p className="text-foreground whitespace-pre-wrap break-all overflow-hidden">{event.failureReason}</p>
                                 </div>
                               )}
 
@@ -1386,7 +1453,7 @@ export default function TransactionsPage() {
                                             <span className="text-muted-foreground">{format(new Date(jobErr.failedAt), 'PPpp')}</span>
                                           )}
                                         </div>
-                                        <p className="text-foreground">{jobErr.error}</p>
+                                        <pre className="text-foreground whitespace-pre-wrap break-all overflow-hidden">{jobErr.error}</pre>
                                       </div>
                                     ))}
                                   </div>
