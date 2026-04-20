@@ -686,7 +686,7 @@ export default function AdminTransactionLogs() {
           </DropdownMenuItem>
         </>
       )}
-      {inv.type === 'outbound' && (hasJobError(inv) || hasIncompleteSteps(inv.workflowState)) && (
+      {inv.type === 'outbound' && (hasJobError(inv) || !!inv.lastJobError?.action) && (
         <DropdownMenuSeparator />
       )}
       {inv.type === 'outbound' && hasJobError(inv) && (
@@ -700,12 +700,11 @@ export default function AdminTransactionLogs() {
           Resend Invoice
         </DropdownMenuItem>
       )}
-      {inv.type === 'outbound' && hasIncompleteSteps(inv.workflowState) && (
+      {inv.type === 'outbound' && inv.lastJobError?.action && (
         <DropdownMenuItem
           onClick={() => {
-            const firstIncomplete = WORKFLOW_STEP_MAP.find(s => !inv.workflowState?.[s.stateKey]);
             setSelectedInvoice(inv);
-            setRetryStep(firstIncomplete?.apiValue ?? 'validate');
+            setRetryStep(inv.lastJobError!.action);
             setShowRetryDialog(true);
           }}
         >
@@ -1349,15 +1348,17 @@ export default function AdminTransactionLogs() {
                 Resend Invoice
               </Button>
             )}
-            {selectedInvoice?.type === 'outbound' && hasIncompleteSteps(invoiceDetails?.invoice?.workflowState ?? selectedInvoice?.workflowState) && (
+            {selectedInvoice?.type === 'outbound' &&
+              (invoiceDetails?.invoice?.lastJobError?.action ?? selectedInvoice?.lastJobError?.action) && (
               <Button
                 variant="outline"
                 className="w-full sm:w-auto"
                 onClick={() => {
-                  const ws = invoiceDetails?.invoice?.workflowState ?? selectedInvoice?.workflowState;
-                  const firstIncomplete = WORKFLOW_STEP_MAP.find(s => !ws?.[s.stateKey]);
+                  const action =
+                    invoiceDetails?.invoice?.lastJobError?.action ??
+                    selectedInvoice?.lastJobError?.action ?? 'validate';
                   setShowDetailModal(false);
-                  setRetryStep(firstIncomplete?.apiValue ?? 'validate');
+                  setRetryStep(action);
                   setShowRetryDialog(true);
                 }}
               >
@@ -1389,12 +1390,18 @@ export default function AdminTransactionLogs() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(selectedInvoice?.workflowState
-                  ? WORKFLOW_STEP_MAP.filter(s => !selectedInvoice.workflowState![s.stateKey])
-                  : WORKFLOW_STEP_MAP
-                ).map(s => (
-                  <SelectItem key={s.apiValue} value={s.apiValue}>{s.label}</SelectItem>
-                ))}
+                {(() => {
+                  const failedAction = selectedInvoice?.lastJobError?.action;
+                  const failedIndex = failedAction
+                    ? WORKFLOW_STEP_MAP.findIndex(s => s.apiValue === failedAction)
+                    : -1;
+                  return (failedIndex >= 0
+                    ? WORKFLOW_STEP_MAP.slice(failedIndex)
+                    : WORKFLOW_STEP_MAP
+                  ).map(s => (
+                    <SelectItem key={s.apiValue} value={s.apiValue}>{s.label}</SelectItem>
+                  ));
+                })()}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
