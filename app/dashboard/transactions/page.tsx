@@ -233,13 +233,16 @@ export default function TransactionsPage() {
             hadError = true;
             console.error(
               "Failed to fetch outbound invoices:",
-              outboundResponse.error,
+              (outboundResponse.error as any)?.value?.error ?? JSON.stringify(outboundResponse.error),
             );
           }
         } catch (error) {
           if (!controller.signal.aborted) {
             hadError = true;
-            console.error("Failed to fetch outbound invoices:", error);
+            console.error(
+              "Failed to fetch outbound invoices:",
+              error instanceof Error ? error.message : JSON.stringify(error),
+            );
           }
         }
       }
@@ -289,13 +292,16 @@ export default function TransactionsPage() {
             hadError = true;
             console.error(
               "Failed to fetch inbound invoices:",
-              inboundResponse.error,
+              (inboundResponse.error as any)?.value?.error ?? JSON.stringify(inboundResponse.error),
             );
           }
         } catch (error) {
           if (!controller.signal.aborted) {
             hadError = true;
-            console.error("Failed to fetch inbound invoices:", error);
+            console.error(
+              "Failed to fetch inbound invoices:",
+              error instanceof Error ? error.message : JSON.stringify(error),
+            );
           }
         }
       }
@@ -612,12 +618,35 @@ export default function TransactionsPage() {
       key: "status",
       header: "Invoice Status",
       sortable: true,
-      accessor: (inv) => (
-        <div className="flex items-center gap-2">
-          {getStatusIcon(inv.status)}
-          <StatusBadge status={inv.status} />
-        </div>
-      ),
+      accessor: (inv) => {
+        const s = inv.status?.toLowerCase() || "";
+        const styles: Record<string, string> = {
+          // outbound
+          created: "bg-muted text-muted-foreground",
+          validated: "bg-success/10 text-success",
+          signed: "bg-success/10 text-success",
+          transmitted: "bg-success/10 text-success",
+          delivered: "bg-success/10 text-success",
+          failed: "bg-destructive/10 text-destructive",
+          // inbound
+          acknowledged: "bg-success/10 text-success",
+          downloaded: "bg-success/10 text-success",
+          synced_to_erp: "bg-success/10 text-success",
+          paid: "bg-success/10 text-success",
+          rejected: "bg-destructive/10 text-destructive",
+          canceled: "bg-muted text-muted-foreground",
+        };
+        return (
+          <Badge
+            className={cn(
+              "text-xs capitalize",
+              styles[s] ?? "bg-muted text-muted-foreground",
+            )}
+          >
+            {inv.status}
+          </Badge>
+        );
+      },
     },
     {
       key: "paymentStatus",
@@ -630,8 +659,10 @@ export default function TransactionsPage() {
         const s = inv.paymentStatus.toUpperCase();
         const styles: Record<string, string> = {
           PAID: "bg-success/10 text-success",
-          REJECTED: "bg-destructive/10 text-destructive",
+          PARTIAL: "bg-warning/10 text-warning",
+          OVERDUE: "bg-destructive/10 text-destructive",
           PENDING: "bg-warning/10 text-warning",
+          REJECTED: "bg-destructive/10 text-destructive",
         };
         return (
           <Badge

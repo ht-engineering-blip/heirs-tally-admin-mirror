@@ -198,12 +198,12 @@ export default function AdminTransactionLogs() {
             if (!isAllTab) totalCount += outboundApiTotal;
           } else if (outboundResponse.error) {
             hadError = true;
-            console.error('Failed to fetch outbound invoices:', outboundResponse.error);
+            console.error('Failed to fetch outbound invoices:', (outboundResponse.error as any)?.value?.error ?? JSON.stringify(outboundResponse.error));
           }
         } catch (error) {
           if (!controller.signal.aborted) {
             hadError = true;
-            console.error('Failed to fetch outbound invoices:', error);
+            console.error('Failed to fetch outbound invoices:', error instanceof Error ? error.message : JSON.stringify(error));
           }
         }
       }
@@ -252,12 +252,12 @@ export default function AdminTransactionLogs() {
             if (!isAllTab) totalCount += inboundApiTotal;
           } else if (inboundResponse.error) {
             hadError = true;
-            console.error('Failed to fetch inbound invoices:', inboundResponse.error);
+            console.error('Failed to fetch inbound invoices:', (inboundResponse.error as any)?.value?.error ?? JSON.stringify(inboundResponse.error));
           }
         } catch (error) {
           if (!controller.signal.aborted) {
             hadError = true;
-            console.error('Failed to fetch inbound invoices:', error);
+            console.error('Failed to fetch inbound invoices:', error instanceof Error ? error.message : JSON.stringify(error));
           }
         }
       }
