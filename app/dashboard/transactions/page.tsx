@@ -352,9 +352,7 @@ export default function TransactionsPage() {
         toast.error(error?.message || "Failed to load transactions");
       }
     } finally {
-      if (!controller.signal.aborted) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   }, [page, pageSize, searchQuery, filters, activeTab]);
 
