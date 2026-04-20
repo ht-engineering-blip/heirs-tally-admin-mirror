@@ -1,17 +1,22 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 /**
  * Persists the active tab in URL search params so it survives page refreshes.
  * Uses window.location + history.replaceState to avoid requiring a Suspense boundary.
  */
 export function usePersistedTab(defaultValue: string, paramName = 'tab') {
-  const [tab, setTabState] = useState<string>(() => {
-    if (typeof window === 'undefined') return defaultValue
+  // Always start with defaultValue to match SSR output, then sync from URL after mount
+  const [tab, setTabState] = useState<string>(defaultValue)
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    return params.get(paramName) || defaultValue
-  })
+    const fromUrl = params.get(paramName)
+    if (fromUrl && fromUrl !== defaultValue) {
+      setTabState(fromUrl)
+    }
+  }, [defaultValue, paramName])
 
   const setTab = useCallback(
     (value: string) => {

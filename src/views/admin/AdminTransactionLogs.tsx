@@ -198,12 +198,12 @@ export default function AdminTransactionLogs() {
             if (!isAllTab) totalCount += outboundApiTotal;
           } else if (outboundResponse.error) {
             hadError = true;
-            console.error('Failed to fetch outbound invoices:', outboundResponse.error);
+            console.error('Failed to fetch outbound invoices:', (outboundResponse.error as any)?.value?.error ?? JSON.stringify(outboundResponse.error));
           }
         } catch (error) {
           if (!controller.signal.aborted) {
             hadError = true;
-            console.error('Failed to fetch outbound invoices:', error);
+            console.error('Failed to fetch outbound invoices:', error instanceof Error ? error.message : JSON.stringify(error));
           }
         }
       }
@@ -252,12 +252,12 @@ export default function AdminTransactionLogs() {
             if (!isAllTab) totalCount += inboundApiTotal;
           } else if (inboundResponse.error) {
             hadError = true;
-            console.error('Failed to fetch inbound invoices:', inboundResponse.error);
+            console.error('Failed to fetch inbound invoices:', (inboundResponse.error as any)?.value?.error ?? JSON.stringify(inboundResponse.error));
           }
         } catch (error) {
           if (!controller.signal.aborted) {
             hadError = true;
-            console.error('Failed to fetch inbound invoices:', error);
+            console.error('Failed to fetch inbound invoices:', error instanceof Error ? error.message : JSON.stringify(error));
           }
         }
       }
@@ -686,7 +686,7 @@ export default function AdminTransactionLogs() {
           </DropdownMenuItem>
         </>
       )}
-      {inv.type === 'outbound' && (hasJobError(inv) || hasIncompleteSteps(inv.workflowState)) && (
+      {inv.type === 'outbound' && (hasJobError(inv) || !!inv.lastJobError?.action) && (
         <DropdownMenuSeparator />
       )}
       {inv.type === 'outbound' && hasJobError(inv) && (
@@ -700,12 +700,11 @@ export default function AdminTransactionLogs() {
           Resend Invoice
         </DropdownMenuItem>
       )}
-      {inv.type === 'outbound' && hasIncompleteSteps(inv.workflowState) && (
+      {inv.type === 'outbound' && inv.lastJobError?.action && (
         <DropdownMenuItem
           onClick={() => {
-            const firstIncomplete = WORKFLOW_STEP_MAP.find(s => !inv.workflowState?.[s.stateKey]);
             setSelectedInvoice(inv);
-            setRetryStep(firstIncomplete?.apiValue ?? 'validate');
+            setRetryStep(inv.lastJobError!.action);
             setShowRetryDialog(true);
           }}
         >
@@ -854,7 +853,7 @@ export default function AdminTransactionLogs() {
             <Tabs defaultValue="overview" className="w-full">
               <TabsList className="w-full flex overflow-x-auto">
                 <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
-                <TabsTrigger value="data" className="text-xs sm:text-sm">Invoice Data</TabsTrigger>
+
                 <TabsTrigger value="history" className="text-xs sm:text-sm">History</TabsTrigger>
                 {selectedInvoice?.type === 'outbound' && (
                   <TabsTrigger value="webhooks" className="text-xs sm:text-sm">Webhooks</TabsTrigger>
@@ -988,226 +987,6 @@ export default function AdminTransactionLogs() {
                       </pre>
                     </div>
                   )}
-                </TabsContent>
-
-                {/* INVOICE DATA */}
-                <TabsContent value="data" className="space-y-4 mt-4">
-                  {(() => {
-                    // invoiceDetails on the admin side is { invoice: {...}, webhookEvents, statusHistory }
-                    const payload =
-                      invoiceDetails.invoice?.metadata?.transformedInvoice ||
-                      invoiceDetails.metadata?.transformedInvoice ||
-                      null;
-                    const rawJson = JSON.stringify(invoiceDetails.invoice || invoiceDetails, null, 2);
-                    const currency = payload?.document_currency_code || payload?.currency || 'NGN';
-                    // Dynamically find the ERP invoice number — scan for any key ending in _invoice_number or _invoice_id
-                    const invoiceNum = payload
-                      ? (Object.entries(payload).find(
-                          ([k]) => k.endsWith('_invoice_number') || k.endsWith('_invoice_id')
-                        )?.[1] as string | undefined) || payload.irn
-                      : undefined;
-                    // Derive why the structured view is unavailable from workflowState
-                    const workflowState = invoiceDetails.invoice?.workflowState || invoiceDetails.workflowState;
-                    const transformDone = workflowState?.transformed;
-
-                    if (!payload) {
-                      return (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs text-muted-foreground">
-                              {transformDone === false
-                                ? 'Invoice has not been transformed yet — showing full raw source data.'
-                                : 'Structured view unavailable — showing full raw invoice data.'}
-                            </p>
-                            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied'); }}>
-                              <Copy className="w-3.5 h-3.5 mr-1.5" />
-                              Copy Raw
-                            </Button>
-                          </div>
-                          <div className="p-4 bg-muted rounded-lg overflow-auto max-h-[50vh]">
-                            <pre className="text-xs whitespace-pre-wrap break-all">{rawJson}</pre>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className="space-y-4 overflow-auto max-h-[50vh]">
-                        <div className="flex justify-end">
-                          <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(rawJson); toast.success('Raw data copied'); }}>
-                            <Copy className="w-3.5 h-3.5 mr-1.5" />
-                            Copy Raw
-                          </Button>
-                        </div>
-                        {/* Invoice header */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-muted/50 rounded-lg border">
-                          {invoiceNum && (
-                            <div>
-                              <p className="text-xs text-muted-foreground">Invoice Number</p>
-                              <p className="text-sm font-mono font-medium">{invoiceNum}</p>
-                            </div>
-                          )}
-                          {payload.invoice_type_code && (
-                            <div>
-                              <p className="text-xs text-muted-foreground">Type Code</p>
-                              <p className="text-sm font-medium">{payload.invoice_type_code}</p>
-                            </div>
-                          )}
-                          {payload.invoice_kind && (
-                            <div>
-                              <p className="text-xs text-muted-foreground">Kind</p>
-                              <p className="text-sm font-medium">{payload.invoice_kind}</p>
-                            </div>
-                          )}
-                          {currency && (
-                            <div>
-                              <p className="text-xs text-muted-foreground">Currency</p>
-                              <p className="text-sm font-medium">{currency}</p>
-                            </div>
-                          )}
-                          {(payload.issue_date || payload.invoice_date) && (
-                            <div>
-                              <p className="text-xs text-muted-foreground">Issue Date</p>
-                              <p className="text-sm">{format(new Date(payload.issue_date || payload.invoice_date), 'PP')}</p>
-                            </div>
-                          )}
-                          {payload.due_date && (
-                            <div>
-                              <p className="text-xs text-muted-foreground">Due Date</p>
-                              <p className="text-sm">{format(new Date(payload.due_date), 'PP')}</p>
-                            </div>
-                          )}
-                          {payload.payment_status && (
-                            <div>
-                              <p className="text-xs text-muted-foreground">Payment Status</p>
-                              <p className="text-sm capitalize">{payload.payment_status}</p>
-                            </div>
-                          )}
-                          {payload.customer_name && (
-                            <div>
-                              <p className="text-xs text-muted-foreground">Customer</p>
-                              <p className="text-sm font-medium">{payload.customer_name}</p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Monetary totals */}
-                        {payload.legal_monetary_total && (
-                          <div className="p-4 bg-muted/50 rounded-lg border">
-                            <p className="text-xs font-medium text-muted-foreground mb-3">Monetary Totals</p>
-                            <div className="grid grid-cols-2 gap-3">
-                              {[
-                                ['Payable Amount', payload.legal_monetary_total.payable_amount],
-                                ['Tax Exclusive', payload.legal_monetary_total.tax_exclusive_amount],
-                                ['Tax Inclusive', payload.legal_monetary_total.tax_inclusive_amount],
-                                ['Line Extension', payload.legal_monetary_total.line_extension_amount],
-                              ].map(([label, val]) => val != null && (
-                                <div key={label as string}>
-                                  <p className="text-xs text-muted-foreground">{label}</p>
-                                  <p className="text-sm font-semibold">
-                                    {formatAmount(Number(val), currency)}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Tax summary */}
-                        {payload.tax_total?.[0] && (
-                          <div className="p-4 bg-muted/50 rounded-lg border">
-                            <p className="text-xs font-medium text-muted-foreground mb-3">Tax Summary</p>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <p className="text-xs text-muted-foreground">Total Tax</p>
-                                <p className="text-sm font-semibold">{formatAmount(Number(payload.tax_total[0].tax_amount ?? 0), currency)}</p>
-                              </div>
-                              {payload.tax_total[0].tax_subtotal?.[0] && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Category</p>
-                                  <p className="text-sm font-medium">
-                                    {payload.tax_total[0].tax_subtotal[0].tax_category?.id || '—'}
-                                    {payload.tax_total[0].tax_subtotal[0].tax_category?.percent != null &&
-                                      ` (${payload.tax_total[0].tax_subtotal[0].tax_category.percent}%)`}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Parties */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {payload.accounting_supplier_party && (
-                            <div className="p-4 border rounded-lg space-y-2">
-                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Supplier</p>
-                              <p className="text-sm font-medium">{payload.accounting_supplier_party.party_name}</p>
-                              {payload.accounting_supplier_party.tin && <p className="text-xs text-muted-foreground">TIN: <span className="font-mono text-foreground">{payload.accounting_supplier_party.tin}</span></p>}
-                              {payload.accounting_supplier_party.email && <p className="text-xs text-muted-foreground">Email: {payload.accounting_supplier_party.email}</p>}
-                              {payload.accounting_supplier_party.telephone && <p className="text-xs text-muted-foreground">Phone: {payload.accounting_supplier_party.telephone}</p>}
-                              {payload.accounting_supplier_party.postal_address && (
-                                <p className="text-xs text-muted-foreground">
-                                  {[
-                                    payload.accounting_supplier_party.postal_address.street_name,
-                                    payload.accounting_supplier_party.postal_address.city_name,
-                                    payload.accounting_supplier_party.postal_address.country,
-                                  ].filter(Boolean).join(', ')}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                          {payload.accounting_customer_party && (
-                            <div className="p-4 border rounded-lg space-y-2">
-                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer</p>
-                              <p className="text-sm font-medium">{payload.accounting_customer_party.party_name}</p>
-                              {payload.accounting_customer_party.tin && <p className="text-xs text-muted-foreground">TIN: <span className="font-mono text-foreground">{payload.accounting_customer_party.tin}</span></p>}
-                              {payload.accounting_customer_party.email && <p className="text-xs text-muted-foreground">Email: {payload.accounting_customer_party.email}</p>}
-                              {payload.accounting_customer_party.telephone && <p className="text-xs text-muted-foreground">Phone: {payload.accounting_customer_party.telephone}</p>}
-                              {payload.accounting_customer_party.postal_address && (
-                                <p className="text-xs text-muted-foreground">
-                                  {[
-                                    payload.accounting_customer_party.postal_address.street_name,
-                                    payload.accounting_customer_party.postal_address.city_name,
-                                    payload.accounting_customer_party.postal_address.country,
-                                  ].filter(Boolean).join(', ')}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Line items */}
-                        {payload.invoice_line?.length > 0 && (
-                          <div className="border rounded-lg overflow-hidden">
-                            <p className="text-xs font-medium text-muted-foreground px-4 py-2 bg-muted/50 border-b">Line Items</p>
-                            <div className="divide-y">
-                              {payload.invoice_line.map((line: any, idx: number) => (
-                                <div key={idx} className="px-4 py-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                                  <div>
-                                    <p className="text-muted-foreground">Item</p>
-                                    <p className="font-medium">{line.item?.name || '—'}</p>
-                                    {line.item?.description && <p className="text-muted-foreground">{line.item.description}</p>}
-                                    {line.hsn_code && <p className="text-muted-foreground">HSN: {line.hsn_code}</p>}
-                                  </div>
-                                  <div>
-                                    <p className="text-muted-foreground">Qty</p>
-                                    <p className="font-medium">{line.invoiced_quantity}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-muted-foreground">Unit Price</p>
-                                    <p className="font-medium">{formatAmount(Number(line.price?.price_amount || 0), currency)}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-muted-foreground">Line Total</p>
-                                    <p className="font-semibold">{formatAmount(Number(line.line_extension_amount || 0), currency)}</p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
                 </TabsContent>
 
                 {/* STATUS HISTORY */}
@@ -1349,15 +1128,17 @@ export default function AdminTransactionLogs() {
                 Resend Invoice
               </Button>
             )}
-            {selectedInvoice?.type === 'outbound' && hasIncompleteSteps(invoiceDetails?.invoice?.workflowState ?? selectedInvoice?.workflowState) && (
+            {selectedInvoice?.type === 'outbound' &&
+              (invoiceDetails?.invoice?.lastJobError?.action ?? selectedInvoice?.lastJobError?.action) && (
               <Button
                 variant="outline"
                 className="w-full sm:w-auto"
                 onClick={() => {
-                  const ws = invoiceDetails?.invoice?.workflowState ?? selectedInvoice?.workflowState;
-                  const firstIncomplete = WORKFLOW_STEP_MAP.find(s => !ws?.[s.stateKey]);
+                  const action =
+                    invoiceDetails?.invoice?.lastJobError?.action ??
+                    selectedInvoice?.lastJobError?.action ?? 'validate';
                   setShowDetailModal(false);
-                  setRetryStep(firstIncomplete?.apiValue ?? 'validate');
+                  setRetryStep(action);
                   setShowRetryDialog(true);
                 }}
               >
@@ -1389,12 +1170,18 @@ export default function AdminTransactionLogs() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(selectedInvoice?.workflowState
-                  ? WORKFLOW_STEP_MAP.filter(s => !selectedInvoice.workflowState![s.stateKey])
-                  : WORKFLOW_STEP_MAP
-                ).map(s => (
-                  <SelectItem key={s.apiValue} value={s.apiValue}>{s.label}</SelectItem>
-                ))}
+                {(() => {
+                  const failedAction = selectedInvoice?.lastJobError?.action;
+                  const failedIndex = failedAction
+                    ? WORKFLOW_STEP_MAP.findIndex(s => s.apiValue === failedAction)
+                    : -1;
+                  return (failedIndex >= 0
+                    ? WORKFLOW_STEP_MAP.slice(failedIndex)
+                    : WORKFLOW_STEP_MAP
+                  ).map(s => (
+                    <SelectItem key={s.apiValue} value={s.apiValue}>{s.label}</SelectItem>
+                  ));
+                })()}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
