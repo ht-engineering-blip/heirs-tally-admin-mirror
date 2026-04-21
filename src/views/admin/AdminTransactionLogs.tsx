@@ -80,15 +80,19 @@ const transactionFilters: FilterOption[] = [
     key: 'status',
     label: 'Status',
     options: [
-      { value: 'all', label: 'All Statuses' },
-      { value: 'pending', label: 'Pending' },
-      { value: 'validated', label: 'Validated' },
-      { value: 'signed', label: 'Signed' },
-      { value: 'transmitted', label: 'Transmitted' },
-      { value: 'received', label: 'Received' },
-      { value: 'acknowledged', label: 'Acknowledged' },
-      { value: 'failed', label: 'Failed' },
-      { value: 'rejected', label: 'Rejected' },
+      { value: 'all', label: 'All Invoice Statuses' },
+      { value: 'CREATED', label: 'Created' },
+      { value: 'VALIDATED', label: 'Validated' },
+      { value: 'SIGNED', label: 'Signed' },
+      { value: 'TRANSMITTED', label: 'Transmitted' },
+      { value: 'DELIVERED', label: 'Delivered' },
+      { value: 'FAILED', label: 'Failed' },
+      { value: 'ACKNOWLEDGED', label: 'Acknowledged' },
+      { value: 'DOWNLOADED', label: 'Downloaded' },
+      { value: 'SYNCED_TO_ERP', label: 'Synced to ERP' },
+      { value: 'PAID', label: 'Paid' },
+      { value: 'REJECTED', label: 'Rejected' },
+      { value: 'CANCELED', label: 'Canceled' },
     ],
   },
   {
@@ -444,6 +448,16 @@ export default function AdminTransactionLogs() {
     }).format(amount);
   };
 
+  const formatJobErrorMessage = (err: { action?: string; error?: string } | null | undefined): string => {
+    if (!err) return 'An unexpected error occurred. Please try again.';
+    const action = err.action && err.action !== 'undefined' ? err.action.replace(/-/g, ' ') : null;
+    const error = err.error && err.error !== 'undefined' ? err.error : null;
+    if (action && error) return `${action.charAt(0).toUpperCase() + action.slice(1)} failed — ${error}`;
+    if (error) return error;
+    if (action) return `${action.charAt(0).toUpperCase() + action.slice(1)} failed. Please try again.`;
+    return 'An unexpected error occurred. Please try again.';
+  };
+
   const getStatusIcon = (status: string) => {
     const s = status?.toLowerCase() || '';
     switch (s) {
@@ -515,12 +529,17 @@ export default function AdminTransactionLogs() {
       key: 'status',
       header: 'Invoice Status',
       sortable: true,
-      accessor: (inv) => (
-        <div className="flex items-center gap-2">
-          {getStatusIcon(inv.status)}
-          <StatusBadge status={inv.status} />
-        </div>
-      ),
+      accessor: (inv) => {
+        const hasError = hasJobError(inv) || !!inv.lastJobError?.action;
+        const alreadyFailed = inv.status?.toUpperCase() === 'FAILED';
+        const displayStatus = (hasError && !alreadyFailed) ? 'failed' : inv.status;
+        return (
+          <div className="flex items-center gap-2">
+            {getStatusIcon(displayStatus)}
+            <StatusBadge status={displayStatus} />
+          </div>
+        );
+      },
     },
     {
       key: 'paymentStatus',
@@ -534,7 +553,7 @@ export default function AdminTransactionLogs() {
         const styles: Record<string, string> = {
           PAID: 'bg-success/10 text-success',
           REJECTED: 'bg-destructive/10 text-destructive',
-          PENDING: 'bg-warning/10 text-warning',
+          PENDING: 'bg-muted text-muted-foreground',
         };
         return (
           <Badge className={cn('text-xs capitalize', styles[s] ?? 'bg-muted text-muted-foreground')}>
@@ -980,11 +999,27 @@ export default function AdminTransactionLogs() {
 
                   {/* Last Job Error */}
                   {invoiceDetails.invoice?.lastJobError && Object.keys(invoiceDetails.invoice.lastJobError).length > 0 && (
-                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                      <p className="text-sm font-medium text-destructive mb-1">Last Job Error</p>
-                      <pre className="text-xs text-foreground overflow-auto whitespace-pre-wrap">
-                        {JSON.stringify(invoiceDetails.invoice.lastJobError, null, 2)}
-                      </pre>
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-2">
+                      <p className="text-sm font-medium text-destructive">Last Job Error</p>
+                      <p className="text-xs text-foreground">
+                        {formatJobErrorMessage(invoiceDetails.invoice.lastJobError)}
+                      </p>
+                      <table className="w-full text-xs border-collapse">
+                        <tbody>
+                          {Object.entries(invoiceDetails.invoice.lastJobError)
+                            .filter(([, v]) => v !== undefined && v !== null)
+                            .map(([key, value]) => (
+                              <tr key={key} className="border-t border-destructive/20">
+                                <td className="py-1 pr-3 font-medium text-muted-foreground capitalize w-1/3">
+                                  {key.replace(/([A-Z])/g, ' $1').trim()}
+                                </td>
+                                <td className="py-1 break-all text-foreground">
+                                  {String(value)}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </TabsContent>
