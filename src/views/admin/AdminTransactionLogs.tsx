@@ -80,15 +80,19 @@ const transactionFilters: FilterOption[] = [
     key: 'status',
     label: 'Status',
     options: [
-      { value: 'all', label: 'All Statuses' },
-      { value: 'pending', label: 'Pending' },
-      { value: 'validated', label: 'Validated' },
-      { value: 'signed', label: 'Signed' },
-      { value: 'transmitted', label: 'Transmitted' },
-      { value: 'received', label: 'Received' },
-      { value: 'acknowledged', label: 'Acknowledged' },
-      { value: 'failed', label: 'Failed' },
-      { value: 'rejected', label: 'Rejected' },
+      { value: 'all', label: 'All Invoice Statuses' },
+      { value: 'CREATED', label: 'Created' },
+      { value: 'VALIDATED', label: 'Validated' },
+      { value: 'SIGNED', label: 'Signed' },
+      { value: 'TRANSMITTED', label: 'Transmitted' },
+      { value: 'DELIVERED', label: 'Delivered' },
+      { value: 'FAILED', label: 'Failed' },
+      { value: 'ACKNOWLEDGED', label: 'Acknowledged' },
+      { value: 'DOWNLOADED', label: 'Downloaded' },
+      { value: 'SYNCED_TO_ERP', label: 'Synced to ERP' },
+      { value: 'PAID', label: 'Paid' },
+      { value: 'REJECTED', label: 'Rejected' },
+      { value: 'CANCELED', label: 'Canceled' },
     ],
   },
   {
@@ -534,7 +538,7 @@ export default function AdminTransactionLogs() {
         const styles: Record<string, string> = {
           PAID: 'bg-success/10 text-success',
           REJECTED: 'bg-destructive/10 text-destructive',
-          PENDING: 'bg-warning/10 text-warning',
+          PENDING: 'bg-muted text-muted-foreground',
         };
         return (
           <Badge className={cn('text-xs capitalize', styles[s] ?? 'bg-muted text-muted-foreground')}>
