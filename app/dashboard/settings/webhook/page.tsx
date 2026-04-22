@@ -63,7 +63,6 @@ import { cn } from '@/lib/utils'
 import { format, formatDistanceToNow } from 'date-fns'
 
 import { stripTrailingSlash } from '@/lib/helpers'
-import 'react-data-mapping/dist/index.css'
 
 
 // ===== Types =====
