@@ -1,4 +1,4 @@
-import { getTenantApiClient } from './client';
+import { getTenantApiClient, getAdminApiClient } from './client';
 
 export function createTenantApi() {
   const api = getTenantApiClient()
@@ -62,6 +62,12 @@ export function createTenantApi() {
 
     retryFromStep: (irn: string, fromStep: string) =>
       api.v1.workflow.invoices.outbound({ irn })['retry-from-step'].post({ fromStep }),
+
+    // Event routing
+    getEventRouting: (tenantId: string) => {
+      const adminApi = getAdminApiClient()
+      return (adminApi as any).v1.admin.tenants[tenantId]['event-routing'].get()
+    },
 
     // ERP Sync endpoints
     getErpSyncConfig: (tenantId: string) =>

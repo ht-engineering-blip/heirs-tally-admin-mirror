@@ -70,7 +70,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type PaymentStatus = "pending" | "paid" | "rejected" | "cancelled";
-interface Invoice {
+export interface Invoice {
   id: string;
   irn: string;
   invoiceNumber: string;
@@ -85,6 +85,8 @@ interface Invoice {
     error: string;
     failedAt: string;
   };
+  tenantId?: string;
+  tenantName?: string;
   totalAmount: number;
   currency: string;
   issueDate: Date | string;
@@ -94,7 +96,9 @@ interface Invoice {
   updatedAt?: Date | string;
   workflowState?: any;
   qrCode?: string;
+  erpSystem?: string;
   erp?: string;
+  hasRoutingError?: boolean;
 }
 
 const transactionFilters: FilterOption[] = [
@@ -155,6 +159,7 @@ export default function TransactionsPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [invoiceDetails, setInvoiceDetails] = useState<any>(null);
+  const [eventRoutes, setEventRoutes] = useState<any[]>([]);
   const [resending, setResending] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -237,7 +242,8 @@ export default function TransactionsPage() {
             hadError = true;
             console.error(
               "Failed to fetch outbound invoices:",
-              (outboundResponse.error as any)?.value?.error ?? JSON.stringify(outboundResponse.error),
+              (outboundResponse.error as any)?.value?.error ??
+                JSON.stringify(outboundResponse.error),
             );
           }
         } catch (error) {
@@ -296,7 +302,8 @@ export default function TransactionsPage() {
             hadError = true;
             console.error(
               "Failed to fetch inbound invoices:",
-              (inboundResponse.error as any)?.value?.error ?? JSON.stringify(inboundResponse.error),
+              (inboundResponse.error as any)?.value?.error ??
+                JSON.stringify(inboundResponse.error),
             );
           }
         } catch (error) {
@@ -390,10 +397,42 @@ export default function TransactionsPage() {
               "Failed to fetch invoice details",
           );
         } else if (response.data?.data) {
-          setInvoiceDetails(response.data.data);
+          const data = response.data.data;
+          setInvoiceDetails(data);
+
+          // Fetch current event routing config to check against webhook event types
+          let fetchedRoutes: any[] = [];
+          const tenantId = data.invoice?.tenantId;
+          if (tenantId) {
+            try {
+              const routesRes = await api.getEventRouting(tenantId);
+              if (!routesRes.error && (routesRes.data as any)?.data?.routes) {
+                fetchedRoutes = (routesRes.data as any).data.routes;
+              }
+            } catch {
+              /* non-critical, fall back to no routing check */
+            }
+          }
+          setEventRoutes(fetchedRoutes);
+
+          setInvoices((prev) =>
+            prev.map((inv) =>
+              inv.irn === invoice.irn
+                ? {
+                    ...inv,
+                    hasRoutingError: hasUnroutedWebhookEvent(
+                      data.webhookEvents,
+                      fetchedRoutes,
+                      data.invoice?.status,
+                    ),
+                  }
+                : inv,
+            ),
+          );
           setShowDetailModal(true);
         }
       } else {
+        setEventRoutes([]);
         const response = await api.getInboundInvoice(invoice.irn);
         if (response.error) {
           toast.error(
@@ -467,14 +506,56 @@ export default function TransactionsPage() {
     }
   };
 
-  const formatJobErrorMessage = (err: { action?: string; error?: string } | null | undefined): string => {
-    if (!err) return 'An unexpected error occurred. Please try again.';
-    const action = err.action && err.action !== 'undefined' ? err.action.replace(/-/g, ' ') : null;
-    const error = err.error && err.error !== 'undefined' ? err.error : null;
-    if (action && error) return `${action.charAt(0).toUpperCase() + action.slice(1)} failed — ${error}`;
+  const TERMINAL_SUCCESS_STATUSES = [
+    "DELIVERED",
+    "ACKNOWLEDGED",
+    "DOWNLOADED",
+    "SYNCED_TO_ERP",
+    "PAID",
+  ];
+
+  const hasUnroutedWebhookEvent = (
+    webhookEvents: any[] | undefined,
+    routes: any[],
+    invoiceStatus?: string,
+  ): boolean => {
+    if (!webhookEvents?.length || !routes.length) return false;
+    if (TERMINAL_SUCCESS_STATUSES.includes((invoiceStatus || "").toUpperCase()))
+      return false;
+    return webhookEvents.some((evt) => {
+      if (evt.deliveredAt || evt.status === "delivered") return false;
+      const eventType =
+        typeof evt.eventType === "object" ? evt.eventType?.id : evt.eventType;
+      if (!eventType) return false;
+      const hasActiveRoute = routes.some((route) => {
+        const routeEventId =
+          typeof route.event === "object" ? route.event?.id : route.event;
+        return (
+          routeEventId === eventType &&
+          route.enabled !== false &&
+          Array.isArray(route.actions) &&
+          route.actions.length > 0
+        );
+      });
+      return !hasActiveRoute;
+    });
+  };
+
+  const formatJobErrorMessage = (
+    err: { action?: string; error?: string } | null | undefined,
+  ): string => {
+    if (!err) return "An unexpected error occurred. Please try again.";
+    const action =
+      err.action && err.action !== "undefined"
+        ? err.action.replace(/-/g, " ")
+        : null;
+    const error = err.error && err.error !== "undefined" ? err.error : null;
+    if (action && error)
+      return `${action.charAt(0).toUpperCase() + action.slice(1)} failed — ${error}`;
     if (error) return error;
-    if (action) return `${action.charAt(0).toUpperCase() + action.slice(1)} failed. Please try again.`;
-    return 'An unexpected error occurred. Please try again.';
+    if (action)
+      return `${action.charAt(0).toUpperCase() + action.slice(1)} failed. Please try again.`;
+    return "An unexpected error occurred. Please try again.";
   };
 
   const formatAmount = (amount: number, currency: string) => {
@@ -631,10 +712,16 @@ export default function TransactionsPage() {
       header: "Invoice Status",
       sortable: true,
       accessor: (inv) => {
-        const hasError = hasJobError(inv) || !!inv.lastJobError?.action;
+        const hasError =
+          hasJobError(inv) ||
+          !!inv.lastJobError?.action ||
+          !!inv.hasRoutingError;
         const alreadyFailed = inv.status?.toUpperCase() === "FAILED";
-        const displayStatus = (hasError && !alreadyFailed) ? "failed" : (inv.status?.toLowerCase() || "");
-        const displayLabel = (hasError && !alreadyFailed) ? "FAILED" : inv.status;
+        const displayStatus =
+          hasError && !alreadyFailed
+            ? "failed"
+            : inv.status?.toLowerCase() || "";
+        const displayLabel = hasError && !alreadyFailed ? "FAILED" : inv.status;
         const styles: Record<string, string> = {
           // outbound
           created: "bg-muted text-muted-foreground",
@@ -729,7 +816,7 @@ export default function TransactionsPage() {
                       className="w-[200px] h-[200px]"
                     />
                     <p className="text-xs text-muted-foreground text-center">
-                      Scan to verify invoice
+                      Scan with the MBS360 Application
                     </p>
                     <Button
                       variant="outline"
@@ -1058,7 +1145,10 @@ export default function TransactionsPage() {
               </TabsList>
               <ScrollArea className="max-h-[65vh]">
                 {/* ── OVERVIEW ── */}
-                <TabsContent value="overview" className="space-y-4 mt-4">
+                <TabsContent
+                  value="overview"
+                  className="space-y-4 mt-4 overflow-y-auto max-h-[60vh] pb-4"
+                >
                   {/* Workflow State Pipeline */}
                   {invoiceDetails.invoice?.workflowState && (
                     <div className="p-4 bg-muted/50 rounded-lg border">
@@ -1127,6 +1217,9 @@ export default function TransactionsPage() {
                           className="w-[140px] h-[140px]"
                         />
                       </div>
+                      <p className="text-xs text-muted-foreground text-center">
+                      Scan with the MBS360 Application
+                    </p>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1167,13 +1260,26 @@ export default function TransactionsPage() {
                       </div>
                     )}
                     <div>
-                      <p className="text-xs text-muted-foreground">Status</p>
+                      <p className="text-xs text-muted-foreground">
+                        Invoice Status
+                      </p>
                       <StatusBadge
-                        status={
-                          invoiceDetails.invoice?.status ||
-                          selectedInvoice?.status ||
-                          ""
-                        }
+                        status={(() => {
+                          const raw =
+                            hasUnroutedWebhookEvent(
+                              invoiceDetails.webhookEvents,
+                              eventRoutes,
+                              invoiceDetails.invoice?.status,
+                            ) &&
+                            (
+                              invoiceDetails.invoice?.status || ""
+                            ).toUpperCase() !== "FAILED"
+                              ? "FAILED"
+                              : invoiceDetails.invoice?.status ||
+                                selectedInvoice?.status ||
+                                "";
+                          return raw.toLowerCase().replace(/_/g, " ");
+                        })()}
                       />
                     </div>
                     {invoiceDetails.invoice?.paymentStatus && (
@@ -1267,6 +1373,30 @@ export default function TransactionsPage() {
                     </div>
                   )}
 
+                  {/* Unrouted event warning (no lastJobError but event has no active routing) */}
+                  {hasUnroutedWebhookEvent(
+                    invoiceDetails.webhookEvents,
+                    eventRoutes,
+                    invoiceDetails.invoice?.status,
+                  ) &&
+                    !(
+                      invoiceDetails.invoice?.lastJobError &&
+                      Object.keys(invoiceDetails.invoice.lastJobError).length >
+                        0
+                    ) && (
+                      <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-1">
+                        <p className="text-sm font-medium text-destructive">
+                          Routing Error
+                        </p>
+                        <p className="text-xs text-foreground">
+                          No actions are routed to this event type. The invoice
+                          could not be processed. Please review your ERP sync
+                          configuration and ensure the relevant event type has
+                          active routing rules.
+                        </p>
+                      </div>
+                    )}
+
                   {/* Last Job Error */}
                   {invoiceDetails.invoice?.lastJobError &&
                     Object.keys(invoiceDetails.invoice.lastJobError).length >
@@ -1276,19 +1406,24 @@ export default function TransactionsPage() {
                           Last Job Error
                         </p>
                         <p className="text-xs text-foreground">
-                          {formatJobErrorMessage(invoiceDetails.invoice.lastJobError)}
+                          {formatJobErrorMessage(
+                            invoiceDetails.invoice.lastJobError,
+                          )}
                         </p>
                         <table className="w-full text-xs border-collapse">
                           <tbody>
                             {Object.entries(invoiceDetails.invoice.lastJobError)
                               .filter(([, v]) => v !== undefined && v !== null)
                               .map(([key, value]) => (
-                                <tr key={key} className="border-t border-destructive/20">
+                                <tr
+                                  key={key}
+                                  className="border-t border-destructive/20"
+                                >
                                   <td className="py-1 pr-3 font-medium text-muted-foreground capitalize w-1/3">
-                                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                                    {key.replace(/([A-Z])/g, " $1").trim()}
                                   </td>
                                   <td className="py-1 break-all text-foreground">
-                                    {String(value)}
+                                    {String(value) ==="undefined - undefined"?"NRS Validation failed. Please try again.": String(value)}
                                   </td>
                                 </tr>
                               ))}
