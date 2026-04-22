@@ -697,8 +697,7 @@ export default function AdminTransactionLogs() {
           !!inv.lastJobError?.action ||
           !!inv.hasRoutingError;
         const alreadyFailed = inv.status?.toUpperCase() === "FAILED";
-        const displayStatus =
-          hasError && !alreadyFailed ? "FAILED" : inv.status;
+        const displayStatus = inv.status;
         return (
           <div className="flex items-center gap-2">
             {getStatusIcon(displayStatus)}
@@ -1346,7 +1345,7 @@ export default function AdminTransactionLogs() {
                   {/* Last Job Error */}
                   {invoiceDetails.invoice?.lastJobError &&
                     Object.keys(invoiceDetails.invoice.lastJobError).length >
-                      0 && (
+                      0 && invoiceDetails.status && (
                       <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-2">
                         <p className="text-sm font-medium text-destructive">
                           Last Job Error

@@ -721,7 +721,7 @@ export default function TransactionsPage() {
           hasError && !alreadyFailed
             ? "failed"
             : inv.status?.toLowerCase() || "";
-        const displayLabel = hasError && !alreadyFailed ? "FAILED" : inv.status;
+        const displayLabel = inv.status;
         const styles: Record<string, string> = {
           // outbound
           created: "bg-muted text-muted-foreground",
@@ -1400,7 +1400,7 @@ export default function TransactionsPage() {
                   {/* Last Job Error */}
                   {invoiceDetails.invoice?.lastJobError &&
                     Object.keys(invoiceDetails.invoice.lastJobError).length >
-                      0 && (
+                      0 && invoiceDetails.status && (
                       <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-2">
                         <p className="text-sm font-medium text-destructive">
                           Last Job Error
