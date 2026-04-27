@@ -125,13 +125,6 @@ const transactionFilters: FilterOption[] = [
 
 const PAGE_SIZE = 10;
 
-const WORKFLOW_STEP_MAP = [
-  { stateKey: "transformed", apiValue: "transform", label: "Transform" },
-  { stateKey: "validated", apiValue: "validate", label: "Validate" },
-  { stateKey: "signed", apiValue: "sign", label: "Sign" },
-  { stateKey: "transmitted", apiValue: "transmit", label: "Transmit" },
-  { stateKey: "delivered", apiValue: "deliver", label: "Deliver" },
-];
 
 export default function TransactionsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -566,41 +559,9 @@ export default function TransactionsPage() {
     }).format(amount);
   };
 
-  const getStatusIcon = (status: string) => {
-    const s = status?.toLowerCase() || "";
-    switch (s) {
-      case "validated":
-      case "signed":
-      case "transmitted":
-      case "acknowledged":
-        return <CheckCircle className="w-4 h-4 text-success" />;
-      case "pending":
-      case "received":
-        return <Clock className="w-4 h-4 text-warning" />;
-      case "failed":
-      case "rejected":
-        return <AlertCircle className="w-4 h-4 text-destructive" />;
-      default:
-        return <FileText className="w-4 h-4 text-muted-foreground" />;
-    }
-  };
-
   const isFailed = (status: string) => {
     const s = status?.toLowerCase() || "";
     return s === "failed" || s === "rejected";
-  };
-
-  // Show "Retry from Step" when the invoice is outbound and any workflow step is incomplete
-  const hasIncompleteSteps = (workflowState: any) => {
-    if (!workflowState) return false;
-    const steps = [
-      "transformed",
-      "validated",
-      "signed",
-      "transmitted",
-      "delivered",
-    ];
-    return steps.some((step) => !workflowState[step]);
   };
 
   // Show "Resend Invoice" when the invoice has any job-level error
@@ -712,16 +673,20 @@ export default function TransactionsPage() {
       header: "Invoice Status",
       sortable: true,
       accessor: (inv) => {
+        const isTerminalSuccess = TERMINAL_SUCCESS_STATUSES.includes(
+          inv.status?.toUpperCase() || "",
+        );
         const hasError =
-          hasJobError(inv) ||
-          !!inv.lastJobError?.action ||
-          !!inv.hasRoutingError;
+          !isTerminalSuccess &&
+          (hasJobError(inv) ||
+            !!inv.lastJobError?.action ||
+            !!inv.hasRoutingError);
         const alreadyFailed = inv.status?.toUpperCase() === "FAILED";
         const displayStatus =
           hasError && !alreadyFailed
             ? "failed"
             : inv.status?.toLowerCase() || "";
-        const displayLabel = inv.status;
+        const displayLabel = hasError && !alreadyFailed ? "Failed".toUpperCase() : inv.status;
         const styles: Record<string, string> = {
           // outbound
           created: "bg-muted text-muted-foreground",
@@ -778,26 +743,10 @@ export default function TransactionsPage() {
         );
       },
     },
-    // {
-    //   key: 'customerName',
-    //   header: 'Counterparty',
-    //   sortable: true,
-    //   accessor: (inv) => {
-    //     const name = inv.type === 'outbound' ? inv.customerName : inv.supplierName
-    //     const sub = inv.type === 'inbound' && inv.supplierTIN ? inv.supplierTIN : null
-    //     if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>
-    //     return (
-    //       <div className="min-w-0">
-    //         <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
-    //         {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
-    //       </div>
-    //     )
-    //   },
-    // },
     {
       key: "qrCode",
       header: "QR Code",
-      className: "hidden lg:table-cell",
+      className: "table-cell",
       accessor: (inv) => {
         if (inv.qrCode) {
           return (
@@ -840,7 +789,7 @@ export default function TransactionsPage() {
       key: "erp",
       header: "ERP",
       sortable: true,
-      className: "hidden md:table-cell",
+      className: "table-cell",
       accessor: (inv) => {
         if (inv.erp) {
           return (
@@ -856,7 +805,7 @@ export default function TransactionsPage() {
       key: "createdAt",
       header: "Date",
       sortable: true,
-      className: "hidden sm:table-cell",
+      className: "table-cell",
       accessor: (inv) => (
         <div className="text-sm">
           <p className="font-medium">
@@ -924,10 +873,11 @@ export default function TransactionsPage() {
         </>
       )}
       {inv.type === "outbound" &&
+        isFailed(inv.status) &&
         (hasJobError(inv) || !!inv.lastJobError?.action) && (
           <DropdownMenuSeparator />
         )}
-      {inv.type === "outbound" && hasJobError(inv) && (
+      {inv.type === "outbound" && isFailed(inv.status) && hasJobError(inv) && (
         <DropdownMenuItem
           onClick={() => {
             setSelectedInvoice(inv);
@@ -938,7 +888,7 @@ export default function TransactionsPage() {
           Resend Invoice
         </DropdownMenuItem>
       )}
-      {inv.type === "outbound" && inv.lastJobError?.action && (
+      {inv.type === "outbound" && isFailed(inv.status) && inv.lastJobError?.action && (
         <DropdownMenuItem
           onClick={() => {
             setSelectedInvoice(inv);
@@ -1743,7 +1693,7 @@ export default function TransactionsPage() {
             </Tabs>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {selectedInvoice && hasJobError(selectedInvoice) && (
+            {selectedInvoice && isFailed(selectedInvoice.status) && hasJobError(selectedInvoice) && (
               <Button
                 variant="outline"
                 className="w-full sm:w-auto"
@@ -1757,6 +1707,7 @@ export default function TransactionsPage() {
               </Button>
             )}
             {selectedInvoice?.type === "outbound" &&
+              isFailed(invoiceDetails?.invoice?.status ?? selectedInvoice?.status ?? "") &&
               (invoiceDetails?.invoice?.lastJobError?.action ??
                 selectedInvoice?.lastJobError?.action) && (
                 <Button
@@ -1808,25 +1759,6 @@ export default function TransactionsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {/* {(() => {
-                  const failedAction = selectedInvoice?.lastJobError?.action;
-                  console.log('failed action: ', failedAction);
-                  
-                  const failedIndex = failedAction
-                    ? WORKFLOW_STEP_MAP.findIndex(
-                        (s) => s.apiValue === failedAction,
-                      )
-                    : -1;
-                  return (failedIndex >= 0
-                    ? WORKFLOW_STEP_MAP.slice(failedIndex)
-                    : WORKFLOW_STEP_MAP
-                  ).map((s) => (
-                    <SelectItem key={s.apiValue} value={s.apiValue}>
-                      {s.label}
-                    </SelectItem>
-                  ));
-                })()} */}
-
                 <SelectItem value={selectedInvoice?.lastJobError?.action}>
                   {selectedInvoice?.lastJobError?.action?.split("-").join(" ")}
                 </SelectItem>
