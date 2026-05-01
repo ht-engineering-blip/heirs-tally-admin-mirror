@@ -90,6 +90,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
   const { user } = useSession()
   const { hasPermission } = usePermissions()
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const handleNavClick = isMobile ? onClose : undefined
 
   // Initialize expanded items based on current pathname
   useEffect(() => {
@@ -264,6 +265,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                 isActive={pathname === '/admin'}
                 isCollapsed={isCollapsed && !isMobile}
                 isMobile={isMobile}
+                onClick={handleNavClick}
               />
 
               {/* System Configuration */}
@@ -284,6 +286,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                       isActive={isRouteActive(item.href)}
                       isCollapsed={isCollapsed && !isMobile}
                       isMobile={isMobile}
+                      onClick={handleNavClick}
                     />
                   ))}
                 </>
@@ -335,6 +338,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                                   isCollapsed={false}
                                   isMobile={isMobile}
                                   isChild={true}
+                                  onClick={handleNavClick}
                                 />
                               )
                             })}
@@ -362,6 +366,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                     isActive={isRouteActive(sandboxNavItem.href)}
                     isCollapsed={isCollapsed && !isMobile}
                     isMobile={isMobile}
+                    onClick={handleNavClick}
                   />
                 </>
               )}

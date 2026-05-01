@@ -143,6 +143,7 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
                   <Link
               key={item.href}
                     href={item.href}
+                    onClick={isMobile ? onClose : undefined}
                     className={cn(
                   'nav-item',
                   isActive ? 'nav-item-active' : 'nav-item-inactive',
@@ -192,6 +193,7 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
                   <Link
               key={item.href}
                     href={item.href}
+                    onClick={isMobile ? onClose : undefined}
                     className={cn(
                   'nav-item',
                   isActive ? 'nav-item-active' : 'nav-item-inactive',
