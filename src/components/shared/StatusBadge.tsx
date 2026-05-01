@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 interface StatusBadgeProps {
   status: string;
   variant?: 'default' | 'outline';
+  labelCase?: 'capitalize' | 'uppercase' | 'lowercase';
 }
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -21,12 +22,19 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   expired: { label: 'Expired', className: 'status-inactive' },
 };
 
-export function StatusBadge({ status, variant = 'default' }: StatusBadgeProps) {
+export function StatusBadge({ status, variant = 'default', labelCase="lowercase" }: StatusBadgeProps) {
   const config = statusConfig[status] || { label: status, className: 'status-inactive' };
 
+  let displayedLabel = config.label;
+  if (labelCase === 'uppercase') {
+    displayedLabel = displayedLabel.toUpperCase();
+  } else if (labelCase === 'lowercase') {
+    displayedLabel = displayedLabel.toLowerCase();
+  }
+
   return (
-    <span className={cn('status-badge capitalize', config.className)}>
-      {config.label}
+    <span className={cn('status-badge', config.className)}>
+      {displayedLabel}
     </span>
   );
 }

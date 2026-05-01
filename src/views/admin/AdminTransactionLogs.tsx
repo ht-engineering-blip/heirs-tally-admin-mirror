@@ -1385,7 +1385,7 @@ export default function AdminTransactionLogs() {
                 >
                   {invoiceDetails.statusHistory?.length > 0 ? (
                     <div className="relative pl-4 space-y-0">
-                      {invoiceDetails.statusHistory.map(
+                      {[...invoiceDetails.statusHistory].reverse().map(
                         (entry: any, idx: number) => (
                           <div key={idx} className="flex gap-3">
                             {/* timeline */}
@@ -1413,7 +1413,7 @@ export default function AdminTransactionLogs() {
                             >
                               <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <p className="text-sm font-semibold capitalize">
-                                  {`Step ${idx + 1}: ${(entry.step || "status change").replace(/_/g, " ")}`}
+                                  {`Step ${invoiceDetails.statusHistory.length - idx}: ${(entry.step || "status change").replace(/_/g, " ")}`}
                                 </p>
                                 <StatusBadge
                                   status={entry.status || "unknown"}
@@ -1462,7 +1462,7 @@ export default function AdminTransactionLogs() {
                   >
                     {invoiceDetails.webhookEvents?.length > 0 ? (
                       <div className="space-y-4">
-                        {invoiceDetails.webhookEvents.map(
+                        {[...invoiceDetails.webhookEvents].reverse().map(
                           (event: any, idx: number) => (
                             <div
                               key={idx}
