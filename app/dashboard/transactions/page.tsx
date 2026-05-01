@@ -552,6 +552,12 @@ export default function TransactionsPage() {
 
  
 
+  const formatStatNumber = (n: number): string => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;
+    return String(n);
+  };
+
   const isFailed = (status: string) => {
     const s = status?.toLowerCase() || "";
     return s === "failed" || s === "rejected";
@@ -899,8 +905,6 @@ export default function TransactionsPage() {
 
   const stats = statsData;
 
-  console.log('has job error', hasJobError(invoiceDetails?.invoice));
-
   return (
     <>
       <div className="space-y-6 animate-fade-in">
@@ -928,52 +932,42 @@ export default function TransactionsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-4 mx-auto">
-          <Card className="dark:border dark:border-grey-100 max-w-[300px] sm:max-w-none">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <Card className="dark:border dark:border-grey-100">
             <CardContent className="p-4 sm:pt-6">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">{stats.total}</p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Total
-                  </p>
+                  <p className="text-xl sm:text-2xl font-bold">{formatStatNumber(stats.total)}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Total</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="max-w-[300px] sm:max-w-none">
+          <Card>
             <CardContent className="p-4 sm:pt-6">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.outbound}
-                  </p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Outbound
-                  </p>
+                  <p className="text-xl sm:text-2xl font-bold">{formatStatNumber(stats.outbound)}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Outbound</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="max-w-[300px] sm:max-w-none">
+          <Card>
             <CardContent className="p-4 sm:pt-6">
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                  <ArrowDownLeft className="w-4 h-4 sm:w-5 sm:h-5 text-accent" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+                  <ArrowDownLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.inbound}
-                  </p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Inbound
-                  </p>
+                  <p className="text-xl sm:text-2xl font-bold">{formatStatNumber(stats.inbound)}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Inbound</p>
                 </div>
               </div>
             </CardContent>
@@ -995,19 +989,15 @@ export default function TransactionsPage() {
               </div>
             </CardContent>
           </Card> */}
-          <Card className="max-w-[300px] sm:max-w-none">
+          <Card>
             <CardContent className="p-4 sm:pt-6">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
                   <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.failed}
-                  </p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Failed
-                  </p>
+                  <p className="text-xl sm:text-2xl font-bold">{formatStatNumber(stats.failed)}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Failed</p>
                 </div>
               </div>
             </CardContent>
@@ -1721,7 +1711,6 @@ export default function TransactionsPage() {
                       invoiceDetails?.invoice?.lastJobError?.action ??
                       selectedInvoice?.lastJobError?.action ??
                       "validate";
-                    console.log("Retry action: ", action);
                     setShowDetailModal(false);
                     setRetryStep(action);
                     setShowRetryDialog(true);

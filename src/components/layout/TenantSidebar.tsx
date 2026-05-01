@@ -218,8 +218,8 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
               </div>
               {(!isCollapsed || isMobile) && (
                 <div className="animate-fade-in">
-                  <h1 className="font-bold text-foreground">Heirs Tally</h1>
-                  <p className="text-xs text-muted-foreground">E-Invoicing</p>
+                  <h1 className="font-bold text-foreground">Heirs E-Invoicing</h1>
+                  <p className="text-xs text-muted-foreground">Admin Tenant</p>
                 </div>
               )}
             </div>
