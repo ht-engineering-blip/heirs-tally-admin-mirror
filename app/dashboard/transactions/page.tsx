@@ -934,70 +934,53 @@ export default function TransactionsPage() {
         {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <Card className="dark:border dark:border-grey-100">
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-primary" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">{formatStatNumber(stats.total)}</p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Total</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">{formatStatNumber(stats.outbound)}</p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Outbound</p>
+                <div>
+                  <p className="text-2xl font-bold">{formatStatNumber(stats.total)}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
-                  <ArrowDownLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <ArrowUpRight className="w-4 h-4 text-primary" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">{formatStatNumber(stats.inbound)}</p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Inbound</p>
+                <div>
+                  <p className="text-2xl font-bold">{formatStatNumber(stats.outbound)}</p>
+                  <p className="text-xs text-muted-foreground">Outbound</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          {/* <Card>
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
-                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-warning" />
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-2">
+                <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <ArrowDownLeft className="w-4 h-4 text-gray-500" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.pending}
-                  </p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Pending
-                  </p>
+                <div>
+                  <p className="text-2xl font-bold">{formatStatNumber(stats.inbound)}</p>
+                  <p className="text-xs text-muted-foreground">Inbound</p>
                 </div>
               </div>
             </CardContent>
-          </Card> */}
+          </Card>
           <Card>
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-2">
+                <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
+                  <AlertCircle className="w-4 h-4 text-destructive" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">{formatStatNumber(stats.failed)}</p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Failed</p>
+                <div>
+                  <p className="text-2xl font-bold">{formatStatNumber(stats.failed)}</p>
+                  <p className="text-xs text-muted-foreground">Failed</p>
                 </div>
               </div>
             </CardContent>
