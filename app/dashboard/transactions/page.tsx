@@ -125,7 +125,6 @@ const transactionFilters: FilterOption[] = [
 
 const PAGE_SIZE = 10;
 
-
 export default function TransactionsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -551,12 +550,12 @@ export default function TransactionsPage() {
     return "An unexpected error occurred. Please try again.";
   };
 
-  const formatAmount = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: currency || "NGN",
-      minimumFractionDigits: 2,
-    }).format(amount);
+ 
+
+  const formatStatNumber = (n: number): string => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;
+    return String(n);
   };
 
   const isFailed = (status: string) => {
@@ -565,11 +564,9 @@ export default function TransactionsPage() {
   };
 
   // Show "Resend Invoice" when the invoice has any job-level error
-  const hasJobError = (inv: Invoice) => {
-    if (inv.type !== "outbound") return false;
-    const ws = inv.workflowState;
-    if (!ws) return false;
-    return !!(ws.error || ws.jobError || ws.failed);
+  const hasJobError = (inv: Invoice, type: "inbound" | "outbound" = "outbound") => {
+    if (type !== "outbound") return false;
+    return isFailed(inv?.status) && !!inv?.lastJobError && Object.keys(inv.lastJobError).length > 0;
   };
 
   const handleUpdatePaymentStatus = async () => {
@@ -686,7 +683,8 @@ export default function TransactionsPage() {
           hasError && !alreadyFailed
             ? "failed"
             : inv.status?.toLowerCase() || "";
-        const displayLabel = hasError && !alreadyFailed ? "Failed".toUpperCase() : inv.status;
+        const displayLabel =
+          hasError && !alreadyFailed ? "Failed".toUpperCase() : inv.status;
         const styles: Record<string, string> = {
           // outbound
           created: "bg-muted text-muted-foreground",
@@ -888,18 +886,20 @@ export default function TransactionsPage() {
           Resend Invoice
         </DropdownMenuItem>
       )}
-      {inv.type === "outbound" && isFailed(inv.status) && inv.lastJobError?.action && (
-        <DropdownMenuItem
-          onClick={() => {
-            setSelectedInvoice(inv);
-            setRetryStep(inv.lastJobError!.action);
-            setShowRetryDialog(true);
-          }}
-        >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Retry from Step
-        </DropdownMenuItem>
-      )}
+      {inv.type === "outbound" &&
+        isFailed(inv.status) &&
+        inv.lastJobError?.action && (
+          <DropdownMenuItem
+            onClick={() => {
+              setSelectedInvoice(inv);
+              setRetryStep(inv.lastJobError!.action);
+              setShowRetryDialog(true);
+            }}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry from Step
+          </DropdownMenuItem>
+        )}
     </>
   );
 
@@ -932,86 +932,55 @@ export default function TransactionsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <Card className="dark:border dark:border-grey-100">
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-primary" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">{stats.total}</p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Total
-                  </p>
+                <div>
+                  <p className="text-2xl font-bold">{formatStatNumber(stats.total)}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <ArrowUpRight className="w-4 h-4 text-primary" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.outbound}
-                  </p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Outbound
-                  </p>
+                <div>
+                  <p className="text-2xl font-bold">{formatStatNumber(stats.outbound)}</p>
+                  <p className="text-xs text-muted-foreground">Outbound</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                  <ArrowDownLeft className="w-4 h-4 sm:w-5 sm:h-5 text-accent" />
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-2">
+                <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <ArrowDownLeft className="w-4 h-4 text-gray-500" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.inbound}
-                  </p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Inbound
-                  </p>
+                <div>
+                  <p className="text-2xl font-bold">{formatStatNumber(stats.inbound)}</p>
+                  <p className="text-xs text-muted-foreground">Inbound</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
-                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-warning" />
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-2">
+                <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
+                  <AlertCircle className="w-4 h-4 text-destructive" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.pending}
-                  </p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Pending
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="col-span-2 sm:col-span-1">
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.failed}
-                  </p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Failed
-                  </p>
+                <div>
+                  <p className="text-2xl font-bold">{formatStatNumber(stats.failed)}</p>
+                  <p className="text-xs text-muted-foreground">Failed</p>
                 </div>
               </div>
             </CardContent>
@@ -1099,6 +1068,40 @@ export default function TransactionsPage() {
                   value="overview"
                   className="space-y-4 mt-4 overflow-y-auto max-h-[60vh] pb-4"
                 >
+                  {/* Last Job Error */}
+                  {hasJobError(invoiceDetails?.invoice) && (
+                      <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-2">
+                        <p className="text-sm font-medium text-destructive">
+                          Last Job Error
+                        </p>
+                        <p className="text-xs text-foreground">
+                          {formatJobErrorMessage(
+                            invoiceDetails.invoice.lastJobError,
+                          )}
+                        </p>
+                        <table className="w-full text-xs border-collapse">
+                          <tbody>
+                            {Object.entries(invoiceDetails.invoice.lastJobError)
+                              .filter(([, v]) => v !== undefined && v !== null)
+                              .map(([key, value]) => (
+                                <tr
+                                  key={key}
+                                  className="border-t border-destructive/20"
+                                >
+                                  <td className="py-1 pr-3 font-medium text-muted-foreground capitalize w-1/3">
+                                    {key.replace(/([A-Z])/g, " $1").trim()}
+                                  </td>
+                                  <td className="py-1 break-all text-foreground whitespace-pre-line">
+                                    {String(value) === "undefined - undefined"
+                                      ? "NRS Validation failed. Please try again."
+                                      : String(value)}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   {/* Workflow State Pipeline */}
                   {invoiceDetails.invoice?.workflowState && (
                     <div className="p-4 bg-muted/50 rounded-lg border">
@@ -1168,8 +1171,8 @@ export default function TransactionsPage() {
                         />
                       </div>
                       <p className="text-xs text-muted-foreground text-center">
-                      Scan with the MBS360 Application
-                    </p>
+                        Scan with the MBS360 Application
+                      </p>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1230,6 +1233,7 @@ export default function TransactionsPage() {
                                 "";
                           return raw.toLowerCase().replace(/_/g, " ");
                         })()}
+                        labelCase="uppercase"
                       />
                     </div>
                     {invoiceDetails.invoice?.paymentStatus && (
@@ -1238,7 +1242,8 @@ export default function TransactionsPage() {
                           Payment Status
                         </p>
                         <StatusBadge
-                          status={invoiceDetails.invoice.paymentStatus}
+                          status={invoiceDetails.invoice.paymentStatus.toLowerCase().replace(/_/g, " ")}
+                          labelCase="uppercase"
                         />
                       </div>
                     )}
@@ -1346,41 +1351,6 @@ export default function TransactionsPage() {
                         </p>
                       </div>
                     )}
-
-                  {/* Last Job Error */}
-                  {invoiceDetails.invoice?.lastJobError &&
-                    Object.keys(invoiceDetails.invoice.lastJobError).length >
-                      0 && invoiceDetails.status && (
-                      <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-2">
-                        <p className="text-sm font-medium text-destructive">
-                          Last Job Error
-                        </p>
-                        <p className="text-xs text-foreground">
-                          {formatJobErrorMessage(
-                            invoiceDetails.invoice.lastJobError,
-                          )}
-                        </p>
-                        <table className="w-full text-xs border-collapse">
-                          <tbody>
-                            {Object.entries(invoiceDetails.invoice.lastJobError)
-                              .filter(([, v]) => v !== undefined && v !== null)
-                              .map(([key, value]) => (
-                                <tr
-                                  key={key}
-                                  className="border-t border-destructive/20"
-                                >
-                                  <td className="py-1 pr-3 font-medium text-muted-foreground capitalize w-1/3">
-                                    {key.replace(/([A-Z])/g, " $1").trim()}
-                                  </td>
-                                  <td className="py-1 break-all text-foreground">
-                                    {String(value) ==="undefined - undefined"?"NRS Validation failed. Please try again.": String(value)}
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
                 </TabsContent>
 
                 {/* ── HISTORY ── */}
@@ -1393,8 +1363,9 @@ export default function TransactionsPage() {
                       {/* vertical timeline line */}
                       <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
                       <div className="space-y-4">
-                        {invoiceDetails.statusHistory.map(
-                          (entry: any, idx: number) => (
+                        {invoiceDetails.statusHistory
+                          .reverse()
+                          .map((entry: any, idx: number, arr) => (
                             <div
                               key={idx}
                               className="flex items-start gap-3 pl-1 whitespace-pre-wrap break-all "
@@ -1430,7 +1401,7 @@ export default function TransactionsPage() {
                                 {/* step + status */}
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
                                   <p className="text-sm font-semibold capitalize">
-                                    {`Step ${idx + 1}: ${(entry.step || "status change").replace(/_/g, " ")}`}
+                                    {`Step ${arr.length - idx}: ${(entry.step || "status change").replace(/_/g, " ")}`}
                                   </p>
                                   <StatusBadge
                                     status={entry.status || "unknown"}
@@ -1495,8 +1466,7 @@ export default function TransactionsPage() {
                                 )}
                               </div>
                             </div>
-                          ),
-                        )}
+                          ))}
                       </div>
                     </div>
                   ) : (
@@ -1514,8 +1484,9 @@ export default function TransactionsPage() {
                   >
                     {invoiceDetails.webhookEvents?.length > 0 ? (
                       <div className="space-y-4">
-                        {invoiceDetails.webhookEvents.map(
-                          (event: any, idx: number) => (
+                        {invoiceDetails.webhookEvents
+                          .reverse()
+                          .map((event: any, idx: number) => (
                             <div
                               key={idx}
                               className={cn(
@@ -1679,8 +1650,7 @@ export default function TransactionsPage() {
                                 )}
                               </div>
                             </div>
-                          ),
-                        )}
+                          ))}
                       </div>
                     ) : (
                       <p className="text-muted-foreground text-center py-8 text-sm">
@@ -1693,21 +1663,27 @@ export default function TransactionsPage() {
             </Tabs>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {selectedInvoice && isFailed(selectedInvoice.status) && hasJobError(selectedInvoice) && (
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  setShowDetailModal(false);
-                  setShowResendDialog(true);
-                }}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Resend Invoice
-              </Button>
-            )}
+            {selectedInvoice &&
+              isFailed(selectedInvoice.status) &&
+              hasJobError(selectedInvoice) && (
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setShowResendDialog(true);
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Resend Invoice
+                </Button>
+              )}
             {selectedInvoice?.type === "outbound" &&
-              isFailed(invoiceDetails?.invoice?.status ?? selectedInvoice?.status ?? "") &&
+              isFailed(
+                invoiceDetails?.invoice?.status ??
+                  selectedInvoice?.status ??
+                  "",
+              ) &&
               (invoiceDetails?.invoice?.lastJobError?.action ??
                 selectedInvoice?.lastJobError?.action) && (
                 <Button
@@ -1718,7 +1694,6 @@ export default function TransactionsPage() {
                       invoiceDetails?.invoice?.lastJobError?.action ??
                       selectedInvoice?.lastJobError?.action ??
                       "validate";
-                    console.log("Retry action: ", action);
                     setShowDetailModal(false);
                     setRetryStep(action);
                     setShowRetryDialog(true);

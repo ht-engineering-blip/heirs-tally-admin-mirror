@@ -14,6 +14,13 @@ interface KpiCardProps {
   variant?: 'default' | 'primary' | 'success' | 'warning';
 }
 
+function formatStatNumber(n: string | number): string {
+  if (typeof n !== 'number') return String(n);
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;
+  return String(n);
+}
+
 export function KpiCard({
   title,
   value,
@@ -59,7 +66,7 @@ export function KpiCard({
               variant !== 'default' && variant !== 'warning' && 'text-inherit'
             )}
           >
-            {value}
+            {formatStatNumber(value)}
           </p>
           {trend && (
             <div

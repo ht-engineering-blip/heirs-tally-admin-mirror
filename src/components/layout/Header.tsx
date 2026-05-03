@@ -61,8 +61,8 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse,
                 <Menu className="h-5 w-5" />
               </Button>
               <div>
-                <h1 className="font-bold text-foreground">Heirs Tally</h1>
-                <p className="text-xs text-muted-foreground">Admin Dashboard</p>
+                <h1 className="font-bold text-foreground">Heirs E-Invoicing</h1>
+                <p className="text-xs text-muted-foreground">Admin Tenant</p>
               </div>
             </>
           )}

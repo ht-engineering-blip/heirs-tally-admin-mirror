@@ -57,6 +57,7 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
   const { isOnboardingComplete } = useTenant()
   const { hasPermission } = usePermissions()
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const handleNavClick = isMobile ? onClose : undefined
 
 
 
@@ -217,8 +218,8 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
               </div>
               {(!isCollapsed || isMobile) && (
                 <div className="animate-fade-in">
-                  <h1 className="font-bold text-foreground">Heirs Tally</h1>
-                  <p className="text-xs text-muted-foreground">E-Invoicing</p>
+                  <h1 className="font-bold text-foreground">Heirs E-Invoicing</h1>
+                  <p className="text-xs text-muted-foreground">Admin Tenant</p>
                 </div>
               )}
             </div>
@@ -245,6 +246,7 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
                   isActive={isRouteActive(item.href)}
                   isCollapsed={isCollapsed && !isMobile}
                   isMobile={isMobile}
+                  onClick={handleNavClick}
                 />
               ))}
 
@@ -297,6 +299,7 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
                                 isCollapsed={false}
                                 isMobile={isMobile}
                                 isChild={true}
+                                onClick={handleNavClick}
                               />
                             )
                           })}
@@ -313,6 +316,7 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
                   isActive={isRouteActive(item.href)}
                   isCollapsed={isCollapsed && !isMobile}
                   isMobile={isMobile}
+                  onClick={handleNavClick}
                 />
               })}
 

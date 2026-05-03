@@ -125,6 +125,7 @@ export default function Tenants() {
     erpSystem: "" as string,
     expectedVolume: undefined as number | undefined,
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const [onboardingData, setOnboardingData] = useState({
     status: "pending" as
@@ -181,22 +182,35 @@ export default function Tenants() {
   }, []);
 
   const handleCreate = async () => {
-    if (
-      !formData.businessName ||
-      !formData.tin ||
-      !formData.contactEmail ||
-      !formData.erpSystem ||
-      !formData.businessRegistrationNumber
+    const errors: Record<string, string> = {};
+    if (!formData.businessName.trim())
+      errors.businessName = "Business name is required";
+    if (!formData.tin.trim())
+      errors.tin = "Tax Identification Number is required";
+    else if (formData.tin.trim().length < 10)
+      errors.tin = "TIN must be at least 10 characters";
+    if (!formData.businessRegistrationNumber.trim()) {
+      errors.businessRegistrationNumber = "Registration number is required";
+    } else if (
+      !/^RC-?\d{4,7}$/i.test(formData.businessRegistrationNumber.trim())
     ) {
-      toast.error("Please fill in all required fields");
+      errors.businessRegistrationNumber =
+        "Must be in the format RC-XXXXXX (e.g. RC-123456)";
+    }
+    if (!formData.contactEmail.trim())
+      errors.contactEmail = "Email address is required";
+    if (!formData.contactPhone.trim())
+      errors.contactPhone = "Contact phone is required";
+    if (!formData.erpSystem)
+      errors.erpSystem = "Please select an ERP system";
+    if (!formData.expectedVolume || formData.expectedVolume <= 0)
+      errors.expectedVolume = "Monthly invoice volume is required";
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       return;
     }
-    if (!/^RC-?\d{4,7}$/i.test(formData.businessRegistrationNumber.trim())) {
-      toast.error(
-        "Registration number must be in the format RC-XXXXXX (e.g. RC-123456)",
-      );
-      return;
-    }
+    setFormErrors({});
 
     setSaving(true);
     try {
@@ -379,6 +393,7 @@ export default function Tenants() {
       erpSystem: "",
       expectedVolume: undefined,
     });
+    setFormErrors({});
   };
 
   const resetOnboardingForm = () => {
@@ -768,11 +783,17 @@ export default function Tenants() {
               <Input
                 id="businessName"
                 value={formData.businessName}
-                onChange={(e) =>
-                  setFormData({ ...formData, businessName: e.target.value })
-                }
+                onChange={(e) => {
+                  setFormData({ ...formData, businessName: e.target.value });
+                  if (formErrors.businessName)
+                    setFormErrors((prev) => ({ ...prev, businessName: "" }));
+                }}
                 placeholder="Enter business name"
+                className={formErrors.businessName ? "border-destructive" : ""}
               />
+              {formErrors.businessName && (
+                <p className="text-xs text-destructive">{formErrors.businessName}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -780,11 +801,17 @@ export default function Tenants() {
                 <Input
                   id="tin"
                   value={formData.tin}
-                  onChange={(e) =>
-                    setFormData({ ...formData, tin: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, tin: e.target.value });
+                    if (formErrors.tin)
+                      setFormErrors((prev) => ({ ...prev, tin: "" }));
+                  }}
                   placeholder="Tax Identification Number"
+                  className={formErrors.tin ? "border-destructive" : ""}
                 />
+                {formErrors.tin && (
+                  <p className="text-xs text-destructive">{formErrors.tin}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="businessRegistrationNumber">
@@ -793,17 +820,33 @@ export default function Tenants() {
                 <Input
                   id="businessRegistrationNumber"
                   value={formData.businessRegistrationNumber}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData({
                       ...formData,
                       businessRegistrationNumber: e.target.value,
-                    })
-                  }
+                    });
+                    if (formErrors.businessRegistrationNumber)
+                      setFormErrors((prev) => ({
+                        ...prev,
+                        businessRegistrationNumber: "",
+                      }));
+                  }}
                   placeholder="RC-123456"
+                  className={
+                    formErrors.businessRegistrationNumber
+                      ? "border-destructive"
+                      : ""
+                  }
                 />
-                <p className="text-xs text-muted-foreground">
-                  Nigerian CAC number (e.g. RC-123456)
-                </p>
+                {formErrors.businessRegistrationNumber ? (
+                  <p className="text-xs text-destructive">
+                    {formErrors.businessRegistrationNumber}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Nigerian CAC number (e.g. RC-123456)
+                  </p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -813,22 +856,34 @@ export default function Tenants() {
                   id="contactEmail"
                   type="email"
                   value={formData.contactEmail}
-                  onChange={(e) =>
-                    setFormData({ ...formData, contactEmail: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, contactEmail: e.target.value });
+                    if (formErrors.contactEmail)
+                      setFormErrors((prev) => ({ ...prev, contactEmail: "" }));
+                  }}
                   placeholder="contact@business.com"
+                  className={formErrors.contactEmail ? "border-destructive" : ""}
                 />
+                {formErrors.contactEmail && (
+                  <p className="text-xs text-destructive">{formErrors.contactEmail}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="contactPhone">Contact Phone *</Label>
                 <Input
                   id="contactPhone"
                   value={formData.contactPhone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, contactPhone: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, contactPhone: e.target.value });
+                    if (formErrors.contactPhone)
+                      setFormErrors((prev) => ({ ...prev, contactPhone: "" }));
+                  }}
                   placeholder="+234 800 000 0000"
+                  className={formErrors.contactPhone ? "border-destructive" : ""}
                 />
+                {formErrors.contactPhone && (
+                  <p className="text-xs text-destructive">{formErrors.contactPhone}</p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -836,11 +891,15 @@ export default function Tenants() {
                 <Label htmlFor="erpSystem">ERP System *</Label>
                 <Select
                   value={formData.erpSystem}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, erpSystem: value })
-                  }
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, erpSystem: value });
+                    if (formErrors.erpSystem)
+                      setFormErrors((prev) => ({ ...prev, erpSystem: "" }));
+                  }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    className={formErrors.erpSystem ? "border-destructive" : ""}
+                  >
                     <SelectValue placeholder="Select ERP system" />
                   </SelectTrigger>
                   <SelectContent>
@@ -851,25 +910,34 @@ export default function Tenants() {
                     ))}
                   </SelectContent>
                 </Select>
+                {formErrors.erpSystem && (
+                  <p className="text-xs text-destructive">{formErrors.erpSystem}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="expectedVolume">
-                  Monthly Invoice Volume (Optional)
+                  Monthly Invoice Volume *
                 </Label>
                 <Input
                   id="expectedVolume"
                   type="number"
                   value={formData.expectedVolume || ""}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData({
                       ...formData,
                       expectedVolume: e.target.value
                         ? parseInt(e.target.value)
                         : undefined,
-                    })
-                  }
+                    });
+                    if (formErrors.expectedVolume)
+                      setFormErrors((prev) => ({ ...prev, expectedVolume: "" }));
+                  }}
                   placeholder="Monthly invoice volume"
+                  className={formErrors.expectedVolume ? "border-destructive" : ""}
                 />
+                {formErrors.expectedVolume && (
+                  <p className="text-xs text-destructive">{formErrors.expectedVolume}</p>
+                )}
               </div>
             </div>
           </div>

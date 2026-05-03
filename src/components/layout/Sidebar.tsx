@@ -105,8 +105,8 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
 
             {(!isCollapsed || isMobile) && (
               <div className="animate-fade-in">
-                <h1 className="font-bold text-foreground">Heirs Tally</h1>
-                <p className="text-xs text-muted-foreground">Invoicing Admin Dashboard</p>
+                <h1 className="font-bold text-foreground">Heirs E-Invoicing</h1>
+                <p className="text-xs text-muted-foreground">Admin Tenant</p>
               </div>
             )}
 
@@ -143,6 +143,7 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
                   <Link
               key={item.href}
                     href={item.href}
+                    onClick={isMobile ? onClose : undefined}
                     className={cn(
                   'nav-item',
                   isActive ? 'nav-item-active' : 'nav-item-inactive',
@@ -192,6 +193,7 @@ export function Sidebar({ isOpen = true, onClose, isCollapsed }: SidebarProps) {
                   <Link
               key={item.href}
                     href={item.href}
+                    onClick={isMobile ? onClose : undefined}
                     className={cn(
                   'nav-item',
                   isActive ? 'nav-item-active' : 'nav-item-inactive',

@@ -90,6 +90,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
   const { user } = useSession()
   const { hasPermission } = usePermissions()
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const handleNavClick = isMobile ? onClose : undefined
 
   // Initialize expanded items based on current pathname
   useEffect(() => {
@@ -239,8 +240,8 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
               </div>
               {(!isCollapsed || isMobile) && (
                 <div className="animate-fade-in">
-                  <h1 className="font-bold text-foreground">Heirs Tally</h1>
-                  <p className="text-xs text-muted-foreground">Super Admin</p>
+                  <h1 className="font-bold text-foreground">Heirs E-Invoicing</h1>
+                  <p className="text-xs text-muted-foreground">Admin Tenant</p>
                 </div>
               )}
             </div>
@@ -264,6 +265,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                 isActive={pathname === '/admin'}
                 isCollapsed={isCollapsed && !isMobile}
                 isMobile={isMobile}
+                onClick={handleNavClick}
               />
 
               {/* System Configuration */}
@@ -284,6 +286,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                       isActive={isRouteActive(item.href)}
                       isCollapsed={isCollapsed && !isMobile}
                       isMobile={isMobile}
+                      onClick={handleNavClick}
                     />
                   ))}
                 </>
@@ -335,6 +338,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                                   isCollapsed={false}
                                   isMobile={isMobile}
                                   isChild={true}
+                                  onClick={handleNavClick}
                                 />
                               )
                             })}
@@ -362,6 +366,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                     isActive={isRouteActive(sandboxNavItem.href)}
                     isCollapsed={isCollapsed && !isMobile}
                     isMobile={isMobile}
+                    onClick={handleNavClick}
                   />
                 </>
               )}
