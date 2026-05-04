@@ -204,7 +204,7 @@ function ConfigField({ label, value, mono }: { label: string; value: React.React
   return (
     <div className="py-2">
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      <div className={`mt-1 text-sm ${mono ? 'font-mono' : ''}`}>{value || 'N/A'}</div>
+      <div className={`mt-1 text-sm break-all ${mono ? 'font-mono' : ''}`}>{value || 'N/A'}</div>
     </div>
   )
 }
