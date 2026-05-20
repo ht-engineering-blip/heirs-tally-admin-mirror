@@ -87,8 +87,7 @@ function LoginPage() {
       const tenantId = loginData.tenant?.id
       
 
-      // Set access_token cookie so the API proxy can read it directly
-      //document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+      localStorage.setItem('access_token', authToken)
 
       // Step 2: Fetch user data from /me
       const meResponse = await tenantApi.getMeWithToken(authToken)
@@ -117,9 +116,8 @@ function LoginPage() {
         }
       }
 
-      // Step 3: Sign into NextAuth with tenantId
+      // Step 3: Sign into NextAuth — identity only, token lives in access_token cookie
       const result = await signIn('credentials', {
-        token: authToken,
         email: data.email,
         name: userName,
         role: userRole,
