@@ -50,16 +50,15 @@ export const authOptions: NextAuthConfig = {
           }
         }
 
-        // Handle token-based authentication (for tenant/team members)
-        if (credentials?.token) {
-          // Token is already validated by the calling page
-          // Just return the user data from credentials, including the token
+        // Handle token-based authentication (for tenant/team members).
+        // The backend JWT is stored in the access_token browser cookie — not in
+        // the session — so credentials only carry identity fields here.
+        if (credentials?.email) {
           return {
-            id: credentials.email as string || credentials.token as string,
+            id: credentials.email as string,
             name: credentials.name as string || 'User',
-            email: credentials.email as string || undefined,
+            email: credentials.email as string,
             role: credentials.role as User['role'] || 'BUSINESS_TEAM_MEMBER',
-            token: credentials.token as string,
             tenantId: credentials.tenantId as string || undefined,
           }
         }
@@ -83,10 +82,6 @@ export const authOptions: NextAuthConfig = {
         token.role = user.role
         token.name = user.name
         token.email = user.email
-        // Store the API token so the proxy can read it from the JWT
-        if ((user as any).token) {
-          token.token = (user as any).token
-        }
         if ((user as any).tenantId) {
           token.tenantId = (user as any).tenantId
         }
