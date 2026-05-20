@@ -23,14 +23,21 @@ function handle401(response: Response) {
   }
 }
 
-// Shared Eden Treaty config with 401 interceptor
+function getAccessToken(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  return localStorage.getItem('access_token') ?? undefined
+}
+
+// Shared Eden Treaty config with 401 interceptor and bearer token injection
 const sharedConfig = {
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  fetch: {
-    credentials: 'include' as const,
-  },
+  fetch: { credentials: 'include' as const },
+  headers: [
+    { 'Content-Type': 'application/json' },
+    () => {
+      const token = getAccessToken()
+      return token ? { Authorization: `Bearer ${token}` } : undefined
+    },
+  ],
   onResponse: (response: Response) => {
     handle401(response)
   },
@@ -59,11 +66,13 @@ export async function fetchAdminApi<T = any>(
   options?: RequestInit
 ): Promise<T> {
   const url = `${API_URL}${path}`
+  const token = getAccessToken()
   const response = await fetch(url, {
     ...options,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   })
