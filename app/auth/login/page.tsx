@@ -203,12 +203,6 @@ function LoginPage() {
                   <FormItem>
                     <div className="flex items-center justify-between">
                       <FormLabel>Password</FormLabel>
-                      <Link
-                        href="/auth/forgot-password"
-                        className="text-sm text-primary hover:underline"
-                      >
-                        Forgot password?
-                      </Link>
                     </div>
                     <FormControl>
                       <div className="relative">
@@ -260,12 +254,6 @@ function LoginPage() {
           </Form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
-          <div className="text-sm text-center text-muted-foreground">
-            Don't have an account?{' '}
-            <Link href="/auth/register" className="text-primary hover:underline font-medium">
-              Sign up
-            </Link>
-          </div>
         </CardFooter>
       </Card>
     </div>
