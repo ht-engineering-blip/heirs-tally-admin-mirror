@@ -1,12 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -16,9 +11,14 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Mail, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/sonner'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Mail } from 'lucide-react'
+import Link from 'next/link'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import * as z from 'zod'
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -38,8 +38,9 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     try {
-      const { api } = await import('@/lib/api/client')
-      const response = await (api as any).v1.auth['forgot-password'].post({ email: data.email })
+      const { createTenantApi } = await import('@/lib/api/tenant-api')
+      const tenantApi = createTenantApi()
+      const response = await tenantApi.forgotPassword(data.email)
 
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to send reset link. Please try again.'

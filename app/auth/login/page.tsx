@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/sonner'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, FileText, Loader2, Lock, Mail } from 'lucide-react'
@@ -29,6 +30,7 @@ const loginSchema = z.object({
 })
 
 type LoginFormValues = z.infer<typeof loginSchema>
+type LoginTab = 'business-admin' | 'team-member'
 
 export default function LoginPageWrapper() {
   return (
@@ -44,6 +46,7 @@ function LoginPage() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [activeTab, setActiveTab] = useState<LoginTab>('business-admin')
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -60,14 +63,20 @@ function LoginPage() {
     }
   }, [searchParams])
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as LoginTab)
+    setError(null)
+  }
+
   const onSubmit = async (data: LoginFormValues) => {
     try {
       setError(null)
       const tenantApi = createTenantApi()
 
-      // Step 1: Login
-      const loginResponse = await tenantApi.login(data.email, data.password)
- 
+      const loginResponse = activeTab === 'business-admin'
+        ? await tenantApi.login(data.email, data.password)
+        : await tenantApi.loginTeamMember(data.email, data.password)
+
       if (loginResponse.error || (loginResponse.data as any)?.error) {
         const errorMessage = (loginResponse.error as any)?.value?.error || (loginResponse.data as any)?.error || 'Invalid credentials'
         setError(errorMessage)
@@ -76,7 +85,7 @@ function LoginPage() {
       }
 
       const loginData = (loginResponse.data as any)?.data
- 
+
       if (!loginData?.token) {
         setError('Failed to authenticate')
         toast.error('Failed to authenticate')
@@ -85,14 +94,12 @@ function LoginPage() {
 
       const authToken = loginData.token
       const tenantId = loginData.tenant?.id
-      
 
       localStorage.setItem('access_token', authToken)
 
-      // Step 2: Fetch user data from /me
       const meResponse = await tenantApi.getMeWithToken(authToken)
 
-      
+      console.log('Me response:', meResponse?.data?.data)
 
       if (meResponse.error) {
         const errorMessage = (meResponse.error as any)?.value?.error || 'Failed to fetch user data'
@@ -102,7 +109,7 @@ function LoginPage() {
       }
 
       let userName = loginData.tenant?.businessName || 'User'
-      let userRole: string = 'BUSINESS_ADMIN'
+      let userRole: string = activeTab === 'business-admin' ? 'BUSINESS_ADMIN' : 'BUSINESS_TEAM_MEMBER'
 
       if (meResponse.data?.data) {
         const meData = meResponse.data.data as any
@@ -116,7 +123,6 @@ function LoginPage() {
         }
       }
 
-      // Step 3: Sign into NextAuth — identity only, token lives in access_token cookie
       const result = await signIn('credentials', {
         email: data.email,
         name: userName,
@@ -164,13 +170,20 @@ function LoginPage() {
               </AlertDescription>
             </Alert>
           )}
-          
+
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
+            <TabsList className="w-full">
+              <TabsTrigger value="business-admin" className="flex-1">Business Admin</TabsTrigger>
+              <TabsTrigger value="team-member" className="flex-1">Team Member</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -187,6 +200,7 @@ function LoginPage() {
                           type="email"
                           placeholder="name@example.com"
                           className="pl-10"
+                          autoComplete="off"
                           {...field}
                         />
                       </div>
@@ -195,7 +209,7 @@ function LoginPage() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="password"
@@ -214,6 +228,7 @@ function LoginPage() {
                           type={showPassword ? 'text' : 'password'}
                           placeholder="Enter your password"
                           className="pl-10 pr-10"
+                          autoComplete="current-password"
                           {...field}
                         />
                         <Button

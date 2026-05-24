@@ -61,8 +61,9 @@ function ResetPasswordPage() {
     }
     const validate = async () => {
       try {
-        const { api } = await import('@/lib/api/client')
-        const response = await (api as any).v1.auth['validate-reset-token']({ token }).get()
+        const { createTenantApi } = await import('@/lib/api/tenant-api')
+        const tenantApi = createTenantApi()
+        const response = await tenantApi.validateResetToken(token)
         if (response.error) {
           setTokenValid(false)
           setError('This reset link has expired or is invalid. Please request a new one.')
@@ -93,12 +94,9 @@ function ResetPasswordPage() {
 
     try {
       setError(null)
-      const { api } = await import('@/lib/api/client')
-      
-      const response = await api.v1.auth['reset-password'].post({
-          token,
-          password: data.password,
-        })
+      const { createTenantApi } = await import('@/lib/api/tenant-api')
+      const tenantApi = createTenantApi()
+      const response = await tenantApi.resetPassword(token, data.password)
 
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to reset password'
@@ -107,10 +105,8 @@ function ResetPasswordPage() {
         return
       }
 
-      if (response.data?.success) {
-        toast.success('Password reset successful!')
-        router.push('/auth/login?reset=success')
-      }
+      toast.success('Password reset successful!')
+      router.push('/auth/login?reset=success')
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to reset password. Please try again.'
       setError(errorMessage)
