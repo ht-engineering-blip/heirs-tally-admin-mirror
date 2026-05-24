@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -19,7 +19,7 @@ import {
   FormDescription,
 } from '@/components/ui/form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Lock, ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { FileText, Lock, ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
 
@@ -52,6 +52,30 @@ function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tokenValid, setTokenValid] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (!token) {
+      setTokenValid(false)
+      return
+    }
+    const validate = async () => {
+      try {
+        const { api } = await import('@/lib/api/client')
+        const response = await (api as any).v1.auth['validate-reset-token']({ token }).get()
+        if (response.error) {
+          setTokenValid(false)
+          setError('This reset link has expired or is invalid. Please request a new one.')
+        } else {
+          setTokenValid(true)
+        }
+      } catch {
+        setTokenValid(false)
+        setError('This reset link has expired or is invalid. Please request a new one.')
+      }
+    }
+    validate()
+  }, [token])
 
   const form = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -111,6 +135,53 @@ function ResetPasswordPage() {
 
   const passwordStrength = getPasswordStrength(password)
 
+  if (tokenValid === null) {
+    return (
+      <div className="w-full p-4">
+        <Card className="w-full max-w-md mx-auto shadow-card">
+          <CardContent className="flex flex-col items-center justify-center py-12 space-y-3">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Validating reset link...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (tokenValid === false) {
+    return (
+      <div className="w-full p-4">
+        <Card className="w-full max-w-md mx-auto shadow-card">
+          <CardHeader className="space-y-1 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
+                <FileText className="w-6 h-6 text-primary-foreground" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold">Link expired</CardTitle>
+            <CardDescription>This reset link is invalid or has expired</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {error || 'Invalid or missing reset token. Please request a new password reset link.'}
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+          <CardFooter>
+            <Link href="/auth/forgot-password" className="w-full">
+              <Button className="w-full">
+                Request new reset link
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full p-4">
       <Card className="w-full max-w-md mx-auto shadow-card">
@@ -126,14 +197,6 @@ function ResetPasswordPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!token && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Invalid or missing reset token. Please request a new password reset link.
-              </AlertDescription>
-            </Alert>
-          )}
 
           {error && (
             <Alert variant="destructive" className="mb-4">
@@ -237,10 +300,10 @@ function ResetPasswordPage() {
                 )}
               />
 
-              <Button 
-                type="submit" 
-                className="w-full" 
-                disabled={form.formState.isSubmitting || !token}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={form.formState.isSubmitting}
               >
                 {form.formState.isSubmitting ? 'Resetting password...' : 'Reset password'}
                 {!form.formState.isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -249,18 +312,12 @@ function ResetPasswordPage() {
           </Form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
-          <Link href="/auth/login">
+          <Link href="/auth/login" className="w-full">
             <Button variant="ghost" className="w-full">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to login
             </Button>
           </Link>
-          <div className="text-sm text-center text-muted-foreground">
-            Don't have an account?{' '}
-            <Link href="/auth/register" className="text-primary hover:underline font-medium">
-              Sign up
-            </Link>
-          </div>
         </CardFooter>
       </Card>
     </div>

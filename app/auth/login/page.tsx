@@ -203,6 +203,9 @@ function LoginPage() {
                   <FormItem>
                     <div className="flex items-center justify-between">
                       <FormLabel>Password</FormLabel>
+                      <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline font-medium">
+                        Forgot password?
+                      </Link>
                     </div>
                     <FormControl>
                       <div className="relative">

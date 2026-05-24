@@ -19,7 +19,6 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { FileText, Mail, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
-import { getTenantApiClient } from '@/lib/api/client'
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -30,7 +29,6 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>
 export default function ForgotPasswordPage() {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [submittedEmail, setSubmittedEmail] = useState('')
-  const api = getTenantApiClient()
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {
@@ -40,16 +38,15 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/auth/forgot-password', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(data),
-      // })
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
+      const { api } = await import('@/lib/api/client')
+      const response = await (api as any).v1.auth['forgot-password'].post({ email: data.email })
+
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to send reset link. Please try again.'
+        toast.error(errorMessage)
+        return
+      }
+
       setSubmittedEmail(data.email)
       setIsSubmitted(true)
       toast.success('Password reset link sent to your email')
@@ -88,24 +85,12 @@ export default function ForgotPasswordPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                setIsSubmitted(false)
-                setSubmittedEmail('')
-                form.reset()
-              }}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to login
-            </Button>
-            <div className="text-sm text-center text-muted-foreground">
-              Remember your password?{' '}
-              <Link href="/auth/login" className="text-primary hover:underline font-medium">
-                Sign in
-              </Link>
-            </div>
+            <Link href="/auth/login" className="w-full">
+              <Button variant="outline" className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to login
+              </Button>
+            </Link>
           </CardFooter>
         </Card>
       </div>
@@ -163,18 +148,12 @@ export default function ForgotPasswordPage() {
           </Form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
-          <Link href="/auth/login">
+          <Link href="/auth/login" className="w-full">
             <Button variant="ghost" className="w-full">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to login
             </Button>
           </Link>
-          <div className="text-sm text-center text-muted-foreground">
-            Don't have an account?{' '}
-            <Link href="/auth/register" className="text-primary hover:underline font-medium">
-              Sign up
-            </Link>
-          </div>
         </CardFooter>
       </Card>
     </div>
