@@ -98,9 +98,6 @@ function LoginPage() {
       localStorage.setItem('access_token', authToken)
 
       const meResponse = await tenantApi.getMeWithToken(authToken)
-
-      console.log('Me response:', meResponse?.data?.data)
-
       if (meResponse.error) {
         const errorMessage = (meResponse.error as any)?.value?.error || 'Failed to fetch user data'
         setError(errorMessage)
