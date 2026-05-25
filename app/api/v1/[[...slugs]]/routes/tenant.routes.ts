@@ -81,7 +81,7 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
 
       const responseText = await response.text()
 
-      console.log("Proxy Resp: "+ responseText)
+      // console.log("Proxy Resp: "+ responseText)
       let data: any
       try {
         data = responseText ? JSON.parse(responseText) : {}

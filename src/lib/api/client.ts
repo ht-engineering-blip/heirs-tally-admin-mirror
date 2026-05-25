@@ -103,6 +103,7 @@ const sharedConfig = {
 
 export const api = treaty<typeof app>(API_URL, sharedConfig)
 
+
 export function getTenantApiClient() {
   return treaty<typeof app>(`${API_URL}/tenants`, sharedConfig)
 }
