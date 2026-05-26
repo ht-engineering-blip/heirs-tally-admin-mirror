@@ -1,186 +1,225 @@
-'use client'
+"use client";
 
-import { Suspense, useState } from 'react'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { signIn } from 'next-auth/react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
-} from '@/components/ui/form'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Lock, ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
-import { toast } from '@/components/ui/sonner'
-import { cn } from '@/lib/utils'
-import { getTenantApiClient } from '@/lib/api/client'
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/sonner";
+import { createTenantApi } from "@/lib/api/tenant-api";
+import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+} from "lucide-react";
+import { signIn } from "next-auth/react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
-const setPasswordSchema = z.object({
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number'),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ['confirmPassword'],
-})
+const setPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
-type SetPasswordFormValues = z.infer<typeof setPasswordSchema>
+type SetPasswordFormValues = z.infer<typeof setPasswordSchema>;
 
 export default function SetPasswordPageWrapper() {
   return (
     <Suspense>
       <SetPasswordPage />
     </Suspense>
-  )
+  );
 }
 
 function SetPasswordPage() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const token = searchParams.get('token')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const api = getTenantApiClient()
+  const api = createTenantApi();
   const form = useForm<SetPasswordFormValues>({
     resolver: zodResolver(setPasswordSchema),
     defaultValues: {
-      password: '',
-      confirmPassword: '',
+      password: "",
+      confirmPassword: "",
     },
-  })
+  });
 
   const onSubmit = async (data: SetPasswordFormValues) => {
     if (!token) {
-      setError('Invalid or missing token')
-      return
+      setError("Invalid or missing token");
+      return;
     }
 
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     try {
       // Call set-password endpoint with token in query parameter
-      const setPasswordResponse = await api.v1.auth['set-password'].post({ password: data.password },{
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      })
+      const setPasswordResponse = await api.resetPassword(data.password, token);
 
       if (setPasswordResponse.error) {
-        const errorMessage = (setPasswordResponse.error as any)?.value?.error || 'Failed to set password'
-        setError(errorMessage)
-        toast.error(errorMessage)
-        setIsLoading(false)
-        return
+        const errorMessage =
+          (setPasswordResponse.error as any)?.value?.error ||
+          "Failed to set password";
+        setError(errorMessage);
+        toast.error(errorMessage);
+        setIsLoading(false);
+        return;
       }
 
       if (!setPasswordResponse.data?.data?.token) {
-        setError('Failed to get authentication token')
-        toast.error('Failed to authenticate')
-        setIsLoading(false)
-        return
+        setError("Failed to get authentication token");
+        toast.error("Failed to authenticate");
+        setIsLoading(false);
+        return;
       }
 
-      const authToken = setPasswordResponse.data.data.token
-      // Set access_token cookie so the API proxy can read it directly
-      document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+      const authToken = setPasswordResponse.data.data.token;
+      localStorage.setItem("access_token", authToken);
 
-      // Call /me endpoint to get user information 
-      const meResponse = await api.v1.auth.me.get({ headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authToken}`,
-      }})
+      // Call /me endpoint to get user information
+      const meResponse = await api.getMe();
 
       if (meResponse.error || !meResponse.data?.data) {
-        setError('Failed to get user information')
-        toast.error('Failed to authenticate')
-        setIsLoading(false)
-        return
+        setError("Failed to get user information");
+        toast.error("Failed to authenticate");
+        setIsLoading(false);
+        return;
       }
 
-      const userData = meResponse.data.data
+      const userData = meResponse.data.data;
 
       // Determine user role based on response type
-      let userRole: string = 'BUSINESS_ADMIN'
-      if ('role' in userData) {
-        userRole = userData.role
-      } else if ('type' in userData && userData.type === 'tenant') {
-        userRole = 'BUSINESS_ADMIN'
+      let userRole: string = "BUSINESS_ADMIN";
+      if ("role" in userData) {
+        userRole = userData.role;
+      } else if ("type" in userData && userData.type === "tenant") {
+        userRole = "BUSINESS_ADMIN";
       }
 
       // Extract tenantId from /me response
-      const tenantId = 'id' in userData && 'type' in userData && (userData as any).type === 'tenant'
-        ? (userData as any).id
-        : 'tenantId' in userData
-          ? (userData as any).tenantId
-          : undefined
+      const tenantId =
+        "id" in userData &&
+        "type" in userData &&
+        (userData as any).type === "tenant"
+          ? (userData as any).id
+          : "tenantId" in userData
+            ? (userData as any).tenantId
+            : undefined;
 
       // Sign in with NextAuth, including the auth token and tenantId
-      const result = await signIn('credentials', {
+      const result = await signIn("credentials", {
         token: authToken,
-        email: 'email' in userData ? userData.email : 'id' in userData ? userData.id : '',
-        name: 'firstName' in userData && 'lastName' in userData
-          ? `${userData.firstName} ${userData.lastName}`
-          : 'businessName' in userData
-            ? userData.businessName
-            : 'User',
+        email:
+          "email" in userData
+            ? userData.email
+            : "id" in userData
+              ? userData.id
+              : "",
+        name:
+          "firstName" in userData && "lastName" in userData
+            ? `${userData.firstName} ${userData.lastName}`
+            : "businessName" in userData
+              ? userData.businessName
+              : "User",
         role: userRole,
         tenantId: tenantId,
         redirect: false,
-      })
+      });
 
       if (result?.error) {
-        setError('Failed to sign in. Please try logging in manually.')
-        toast.error('Authentication failed')
-        setIsLoading(false)
-        return
+        setError("Failed to sign in. Please try logging in manually.");
+        toast.error("Authentication failed");
+        setIsLoading(false);
+        return;
       }
 
-      toast.success('Password set successfully!')
+      toast.success("Password set successfully!");
 
       // Redirect based on role
-      window.location.href = userRole === 'SUPER_ADMIN' ? '/admin' : '/dashboard'
+      window.location.href =
+        userRole === "SUPER_ADMIN" ? "/admin" : "/dashboard";
     } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to set password. Please try again.'
-      setError(errorMessage)
-      toast.error(errorMessage)
-      setIsLoading(false)
+      const errorMessage =
+        err?.message || "Failed to set password. Please try again.";
+      setError(errorMessage);
+      toast.error(errorMessage);
+      setIsLoading(false);
     }
-  }
+  };
 
-  const password = form.watch('password')
+  const password = form.watch("password");
   const getPasswordStrength = (pwd: string) => {
-    if (!pwd) return { strength: 0, label: '', bgColor: '', textColor: '' }
-    let strength = 0
-    if (pwd.length >= 8) strength++
-    if (/[A-Z]/.test(pwd)) strength++
-    if (/[a-z]/.test(pwd)) strength++
-    if (/[0-9]/.test(pwd)) strength++
-    if (/[^A-Za-z0-9]/.test(pwd)) strength++
-    
-    if (strength <= 2) return { strength, label: 'Weak', bgColor: 'bg-destructive', textColor: 'text-destructive' }
-    if (strength <= 4) return { strength, label: 'Medium', bgColor: 'bg-warning', textColor: 'text-warning' }
-    return { strength, label: 'Strong', bgColor: 'bg-success', textColor: 'text-success' }
-  }
+    if (!pwd) return { strength: 0, label: "", bgColor: "", textColor: "" };
+    let strength = 0;
+    if (pwd.length >= 8) strength++;
+    if (/[A-Z]/.test(pwd)) strength++;
+    if (/[a-z]/.test(pwd)) strength++;
+    if (/[0-9]/.test(pwd)) strength++;
+    if (/[^A-Za-z0-9]/.test(pwd)) strength++;
 
-  const passwordStrength = getPasswordStrength(password)
+    if (strength <= 2)
+      return {
+        strength,
+        label: "Weak",
+        bgColor: "bg-destructive",
+        textColor: "text-destructive",
+      };
+    if (strength <= 4)
+      return {
+        strength,
+        label: "Medium",
+        bgColor: "bg-warning",
+        textColor: "text-warning",
+      };
+    return {
+      strength,
+      label: "Strong",
+      bgColor: "bg-success",
+      textColor: "text-success",
+    };
+  };
+
+  const passwordStrength = getPasswordStrength(password);
 
   if (!token) {
     return (
@@ -201,7 +240,8 @@ function SetPasswordPage() {
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Invalid or missing token. Please request a new password setup link.
+                Invalid or missing token. Please request a new password setup
+                link.
               </AlertDescription>
             </Alert>
           </CardContent>
@@ -215,7 +255,7 @@ function SetPasswordPage() {
           </CardFooter>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -227,7 +267,9 @@ function SetPasswordPage() {
               <Lock className="w-6 h-6 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Set your password</CardTitle>
+          <CardTitle className="text-2xl font-bold">
+            Set your password
+          </CardTitle>
           <CardDescription>
             Create a secure password for your account
           </CardDescription>
@@ -252,7 +294,7 @@ function SetPasswordPage() {
                       <div className="relative">
                         <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
-                          type={showPassword ? 'text' : 'password'}
+                          type={showPassword ? "text" : "password"}
                           placeholder="Enter your password"
                           className="pl-10 pr-10"
                           {...field}
@@ -279,21 +321,30 @@ function SetPasswordPage() {
                             <div
                               key={i}
                               className={cn(
-                                'flex-1 rounded-full transition-colors',
+                                "flex-1 rounded-full transition-colors",
                                 i <= passwordStrength.strength
                                   ? passwordStrength.bgColor
-                                  : 'bg-muted'
+                                  : "bg-muted",
                               )}
                             />
                           ))}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Password strength: <span className={cn('font-medium', passwordStrength.textColor)}>{passwordStrength.label}</span>
+                          Password strength:{" "}
+                          <span
+                            className={cn(
+                              "font-medium",
+                              passwordStrength.textColor,
+                            )}
+                          >
+                            {passwordStrength.label}
+                          </span>
                         </p>
                       </div>
                     )}
                     <FormDescription>
-                      Must be at least 8 characters with uppercase, lowercase, and number
+                      Must be at least 8 characters with uppercase, lowercase,
+                      and number
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -310,7 +361,7 @@ function SetPasswordPage() {
                       <div className="relative">
                         <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
-                          type={showConfirmPassword ? 'text' : 'password'}
+                          type={showConfirmPassword ? "text" : "password"}
                           placeholder="Confirm your password"
                           className="pl-10 pr-10"
                           {...field}
@@ -320,7 +371,9 @@ function SetPasswordPage() {
                           variant="ghost"
                           size="icon"
                           className="absolute right-0 top-0 h-full px-3"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          onClick={() =>
+                            setShowConfirmPassword(!showConfirmPassword)
+                          }
                         >
                           {showConfirmPassword ? (
                             <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -335,11 +388,7 @@ function SetPasswordPage() {
                 )}
               />
 
-              <Button 
-                type="submit" 
-                className="w-full" 
-                disabled={isLoading}
-              >
+              <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -365,5 +414,5 @@ function SetPasswordPage() {
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }

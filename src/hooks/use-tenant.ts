@@ -1,6 +1,6 @@
 'use client'
 
-import { getTenantApiClient } from '@/lib/api/client'
+import { createTenantApi } from '@/lib/api/tenant-api'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from './use-session'
 
@@ -15,8 +15,8 @@ export function useTenant() {
     // when /me is failing.
     queryKey: ['tenant-me'],
     queryFn: async () => {
-      const api = getTenantApiClient()
-      const response = await api.v1.auth.me.get()
+      const api = createTenantApi()
+      const response = await api.getMe()
       if (response.error) {
         throw new Error((response.error as any)?.value?.error || 'Failed to fetch tenant data')
       }

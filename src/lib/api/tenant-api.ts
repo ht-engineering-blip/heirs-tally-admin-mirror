@@ -7,6 +7,18 @@ export function createTenantApi() {
     login: (email: string, password: string) =>
       api.v1.auth.post({ email, password }),
 
+    loginTeamMember: (email: string, password: string) =>
+      (api as any).v1.auth['team-member'].post({ email, password }),
+
+    forgotPassword: (email: string) =>
+      (api as any).v1.auth['forgot-password'].post({ email }),
+
+    validateResetToken: (token: string) =>
+      (api as any).v1.auth['validate-reset-token']({ token }).get(),
+
+    resetPassword: (token: string, password: string) =>
+      (api as any).v1.auth['reset-password'].post({ token, password }),
+
     getMe: () =>
       api.v1.auth.me.get(),
 
