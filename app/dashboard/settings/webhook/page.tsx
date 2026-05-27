@@ -38,6 +38,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Copy,
+  Eye,
   FileJson,
   Link2,
   Loader2,
@@ -242,6 +243,7 @@ export default function WebhookSettingsPage() {
   const [webhookHistory, setWebhookHistory] = useState<WebhookEvent[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<WebhookEvent | null>(null)
+  const [viewingJson, setViewingJson] = useState<{ title: string; data: any } | null>(null)
 
   // Listener state
   const [isListening, setIsListening] = useState(false)
@@ -1420,6 +1422,33 @@ export default function WebhookSettingsPage() {
         </Tabs>
       </div>
 
+      {/* JSON Viewer Dialog */}
+      <Dialog open={!!viewingJson} onOpenChange={() => setViewingJson(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <div className="flex items-center justify-between pr-6">
+              <DialogTitle>{viewingJson?.title}</DialogTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify(viewingJson?.data, null, 2))
+                  toast.success('Copied to clipboard')
+                }}
+              >
+                <Copy className="w-3 h-3 mr-2" />
+                Copy
+              </Button>
+            </div>
+          </DialogHeader>
+          <ScrollArea className="h-[calc(85vh-8rem)] mt-2">
+            <pre className="text-xs font-mono bg-muted p-4 rounded-lg whitespace-pre-wrap break-all">
+              {JSON.stringify(viewingJson?.data, null, 2)}
+            </pre>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
       {/* Event Detail Dialog */}
       <Dialog open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -1466,18 +1495,28 @@ export default function WebhookSettingsPage() {
                   <pre className="text-xs font-mono bg-muted p-3 rounded-lg overflow-auto max-h-[200px]">
                     {JSON.stringify(selectedEvent.payload, null, 2)}
                   </pre>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setReceivedPayload(selectedEvent.payload)
-                      setSelectedEvent(null)
-                      handleOpenMapper()
-                    }}
-                  >
-                    <Link2 className="w-3 h-3 mr-2" />
-                    Map this Payload
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setViewingJson({ title: 'Payload', data: selectedEvent.payload })}
+                    >
+                      <Eye className="w-3 h-3 mr-2" />
+                      View Full Payload
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setReceivedPayload(selectedEvent.payload)
+                        setSelectedEvent(null)
+                        handleOpenMapper()
+                      }}
+                    >
+                      <Link2 className="w-3 h-3 mr-2" />
+                      Map this Payload
+                    </Button>
+                  </div>
                 </div>
               )}
 
@@ -1487,6 +1526,14 @@ export default function WebhookSettingsPage() {
                   <pre className="text-xs font-mono bg-muted p-3 rounded-lg overflow-auto max-h-[200px]">
                     {JSON.stringify(selectedEvent.response, null, 2)}
                   </pre>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setViewingJson({ title: 'Response', data: selectedEvent.response })}
+                  >
+                    <Eye className="w-3 h-3 mr-2" />
+                    View Full Response
+                  </Button>
                 </div>
               )}
             </div>
