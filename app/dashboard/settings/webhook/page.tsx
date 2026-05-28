@@ -1510,6 +1510,7 @@ export default function WebhookSettingsPage() {
                       onClick={() => {
                         setReceivedPayload(selectedEvent.payload)
                         setSelectedEvent(null)
+                        setActiveTab('test')
                         handleOpenMapper()
                       }}
                     >
