@@ -182,19 +182,19 @@
 @layer components {
   /* KPI Card styles */
   .kpi-card {
-    @apply bg-card rounded-xl p-6 shadow-card transition-all duration-200;
+    @apply bg-card rounded-xl p-4 xl:p-6 shadow-card transition-all duration-200;
   }
-  
+
   .kpi-card:hover {
     @apply shadow-card-hover;
   }
-  
+
   .kpi-value {
-    @apply text-3xl font-bold text-foreground;
+    @apply text-2xl xl:text-3xl font-bold text-foreground break-words leading-tight;
   }
-  
+
   .kpi-label {
-    @apply text-sm font-medium text-muted-foreground;
+    @apply text-sm font-medium text-muted-foreground leading-snug;
   }
   
   .kpi-trend-up {

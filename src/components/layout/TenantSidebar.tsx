@@ -53,7 +53,7 @@ interface TenantSidebarProps {
 export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }: TenantSidebarProps) {
   const pathname = usePathname()
   const isMobile = useIsMobile()
-  const { user } = useSession()
+  const { user, memberRole } = useSession()
   const { isOnboardingComplete } = useTenant()
   const { hasPermission } = usePermissions()
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
@@ -344,8 +344,8 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
                 <p className="text-sm font-medium text-foreground truncate">
                   {user?.name || 'User'}
                 </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {user?.role?.replace(/_/g, ' ') || 'Business Admin'}
+                <p className="text-xs text-muted-foreground truncate capitalize">
+                  {memberRole || (user?.role === 'BUSINESS_ADMIN' ? 'Business Admin' : 'Team Member')}
                 </p>
               </div>
             )}
