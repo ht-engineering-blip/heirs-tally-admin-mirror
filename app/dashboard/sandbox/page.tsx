@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/sonner'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import Editor from '@monaco-editor/react'
@@ -42,7 +43,19 @@ const updateStep = (timeline: TimelineStep[], stepId: string, updates: Partial<T
   timeline.map(s => s.id === stepId ? { ...s, ...updates, timestamp: updates.timestamp || s.timestamp || new Date() } : s)
 
 export default function SandboxPage() {
+  const { hasPermission } = usePermissions()
   const { tenantData } = useTenant()
+
+  if (!hasPermission('sandbox:test')) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <p className="text-lg font-semibold">Access Restricted</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          You don&apos;t have permission to use the sandbox.
+        </p>
+      </div>
+    )
+  }
   const tenantErp = (tenantData as any)?.erpSystem || ''
   const { erpOptions } = useSupportedErps({ includeAll: true })
   const ERP_OPTIONS = erpOptions.filter(

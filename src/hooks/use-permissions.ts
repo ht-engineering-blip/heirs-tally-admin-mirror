@@ -94,8 +94,23 @@ export enum MEMBER_ROLES {
   VIEWER = 'viewer',
 }
 
-// admin team members get the same rights as the tenant owner
-const TEAM_ADMIN_PERMISSIONS: Permission[] = [...BUSINESS_ADMIN_PERMISSIONS]
+// admin team members can do most things but cannot manage API keys or team
+// membership — those are reserved for the tenant owner (BUSINESS_ADMIN).
+const TEAM_ADMIN_PERMISSIONS: Permission[] = [
+  'tenants:read',
+  'tenants:update',
+  'erp:configure',
+  'erp:view',
+  'api-keys:read',       // can view keys but not create / rotate / revoke
+  'sandbox:test',
+  'team:read',           // can view the team list but not invite / update / remove
+  'settings:read',
+  'settings:update',
+  'profile:read',
+  'profile:update',
+  'transactions:read',
+  'transactions:resend',
+]
 
 // viewer team members can only read
 const TEAM_VIEWER_PERMISSIONS: Permission[] = [

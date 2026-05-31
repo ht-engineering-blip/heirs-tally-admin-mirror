@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Settings2, Plug } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { SectionLoader } from '@/components/shared/SectionLoader'
@@ -13,6 +14,8 @@ import { ErpSyncForm, ErpSyncDefaultValues, ErpSyncPayload } from '@/components/
 
 export default function ErpSyncPage() {
   const { tenantId, tenantData, isLoading: tenantLoading } = useTenant()
+  const { hasPermission } = usePermissions()
+  const canConfigure = hasPermission('erp:configure')
   const [config, setConfig] = useState<any>(null)
   const [isLoadingConfig, setIsLoadingConfig] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -131,10 +134,12 @@ export default function ErpSyncPage() {
             <p className="text-sm text-muted-foreground text-center max-w-md mb-4">
               Set up your ERP sync configuration to automatically sync invoices between your ERP system and the platform.
             </p>
-            <Button onClick={() => setIsEditing(true)}>
-              <Settings2 className="h-4 w-4 mr-2" />
-              Configure ERP Sync
-            </Button>
+            {canConfigure && (
+              <Button onClick={() => setIsEditing(true)}>
+                <Settings2 className="h-4 w-4 mr-2" />
+                Configure ERP Sync
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -152,12 +157,16 @@ export default function ErpSyncPage() {
                 <Badge variant={config.enabled ? 'default' : 'secondary'}>
                   {config.enabled ? 'Enabled' : 'Disabled'}
                 </Badge>
-                <Button variant="outline" size="sm" onClick={handleToggleEnabled} disabled={isSaving}>
-                  {config.enabled ? 'Disable' : 'Enable'}
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                  Edit
-                </Button>
+                {canConfigure && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={handleToggleEnabled} disabled={isSaving}>
+                      {config.enabled ? 'Disable' : 'Enable'}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                      Edit
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </CardHeader>
