@@ -105,12 +105,42 @@ export function DataTable<T extends { id: string }>({
   const [sortConfig, setSortConfig] = useState<{ key: string; order: 'asc' | 'desc' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pageSizeState, setPageSizeState] = useState(pageSize);
+  // Internal page for client-side (uncontrolled) mode — used when onPageChange is not provided.
+  const [internalPage, setInternalPage] = useState(1);
 
-  const total = totalItems || data.length;
+  const isControlled = !!onPageChange;
+  const effectivePage = isControlled ? currentPage : internalPage;
+
+  // Client-side search: filter data when no onSearch handler is wired up.
+  const filteredData = (!onSearch && search)
+    ? data.filter((item) =>
+        Object.values(item as any).some(
+          (v) => typeof v === 'string' && v.toLowerCase().includes(search.toLowerCase())
+        )
+      )
+    : data;
+
+  const total = totalItems ?? filteredData.length;
   const totalPages = Math.ceil(total / pageSizeState);
+
+  const handlePageChange = (page: number) => {
+    if (isControlled) {
+      onPageChange!(page);
+    } else {
+      setInternalPage(page);
+    }
+  };
+
+  // Client-side pagination slice — only applied in uncontrolled mode.
+  const displayData = isControlled
+    ? filteredData
+    : filteredData.slice((effectivePage - 1) * pageSizeState, effectivePage * pageSizeState);
 
   const handleSearch = (value: string) => {
     setSearch(value);
+    if (!onSearch) {
+      setInternalPage(1); // reset to first page when the local filter changes
+    }
     onSearch?.(value);
   };
 
@@ -131,11 +161,11 @@ export function DataTable<T extends { id: string }>({
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(new Set(data.map(item => item.id)));
+      setSelectedIds(new Set(displayData.map(item => item.id)));
     } else {
       setSelectedIds(new Set());
     }
-    onSelectionChange?.(checked ? data : []);
+    onSelectionChange?.(checked ? displayData : []);
   };
 
   const handleSelectRow = (id: string, checked: boolean) => {
@@ -231,7 +261,7 @@ export function DataTable<T extends { id: string }>({
               {selectable && (
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={selectedIds.size === data.length && data.length > 0}
+                    checked={displayData.length > 0 && displayData.every(item => selectedIds.has(item.id))}
                     onCheckedChange={handleSelectAll}
                   />
                 </TableHead>
@@ -274,7 +304,7 @@ export function DataTable<T extends { id: string }>({
                   <SectionLoader message="Loading" size="sm" />
                 </TableCell>
               </TableRow>
-            ) : data.length === 0 ? (
+            ) : displayData.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0)}
@@ -284,7 +314,7 @@ export function DataTable<T extends { id: string }>({
                 </TableCell>
               </TableRow>
             ) : (
-              data.map((item) => (
+              displayData.map((item) => (
                 <TableRow
                   key={item.id}
                   className={cn(
@@ -353,8 +383,8 @@ export function DataTable<T extends { id: string }>({
             </SelectContent>
           </Select>
           <span>
-            Showing {Math.min((currentPage - 1) * pageSizeState + 1, total)} to{' '}
-            {Math.min(currentPage * pageSizeState, total)} of {total} entries
+            Showing {Math.min((effectivePage - 1) * pageSizeState + 1, total)} to{' '}
+            {Math.min(effectivePage * pageSizeState, total)} of {total} entries
           </span>
         </div>
 
@@ -362,39 +392,39 @@ export function DataTable<T extends { id: string }>({
           <Button
             variant="outline"
             size="icon"
-            onClick={() => onPageChange?.(1)}
-            disabled={currentPage === 1}
+            onClick={() => handlePageChange(1)}
+            disabled={effectivePage === 1}
           >
             <ChevronsLeft className="w-4 h-4" />
           </Button>
           <Button
             variant="outline"
             size="icon"
-            onClick={() => onPageChange?.(currentPage - 1)}
-            disabled={currentPage === 1}
+            onClick={() => handlePageChange(effectivePage - 1)}
+            disabled={effectivePage === 1}
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          
+
           {/* Page numbers */}
           <div className="flex items-center gap-1">
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               let pageNum: number;
               if (totalPages <= 5) {
                 pageNum = i + 1;
-              } else if (currentPage <= 3) {
+              } else if (effectivePage <= 3) {
                 pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
+              } else if (effectivePage >= totalPages - 2) {
                 pageNum = totalPages - 4 + i;
               } else {
-                pageNum = currentPage - 2 + i;
+                pageNum = effectivePage - 2 + i;
               }
               return (
                 <Button
                   key={pageNum}
-                  variant={currentPage === pageNum ? 'default' : 'outline'}
+                  variant={effectivePage === pageNum ? 'default' : 'outline'}
                   size="icon"
-                  onClick={() => onPageChange?.(pageNum)}
+                  onClick={() => handlePageChange(pageNum)}
                 >
                   {pageNum}
                 </Button>
@@ -405,16 +435,16 @@ export function DataTable<T extends { id: string }>({
           <Button
             variant="outline"
             size="icon"
-            onClick={() => onPageChange?.(currentPage + 1)}
-            disabled={currentPage === totalPages}
+            onClick={() => handlePageChange(effectivePage + 1)}
+            disabled={effectivePage === totalPages}
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
           <Button
             variant="outline"
             size="icon"
-            onClick={() => onPageChange?.(totalPages)}
-            disabled={currentPage === totalPages}
+            onClick={() => handlePageChange(totalPages)}
+            disabled={effectivePage === totalPages}
           >
             <ChevronsRight className="w-4 h-4" />
           </Button>

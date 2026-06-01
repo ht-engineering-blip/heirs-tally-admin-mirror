@@ -93,7 +93,7 @@ function LoginPage() {
       }
 
       const authToken = loginData.token
-      const tenantId = loginData.tenant?.id
+      let tenantId = loginData.tenant?.id
 
       localStorage.setItem('access_token', authToken)
 
@@ -106,7 +106,11 @@ function LoginPage() {
       }
 
       let userName = loginData.tenant?.businessName || 'User'
-      let userRole: string = activeTab === 'business-admin' ? 'BUSINESS_ADMIN' : 'BUSINESS_TEAM_MEMBER'
+      // Use tab-based role — do NOT override from meData.role, which contains the
+      // team member's permission level ('admin', 'member', 'viewer') rather than the
+      // session role the middleware and useSession hooks expect.
+      const userRole: string = activeTab === 'business-admin' ? 'BUSINESS_ADMIN' : 'BUSINESS_TEAM_MEMBER'
+      let memberRole: string | undefined
 
       if (meResponse.data?.data) {
         const meData = meResponse.data.data as any
@@ -115,8 +119,13 @@ function LoginPage() {
         } else if ('firstName' in meData && 'lastName' in meData) {
           userName = `${meData.firstName} ${meData.lastName}`
         }
-        if ('role' in meData) {
-          userRole = meData.role
+        // Team member login responses use tenantId directly instead of tenant.id
+        if (!tenantId && 'tenantId' in meData) {
+          tenantId = meData.tenantId
+        }
+        // Capture the tenant-level permission role for team members
+        if (activeTab === 'team-member' && 'role' in meData) {
+          memberRole = meData.role
         }
       }
 
@@ -125,6 +134,7 @@ function LoginPage() {
         name: userName,
         role: userRole,
         tenantId: tenantId,
+        memberRole: memberRole,
         redirect: false,
       })
 
