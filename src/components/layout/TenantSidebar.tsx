@@ -1,38 +1,39 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { LogoutDialog } from '@/components/shared/LogoutDialog'
-import {
-  LayoutDashboard,
-  ClipboardCheck,
-  FileText,
-  Building2,
-  Users,
-  Settings,
-  LogOut,
-  X,
-  TestTube,
-  RefreshCcw,
-  KeyIcon,
-  WebhookIcon,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Logo } from '@/components/shared/Logo'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useSession } from '@/hooks/use-session'
 import { useTenant } from '@/hooks/use-tenant'
-import { usePermissions, type Permission } from '@/hooks/use-permissions'
+import { cn } from '@/lib/utils'
+import {
+  Building2,
+  ClipboardCheck,
+  FileText,
+  KeyIcon,
+  LayoutDashboard,
+  LogOut,
+  RefreshCcw,
+  Settings,
+  TestTube,
+  Users,
+  WebhookIcon,
+  X,
+} from 'lucide-react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { NavItem, NavLink, NavLinkWithChildren } from './AdminSidebar'
 
 /* interface NavItem {
@@ -194,7 +195,7 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
       )}
       <aside
         className={cn(
-          'flex flex-col h-screen bg-sidebar/95 transition-all duration-300 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-card',
+          'flex flex-col h-screen bg-sidebar/95 transition-all duration-300 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-card',
           sidebarWidth,
           mobileClasses
         )}
@@ -213,15 +214,14 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
               </Button>
             )}
             <div className={cn('flex items-center gap-3', isMobile && isOpen && 'ml-3')}>
-              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
-                <FileText className="w-5 h-5 text-primary-foreground" />
-              </div>
-              {(!isCollapsed || isMobile) && (
-                <div className="animate-fade-in">
-                  <h1 className="font-bold text-foreground">Heirs E-Invoicing</h1>
-                  <p className="text-xs text-muted-foreground">Admin Tenant</p>
-                </div>
-              )}
+              <Logo
+                href="/dashboard"
+                alt="Heirs E-Invoicing"
+                showText={!isCollapsed || isMobile}
+                title="Heirs E-Invoicing Admin"
+                subtitle="Admin Tenant"
+                imageClassName="rounded-full"
+              />
             </div>
           </div>
         </div>

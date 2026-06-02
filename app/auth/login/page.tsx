@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/sonner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usePersistedTab } from '@/hooks/use-persisted-tab'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, FileText, Loader2, Lock, Mail } from 'lucide-react'
@@ -46,7 +47,7 @@ function LoginPage() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [activeTab, setActiveTab] = useState<LoginTab>('business-admin')
+  const [activeTab, setPersistedTab] = usePersistedTab('business-admin', 'type')
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -64,7 +65,7 @@ function LoginPage() {
   }, [searchParams])
 
   const handleTabChange = (value: string) => {
-    setActiveTab(value as LoginTab)
+    setPersistedTab(value)
     setError(null)
   }
 
