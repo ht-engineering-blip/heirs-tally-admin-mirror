@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LogoutDialog } from '@/components/shared/LogoutDialog'
+import { Logo } from '@/components/shared/Logo'
 import {
   LayoutDashboard,
   Building2,
@@ -235,15 +236,13 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
               </Button>
             )}
             <div className={cn('flex items-center gap-3', isMobile && isOpen && 'ml-3')}>
-              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
-                <Shield className="w-5 h-5 text-primary-foreground" />
-              </div>
-              {(!isCollapsed || isMobile) && (
-                <div className="animate-fade-in">
-                  <h1 className="font-bold text-foreground">Heirs E-Invoicing</h1>
-                  <p className="text-xs text-muted-foreground">Admin Tenant</p>
-                </div>
-              )}
+              <Logo
+                href="/admin/dashboard"
+                alt="Heirs E-Invoicing"
+                showText={!isCollapsed || isMobile}
+                title="Heirs E-Invoicing Admin"
+                subtitle="Super Admin"
+              />
             </div>
           </div>
         </div>
