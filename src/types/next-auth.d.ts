@@ -6,6 +6,8 @@ declare module 'next-auth' {
     user: {
       id: string
       role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER'
+      /** Permission level within the tenant: 'admin' | 'member' | 'viewer' — only set for BUSINESS_TEAM_MEMBER */
+      memberRole?: string
       name: string
       email?: string
       tenantId?: string
@@ -15,6 +17,7 @@ declare module 'next-auth' {
   interface User {
     id: string
     role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER'
+    memberRole?: string
     name: string
     email?: string
   }
@@ -24,6 +27,7 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id: string
     role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER'
+    memberRole?: string
     name: string
     email?: string
     token?: string // API token for tenant/team member authentication

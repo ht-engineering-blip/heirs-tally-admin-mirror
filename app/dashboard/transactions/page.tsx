@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePermissions } from "@/hooks/use-permissions";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { createTenantApi } from "@/lib/api/tenant-api";
 import { cn } from "@/lib/utils";
@@ -126,6 +127,8 @@ const transactionFilters: FilterOption[] = [
 const PAGE_SIZE = 10;
 
 export default function TransactionsPage() {
+  const { hasPermission } = usePermissions();
+  const canResend = hasPermission("transactions:resend");
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -849,7 +852,7 @@ export default function TransactionsPage() {
           Download QR Code
         </DropdownMenuItem>
       )}
-      {inv.paymentStatus !== "cancelled" && (
+      {canResend && inv.paymentStatus !== "cancelled" && (
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -870,12 +873,13 @@ export default function TransactionsPage() {
           </DropdownMenuItem>
         </>
       )}
-      {inv.type === "outbound" &&
+      {canResend &&
+        inv.type === "outbound" &&
         isFailed(inv.status) &&
         (hasJobError(inv) || !!inv.lastJobError?.action) && (
           <DropdownMenuSeparator />
         )}
-      {inv.type === "outbound" && isFailed(inv.status) && hasJobError(inv) && (
+      {canResend && inv.type === "outbound" && isFailed(inv.status) && hasJobError(inv) && (
         <DropdownMenuItem
           onClick={() => {
             setSelectedInvoice(inv);
@@ -886,7 +890,8 @@ export default function TransactionsPage() {
           Resend Invoice
         </DropdownMenuItem>
       )}
-      {inv.type === "outbound" &&
+      {canResend &&
+        inv.type === "outbound" &&
         isFailed(inv.status) &&
         inv.lastJobError?.action && (
           <DropdownMenuItem
@@ -1663,7 +1668,8 @@ export default function TransactionsPage() {
             </Tabs>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {selectedInvoice &&
+            {canResend &&
+              selectedInvoice &&
               isFailed(selectedInvoice.status) &&
               hasJobError(selectedInvoice) && (
                 <Button
@@ -1678,7 +1684,8 @@ export default function TransactionsPage() {
                   Resend Invoice
                 </Button>
               )}
-            {selectedInvoice?.type === "outbound" &&
+            {canResend &&
+              selectedInvoice?.type === "outbound" &&
               isFailed(
                 invoiceDetails?.invoice?.status ??
                   selectedInvoice?.status ??

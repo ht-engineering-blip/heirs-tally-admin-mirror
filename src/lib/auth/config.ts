@@ -34,6 +34,10 @@ export const authOptions: NextAuthConfig = {
           label: 'Tenant ID',
           type: 'text',
         },
+        memberRole: {
+          label: 'Member Role',
+          type: 'text',
+        },
       },
       async authorize(credentials): Promise<User | JWT | null> {
         // Handle login key (for super admin)
@@ -60,6 +64,7 @@ export const authOptions: NextAuthConfig = {
             email: credentials.email as string,
             role: credentials.role as User['role'] || 'BUSINESS_TEAM_MEMBER',
             tenantId: credentials.tenantId as string || undefined,
+            memberRole: credentials.memberRole as string || undefined,
           }
         }
 
@@ -85,6 +90,9 @@ export const authOptions: NextAuthConfig = {
         if ((user as any).tenantId) {
           token.tenantId = (user as any).tenantId
         }
+        if ((user as any).memberRole) {
+          token.memberRole = (user as any).memberRole
+        }
       }
       return token
     },
@@ -95,6 +103,7 @@ export const authOptions: NextAuthConfig = {
         session.user.name = token.name || ''
         session.user.email = token.email || undefined
         session.user.tenantId = token.tenantId || undefined
+        session.user.memberRole = token.memberRole || undefined
       }
       return session
     },

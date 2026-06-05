@@ -153,8 +153,8 @@ export default function Tenants() {
       } else if (response.data?.data) {
         const tenantData = response.data.data as any[];
         const mappedTenants: Tenant[] = tenantData.map((t: any) => ({
-          id: t.id || t._id || t.tenantId,
-          tenantId: t.tenantId || t.id || t._id,
+          id: String(t.id?.$oid ?? t._id?.$oid ?? t.id ?? t._id ?? t.tenantId ?? ""),
+          tenantId: String(t.tenantId ?? t.id?.$oid ?? t._id?.$oid ?? t.id ?? t._id ?? ""),
           businessName: t.businessName,
           tin: t.tin,
           businessRegistrationNumber: t.businessRegistrationNumber,

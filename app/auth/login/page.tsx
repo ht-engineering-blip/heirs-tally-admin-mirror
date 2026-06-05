@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/sonner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usePersistedTab } from '@/hooks/use-persisted-tab'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, FileText, Loader2, Lock, Mail } from 'lucide-react'
@@ -46,7 +47,7 @@ function LoginPage() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [activeTab, setActiveTab] = useState<LoginTab>('business-admin')
+  const [activeTab, setPersistedTab] = usePersistedTab('business-admin', 'type')
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -64,7 +65,7 @@ function LoginPage() {
   }, [searchParams])
 
   const handleTabChange = (value: string) => {
-    setActiveTab(value as LoginTab)
+    setPersistedTab(value)
     setError(null)
   }
 
@@ -93,7 +94,7 @@ function LoginPage() {
       }
 
       const authToken = loginData.token
-      const tenantId = loginData.tenant?.id
+      let tenantId = loginData.tenant?.id
 
       localStorage.setItem('access_token', authToken)
 
@@ -106,7 +107,11 @@ function LoginPage() {
       }
 
       let userName = loginData.tenant?.businessName || 'User'
-      let userRole: string = activeTab === 'business-admin' ? 'BUSINESS_ADMIN' : 'BUSINESS_TEAM_MEMBER'
+      // Use tab-based role — do NOT override from meData.role, which contains the
+      // team member's permission level ('admin', 'member', 'viewer') rather than the
+      // session role the middleware and useSession hooks expect.
+      const userRole: string = activeTab === 'business-admin' ? 'BUSINESS_ADMIN' : 'BUSINESS_TEAM_MEMBER'
+      let memberRole: string | undefined
 
       if (meResponse.data?.data) {
         const meData = meResponse.data.data as any
@@ -115,8 +120,13 @@ function LoginPage() {
         } else if ('firstName' in meData && 'lastName' in meData) {
           userName = `${meData.firstName} ${meData.lastName}`
         }
-        if ('role' in meData) {
-          userRole = meData.role
+        // Team member login responses use tenantId directly instead of tenant.id
+        if (!tenantId && 'tenantId' in meData) {
+          tenantId = meData.tenantId
+        }
+        // Capture the tenant-level permission role for team members
+        if (activeTab === 'team-member' && 'role' in meData) {
+          memberRole = meData.role
         }
       }
 
@@ -125,6 +135,7 @@ function LoginPage() {
         name: userName,
         role: userRole,
         tenantId: tenantId,
+        memberRole: memberRole,
         redirect: false,
       })
 

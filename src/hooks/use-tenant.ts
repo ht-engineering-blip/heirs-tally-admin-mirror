@@ -38,10 +38,21 @@ export function useTenant() {
     || (data && 'id' in data && 'type' in data && (data as any).type === 'tenant' ? (data as any).id : undefined)
     || (data && 'tenantId' in data ? (data as any).tenantId : undefined)
 
-  // Onboarding data (only on tenant-type /me response)
+  // Onboarding data — present on the tenant-owner /me response but absent on the
+  // team member /me response (which is a user record, not a tenant record).
   const onboarding = data && 'onboarding' in data ? (data as any).onboarding : null
-  // Onboarding data (only on tenant-type /me response)
   const metadata = data && 'metadata' in data ? (data as any).metadata : null
+
+  // Team members cannot complete onboarding and must never be gated by it.
+  // The onboarding endpoint requires a tenant-owner token, so checking it from
+  // a team member session would return 403. Instead, bypass the gate entirely:
+  // if you're a team member with a resolved tenantId, you see the full dashboard.
+  //
+  // Long-term backend fix: include tenant onboarding/status data in the team
+  // member /me response, or allow GET /v1/tenants/:id/onboarding with member tokens.
+  const isOnboardingComplete = isBusinessTeamMember
+    ? !!resolvedTenantId
+    : onboarding?.status === 'active'
 
   return {
     tenantId: resolvedTenantId as string | undefined,
@@ -50,7 +61,7 @@ export function useTenant() {
     onboardingStatus: onboarding?.status || null,
     onboardingProgress: onboarding?.progress || 0,
     onboardingSteps: onboarding?.steps || null,
-    isOnboardingComplete: onboarding?.status === 'active',
+    isOnboardingComplete,
     isLoading,
     error,
     metadata,
