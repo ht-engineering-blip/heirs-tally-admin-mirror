@@ -1,27 +1,27 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from '@/components/ui/form'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Lock, ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertCircle, ArrowLeft, ArrowRight, Eye, EyeOff, FileText, Loader2, Lock } from 'lucide-react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import * as z from 'zod'
 
 const resetPasswordSchema = z.object({
   password: z.string()
