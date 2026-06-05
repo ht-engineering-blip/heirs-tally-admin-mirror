@@ -94,7 +94,7 @@ function SetPasswordPage() {
 
     try {
       // Call set-password endpoint with token in query parameter
-      const setPasswordResponse = await api.resetPassword(data.password, token);
+      const setPasswordResponse = await api.resetPassword( token,data.password);
 
       if (setPasswordResponse.error) {
         const errorMessage =
