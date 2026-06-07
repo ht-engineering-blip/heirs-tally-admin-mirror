@@ -1,7 +1,7 @@
 'use client'
 
 import { ReactNode, useEffect, useState } from 'react';
-import { Sidebar } from './Sidebar';
+import { TenantSidebar } from './TenantSidebar';
 import { Header } from './Header';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -28,7 +28,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="h-screen flex bg-background overflow-hidden">
-      <Sidebar isOpen={!isMobile || sidebarOpen} onClose={() => setSidebarOpen(false)} isCollapsed={sidebarCollapsed}/>
+      <TenantSidebar isOpen={!isMobile || sidebarOpen} onClose={() => setSidebarOpen(false)} isCollapsed={sidebarCollapsed}/>
       <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
         {/* Header - shows different layout on mobile vs desktop */}
         <Header isMobile={isMobile} onMenuClick={() => setSidebarOpen(true)}  isCollapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}  />

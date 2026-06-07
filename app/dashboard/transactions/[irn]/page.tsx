@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { StatusBadge } from '@/components/shared'
 import { toast } from '@/components/ui/sonner'
+import { usePermissions } from '@/hooks/use-permissions'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { SectionLoader } from '@/components/shared/SectionLoader'
 
@@ -38,6 +39,8 @@ export default function TransactionDetailPage() {
   const params = useParams()
   const router = useRouter()
   const irn = params.irn as string
+  const { hasPermission } = usePermissions()
+  const canResend = hasPermission('transactions:resend')
 
   const [isLoading, setIsLoading] = useState(true)
   const [invoiceType, setInvoiceType] = useState<'outbound' | 'inbound' | null>(null)
@@ -170,7 +173,7 @@ export default function TransactionDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={status} />
-            {invoiceType === 'outbound' && isFailed(status) && (
+            {canResend && invoiceType === 'outbound' && isFailed(status) && (
               <Button variant="outline" size="sm" onClick={() => setShowResendDialog(true)}>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Resend

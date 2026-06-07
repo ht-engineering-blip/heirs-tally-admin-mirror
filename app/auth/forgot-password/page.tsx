@@ -1,12 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -16,10 +11,14 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Mail, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/sonner'
-import { getTenantApiClient } from '@/lib/api/client'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Mail } from 'lucide-react'
+import Link from 'next/link'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import * as z from 'zod'
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -30,7 +29,6 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>
 export default function ForgotPasswordPage() {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [submittedEmail, setSubmittedEmail] = useState('')
-  const api = getTenantApiClient()
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {
@@ -40,16 +38,16 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (data: ForgotPasswordFormValues) => {
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/auth/forgot-password', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(data),
-      // })
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
+      const { createTenantApi } = await import('@/lib/api/tenant-api')
+      const tenantApi = createTenantApi()
+      const response = await tenantApi.forgotPassword(data.email)
+
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to send reset link. Please try again.'
+        toast.error(errorMessage)
+        return
+      }
+
       setSubmittedEmail(data.email)
       setIsSubmitted(true)
       toast.success('Password reset link sent to your email')
@@ -88,24 +86,12 @@ export default function ForgotPasswordPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                setIsSubmitted(false)
-                setSubmittedEmail('')
-                form.reset()
-              }}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to login
-            </Button>
-            <div className="text-sm text-center text-muted-foreground">
-              Remember your password?{' '}
-              <Link href="/auth/login" className="text-primary hover:underline font-medium">
-                Sign in
-              </Link>
-            </div>
+            <Link href="/auth/login" className="w-full">
+              <Button variant="outline" className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to login
+              </Button>
+            </Link>
           </CardFooter>
         </Card>
       </div>
@@ -163,18 +149,12 @@ export default function ForgotPasswordPage() {
           </Form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
-          <Link href="/auth/login">
+          <Link href="/auth/login" className="w-full">
             <Button variant="ghost" className="w-full">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to login
             </Button>
           </Link>
-          <div className="text-sm text-center text-muted-foreground">
-            Don't have an account?{' '}
-            <Link href="/auth/register" className="text-primary hover:underline font-medium">
-              Sign up
-            </Link>
-          </div>
         </CardFooter>
       </Card>
     </div>

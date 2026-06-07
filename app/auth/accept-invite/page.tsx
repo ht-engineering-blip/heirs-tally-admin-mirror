@@ -1,29 +1,29 @@
 'use client'
 
-import { Suspense, useState } from 'react'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { signIn } from 'next-auth/react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from '@/components/ui/form'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Lock, ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff, Loader2, UserPlus } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/sonner'
-import { cn } from '@/lib/utils'
 import { getTenantApiClient } from '@/lib/api/client'
+import { cn } from '@/lib/utils'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertCircle, ArrowLeft, ArrowRight, Eye, EyeOff, Loader2, Lock, UserPlus } from 'lucide-react'
+import { signIn } from 'next-auth/react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import * as z from 'zod'
 
 const acceptInviteSchema = z.object({
   password: z.string()
@@ -95,10 +95,10 @@ function AcceptInvitePage() {
         return
       }
 
-      const authToken = acceptInviteResponse.data.data.token
+      const authToken = acceptInviteResponse?.data?.data?.token
       // Set access_token cookie so the API proxy can read it directly
       document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
-      const userData = acceptInviteResponse.data.data
+      const userData = acceptInviteResponse?.data?.data
 
       // Call /me endpoint to get additional user information using fetch
       const API_URL = typeof window !== 'undefined'
@@ -127,7 +127,7 @@ function AcceptInvitePage() {
           email: userData.email,
           name: `${userData.firstName} ${userData.lastName}`,
           role: userRole,
-          tenantId: userData.tenantId,
+          tenantId: (userData as any)?.tenantId,
           redirect: false,
         })
 
@@ -151,7 +151,7 @@ function AcceptInvitePage() {
         ? (fullUserData as any).tenantId
         : 'id' in fullUserData && 'type' in fullUserData && (fullUserData as any).type === 'tenant'
           ? (fullUserData as any).id
-          : userData.tenantId
+          : (userData as any)?.tenantId
 
       // Sign in with NextAuth, including the auth token and tenantId
       const result = await signIn('credentials', {

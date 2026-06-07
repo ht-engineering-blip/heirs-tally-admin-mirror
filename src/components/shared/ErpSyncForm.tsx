@@ -72,7 +72,7 @@ export interface ErpSyncPayload {
   headers?: Record<string, string>
   queryParams?: Record<string, string>
   authentication?: {
-    type: string
+    type: 'none' | 'basic' | 'bearer' | 'api-key' | 'oauth2'
     token?: string
     username?: string
     password?: string

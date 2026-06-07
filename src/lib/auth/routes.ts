@@ -17,7 +17,7 @@ export function getDashboardRoute(role: UserRole | undefined): string {
     case 'BUSINESS_TEAM_MEMBER':
       return '/dashboard'
     default:
-      return '/auth/super-admin/login'
+      return '/auth/login'
   }
 }
 

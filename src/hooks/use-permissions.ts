@@ -87,15 +87,41 @@ export const BUSINESS_TEAM_MEMBER_PERMISSIONS: Permission[] = [
   'transactions:read',
 ]
 
+// Team member sub-roles within a tenant
 export enum MEMBER_ROLES {
-ADMIN = 'admin',
-MEMBER = 'member',
-VIEWER = 'viewer'
+  ADMIN = 'admin',
+  MEMBER = 'member',
+  VIEWER = 'viewer',
 }
+
+// admin team members can do most things but cannot manage API keys or team
+// membership — those are reserved for the tenant owner (BUSINESS_ADMIN).
+const TEAM_ADMIN_PERMISSIONS: Permission[] = [
+  'tenants:read',
+  'tenants:update',
+  'erp:configure',
+  'erp:view',
+  'api-keys:read',       // can view keys but not create / rotate / revoke
+  'sandbox:test',
+  'team:read',           // can view the team list but not invite / update / remove
+  'settings:read',
+  'settings:update',
+  'profile:read',
+  'profile:update',
+  'transactions:read',
+  'transactions:resend',
+]
+
+// viewer team members can only read
+const TEAM_VIEWER_PERMISSIONS: Permission[] = [
+  'tenants:read',
+  'profile:read',
+  'transactions:read',
+]
 
 function getPermissionsForRole(role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER' | undefined): Permission[] {
   if (!role) return []
-  
+
   switch (role) {
     case 'SUPER_ADMIN':
       return SUPER_ADMIN_PERMISSIONS
@@ -108,9 +134,25 @@ function getPermissionsForRole(role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINES
   }
 }
 
+function getTeamMemberPermissions(memberRole: string | undefined): Permission[] {
+  switch (memberRole) {
+    case MEMBER_ROLES.ADMIN:
+      return TEAM_ADMIN_PERMISSIONS
+    case MEMBER_ROLES.VIEWER:
+      return TEAM_VIEWER_PERMISSIONS
+    case MEMBER_ROLES.MEMBER:
+    default:
+      return BUSINESS_TEAM_MEMBER_PERMISSIONS
+  }
+}
+
 export function usePermissions() {
   const { user } = useSession()
-  const permissions = getPermissionsForRole(user?.role)
+
+  const permissions =
+    user?.role === 'BUSINESS_TEAM_MEMBER'
+      ? getTeamMemberPermissions((user as any).memberRole)
+      : getPermissionsForRole(user?.role)
 
   const hasPermission = (permission: Permission): boolean => {
     return permissions.includes(permission)

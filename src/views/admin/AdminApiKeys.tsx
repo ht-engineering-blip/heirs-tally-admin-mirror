@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Plus, RefreshCw, Trash2, Eye, Copy, Key, Building2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
@@ -39,6 +39,8 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
+
+const PAGE_SIZE = 10;
 
 interface ApiKey {
   keyId: string;
@@ -79,12 +81,12 @@ const apiKeyFilters: FilterOption[] = [
 export default function AdminApiKeys() {
   const api = getAdminApiClient();
   const router = useRouter();
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [allKeys, setAllKeys] = useState<ApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [columnSort, setColumnSort] = useState<{ key: string; order: 'asc' | 'desc' } | null>(null);
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -122,16 +124,69 @@ export default function AdminApiKeys() {
     fetchTenants();
   }, []);
 
+  const apiKeyStatusPriority = (status: string) => {
+    const s = (status || '').toLowerCase();
+    if (s === 'active') return 0;
+    if (s === 'revoked') return 1;
+    if (s === 'expired') return 2;
+    return 3;
+  };
+
+  const filteredKeys = useMemo(() => {
+    let result = [...allKeys];
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(k =>
+        (k.businessName || '').toLowerCase().includes(q) ||
+        (k.tenantId || '').toLowerCase().includes(q) ||
+        (k.keyName || '').toLowerCase().includes(q) ||
+        (k.keyPrefix || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (filters.status && filters.status !== 'all') {
+      result = result.filter(k => (k.status || '').toLowerCase() === filters.status.toLowerCase());
+    }
+
+    if (columnSort) {
+      result.sort((a, b) => {
+        let aVal: any = a[columnSort.key as keyof ApiKey];
+        let bVal: any = b[columnSort.key as keyof ApiKey];
+        if (['lastUsed', 'lastUsedAt', 'expiresAt', 'createdAt'].includes(columnSort.key)) {
+          aVal = new Date(aVal || 0).getTime();
+          bVal = new Date(bVal || 0).getTime();
+        } else if (['callCount', 'usageCount'].includes(columnSort.key)) {
+          aVal = Number(aVal || 0);
+          bVal = Number(bVal || 0);
+        } else if (columnSort.key === 'keyPrefix' || columnSort.key === 'maskedKey') {
+          aVal = (a.keyPrefix || a.maskedKey || '').toLowerCase();
+          bVal = (b.keyPrefix || b.maskedKey || '').toLowerCase();
+        } else if (typeof aVal === 'string') {
+          aVal = aVal.toLowerCase();
+          bVal = (bVal || '').toLowerCase();
+        }
+        if (aVal < bVal) return columnSort.order === 'asc' ? -1 : 1;
+        if (aVal > bVal) return columnSort.order === 'asc' ? 1 : -1;
+        return 0;
+      });
+    } else {
+      result.sort((a, b) => {
+        const pa = apiKeyStatusPriority(a.status);
+        const pb = apiKeyStatusPriority(b.status);
+        if (pa !== pb) return pa - pb;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+    }
+
+    return result;
+  }, [allKeys, searchQuery, filters, columnSort]);
+
   const fetchApiKeys = async () => {
     setIsLoading(true);
     try {
-      // Fetch all API keys using the admin endpoint
       const response = await api.v1.tenants['api-keys'].get({
-        query: {
-          page: page,
-          limit: 50,
-          ...(filters.status && filters.status !== 'all' && { status: filters.status }),
-        },
+        query: { page: 1, limit: 1000 },
       });
 
       if (response.error) {
@@ -139,9 +194,6 @@ export default function AdminApiKeys() {
         toast.error(errorMessage);
       } else if (response.data?.data) {
         const apiKeysData = response.data.data as any[];
-        const pagination = response.data.pagination;
-
-        // Transform API response to our interface
         const transformedKeys: ApiKey[] = apiKeysData.map((key: any) => ({
           keyId: key.keyId || key.id || '',
           id: key.keyId || key.id || '',
@@ -162,23 +214,7 @@ export default function AdminApiKeys() {
           contactEmail: key.contactEmail,
           tenantStatus: key.tenantStatus,
         }));
-
-        // Apply search filter
-        let filtered = transformedKeys;
-        if (searchQuery) {
-          const searchLower = searchQuery.toLowerCase();
-          filtered = transformedKeys.filter((key) => {
-            return (
-              (key.businessName || '').toLowerCase().includes(searchLower) ||
-              (key.tenantId || '').toLowerCase().includes(searchLower) ||
-              (key.keyName || '').toLowerCase().includes(searchLower) ||
-              (key.keyPrefix || '').toLowerCase().includes(searchLower)
-            );
-          });
-        }
-
-        setApiKeys(filtered);
-        setTotal(pagination?.total || filtered.length);
+        setAllKeys(transformedKeys);
       }
     } catch (error: any) {
       toast.error(error?.message || 'Failed to load API keys');
@@ -189,7 +225,11 @@ export default function AdminApiKeys() {
 
   useEffect(() => {
     fetchApiKeys();
-  }, [page, searchQuery, filters]);
+  }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, filters]);
 
   const handleCreate = async () => {
     if (!formData.tenantId || !formData.name) {
@@ -309,31 +349,7 @@ export default function AdminApiKeys() {
   };
 
   const handleSort = (key: string, order: 'asc' | 'desc') => {
-    const sorted = [...apiKeys].sort((a, b) => {
-      let aVal: any = a[key as keyof ApiKey];
-      let bVal: any = b[key as keyof ApiKey];
-
-      // Handle date fields
-      if (key === 'lastUsed' || key === 'lastUsedAt' || key === 'expiresAt' || key === 'createdAt') {
-        aVal = new Date(aVal || 0).getTime();
-        bVal = new Date(bVal || 0).getTime();
-      } else if (key === 'callCount' || key === 'usageCount') {
-        aVal = Number(aVal || 0);
-        bVal = Number(bVal || 0);
-      } else if (key === 'keyPrefix' || key === 'maskedKey') {
-        // For API key display, use keyPrefix
-        aVal = (a.keyPrefix || a.maskedKey || '').toLowerCase();
-        bVal = (b.keyPrefix || b.maskedKey || '').toLowerCase();
-      } else if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase();
-        bVal = bVal.toLowerCase();
-      }
-
-      if (aVal < bVal) return order === 'asc' ? -1 : 1;
-      if (aVal > bVal) return order === 'asc' ? 1 : -1;
-      return 0;
-    });
-    setApiKeys(sorted);
+    setColumnSort({ key, order });
   };
 
   const columns: Column<ApiKey>[] = [
@@ -455,10 +471,10 @@ export default function AdminApiKeys() {
   );
 
   const stats = {
-    total: apiKeys.length,
-    active: apiKeys.filter(k => k.status?.toLowerCase() === 'active').length,
-    revoked: apiKeys.filter(k => k.status?.toLowerCase() === 'revoked').length,
-    expired: apiKeys.filter(k => k.status?.toLowerCase() === 'expired').length,
+    total: allKeys.length,
+    active: allKeys.filter(k => k.status?.toLowerCase() === 'active').length,
+    revoked: allKeys.filter(k => k.status?.toLowerCase() === 'revoked').length,
+    expired: allKeys.filter(k => k.status?.toLowerCase() === 'expired').length,
   };
 
   return (
@@ -548,7 +564,7 @@ export default function AdminApiKeys() {
 
         {/* Data Table */}
         <DataTable
-          data={apiKeys}
+          data={filteredKeys.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)}
           columns={columns}
           searchPlaceholder="Search by tenant name, ID, or key..."
           filters={apiKeyFilters}
@@ -556,7 +572,7 @@ export default function AdminApiKeys() {
           selectable
           isLoading={isLoading}
           currentPage={page}
-          totalItems={total}
+          totalItems={filteredKeys.length}
           onPageChange={setPage}
           onSearch={setSearchQuery}
           onFilterChange={setFilters}

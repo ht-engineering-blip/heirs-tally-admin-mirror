@@ -50,8 +50,8 @@ export function KpiCard({
         variantStyles[variant]
       )}
     >
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1 min-w-0 flex-1">
           <p
             className={cn(
               'kpi-label',
@@ -97,7 +97,7 @@ export function KpiCard({
         </div>
         <div
           className={cn(
-            'w-12 h-12 rounded-xl flex items-center justify-center',
+            'w-10 h-10 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center shrink-0',
             iconBgStyles[variant]
           )}
         >

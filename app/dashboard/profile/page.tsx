@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Loader2, Building2, AlertCircle, CheckCircle, Pencil, X, Shield, Eye, EyeOff, Copy } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { SectionLoader } from '@/components/shared/SectionLoader'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
 
@@ -41,6 +42,8 @@ type CredentialsFormValues = z.infer<typeof credentialsSchema>
 
 export default function ProfilePage() {
   const { tenantId, tenantData, metadata, isLoading, error: tenantError, refetch } = useTenant()
+  const { hasPermission } = usePermissions()
+  const canEdit = hasPermission('profile:update')
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
@@ -156,10 +159,12 @@ export default function ProfilePage() {
               <CardDescription>Your registered business details</CardDescription>
             </div>
             {!isEditing ? (
-              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                <Pencil className="h-4 w-4 mr-1" />
-                Edit
-              </Button>
+              canEdit && (
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Edit
+                </Button>
+              )
             ) : (
               <Button variant="ghost" size="sm" onClick={() => { setIsEditing(false); form.reset() }}>
                 <X className="h-4 w-4 mr-1" />
@@ -288,7 +293,7 @@ export default function ProfilePage() {
                   <><Eye className="h-4 w-4 mr-1" /> Show</>
                 )}
               </Button>
-              {!isEditingCredentials && (
+              {!isEditingCredentials && canEdit && (
                 <Button
                   variant="outline"
                   size="sm"

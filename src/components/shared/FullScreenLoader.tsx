@@ -1,6 +1,6 @@
 'use client'
 
-import { Shield } from 'lucide-react'
+import { Logo } from '@/components/shared/Logo'
 import { cn } from '@/lib/utils'
 
 interface FullScreenLoaderProps {
@@ -15,9 +15,7 @@ export function FullScreenLoader({ message = 'Loading', className }: FullScreenL
         {/* Outer spinning ring */}
         <div className="absolute w-16 h-16 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin" />
         {/* Logo icon */}
-        <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
-          <Shield className="w-5 h-5 text-primary-foreground" />
-        </div>
+        <Logo asLink={false} width={40} height={40} imageClassName="rounded-full" />
       </div>
       <div className="flex items-center gap-1.5">
         <p className="text-sm text-muted-foreground font-medium">{message}</p>

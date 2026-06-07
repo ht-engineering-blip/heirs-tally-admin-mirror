@@ -4,43 +4,106 @@ import app from '@/types/server'
 import { treaty } from '@elysiajs/eden'
 import { signOut } from 'next-auth/react'
 
-// This will be typed based on your actual API structure
-// For now, we'll create a generic client that can be extended
-
 const API_URL = typeof window !== 'undefined'
   ? (process.env.NEXT_PUBLIC_API_URL || `${window.location.origin}/api/v1`)
   : process.env.NEXT_PUBLIC_API_URL || '/api/v1'
 
-// Track if we're already handling a 401 to prevent multiple redirects
-let isHandling401 = false
+function getAccessToken(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  return localStorage.getItem('access_token') ?? undefined
+}
 
-function handle401(response: Response) {
-  if (response.status === 401 && !isHandling401 && typeof window !== 'undefined') {
-    isHandling401 = true
-    signOut({ callbackUrl: '/auth/login' }).finally(() => {
-      isHandling401 = false
-    })
+// Singleton refresh promise — prevents multiple simultaneous refresh calls
+// when several requests 401 at the same time.
+let refreshPromise: Promise<string | null> | null = null
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    const currentToken = getAccessToken()
+    if (!currentToken) return null
+
+    try {
+      const res = await fetch(`${API_URL}/tenants/v1/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${currentToken}`,
+        },
+      })
+
+      if (!res.ok) return null
+
+      const body = await res.json()
+      const newToken = body?.data?.token
+      if (newToken) {
+        localStorage.setItem('access_token', newToken)
+        return newToken as string
+      }
+      return null
+    } catch {
+      return null
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
+let isSigningOut = false
+
+function triggerSignOut() {
+  if (isSigningOut || typeof window === 'undefined') return
+  isSigningOut = true
+  signOut({ callbackUrl: '/auth/login' }).finally(() => {
+    isSigningOut = false
+  })
+}
+
+// Fetcher used by Eden Treaty — intercepts 401, attempts token refresh,
+// retries the original request once with the new token before giving up.
+async function fetchWithRefresh(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const res = await fetch(input, init ?? {})
+
+  if (res.status !== 401) return res
+
+  const newToken = await refreshAccessToken()
+
+  if (!newToken) {
+    triggerSignOut()
+    return res
   }
+
+  // Retry original request with the refreshed token
+  return fetch(input, {
+    ...init,
+    headers: {
+      ...((init?.headers as Record<string, string>) || {}),
+      Authorization: `Bearer ${newToken}`,
+    },
+  })
 }
 
-// Shared Eden Treaty config with 401 interceptor
 const sharedConfig = {
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  fetch: {
-    credentials: 'include' as const,
-  },
-  onResponse: (response: Response) => {
-    handle401(response)
-  },
+  fetch: { credentials: 'include' as const },
+  headers: [
+    { 'Content-Type': 'application/json' },
+    () => {
+      const token = getAccessToken()
+      return token ? { Authorization: `Bearer ${token}` } : undefined
+    },
+  ],
+  fetcher: fetchWithRefresh,
 }
 
-// Create the Eden Treaty client
-// Note: This uses the Elysia instance at /api/v1 which proxies to the middleware API
 export const api = treaty<typeof app>(API_URL, sharedConfig)
 
-// Helper function to get typed API client
+
 export function getTenantApiClient() {
   return treaty<typeof app>(`${API_URL}/tenants`, sharedConfig)
 }
@@ -53,22 +116,23 @@ export function getAdminApiClient() {
   return treaty<typeof app>(`${API_URL}/admin`, sharedConfig)
 }
 
-// Direct fetch helper for non-Eden routes
+// Direct fetch helper for non-Eden routes — same refresh-and-retry logic.
 export async function fetchAdminApi<T = any>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
   const url = `${API_URL}${path}`
-  const response = await fetch(url, {
+  const token = getAccessToken()
+
+  const response = await fetchWithRefresh(url, {
     ...options,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   })
-
-  handle401(response)
 
   if (!response.ok) {
     throw new Error(`API Error: ${response.statusText}`)

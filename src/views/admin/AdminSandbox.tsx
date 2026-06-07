@@ -132,8 +132,8 @@ export default function AdminSandbox() {
         setTestResult({ type: 'transform', timeline: updatedTimeline, error: errorMessage });
         toast.error(errorMessage);
       } else if (response.data?.data) {
-        const data = response.data.data;
-        updatedTimeline = updateTimelineStep(updatedTimeline, '2', { 
+        const data = response.data.data as { transformed: any; original: any; errors?: any[] };
+        updatedTimeline = updateTimelineStep(updatedTimeline, '2', {
           status: 'success',
           data: data.transformed,
           timestamp: new Date()
