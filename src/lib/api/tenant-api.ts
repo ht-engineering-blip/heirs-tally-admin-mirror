@@ -19,6 +19,12 @@ export function createTenantApi() {
     resetPassword: (token: string, password: string) =>{
       return (api as any).v1.auth['reset-password'].post({ token, password })},
 
+    setPassword: (token: string, password: string) =>
+      (api as any).v1.auth['set-password'].post(
+        { password },
+        { headers: { Authorization: `Bearer ${token}` } }
+      ),
+
     getMe: () =>
       api.v1.auth.me.get(),
 
