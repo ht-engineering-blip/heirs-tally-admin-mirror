@@ -316,7 +316,7 @@ export function DataTable<T extends { id: string }>({
             ) : (
               displayData.map((item) => (
                 <TableRow
-                  key={item.id}
+                  key={String(item.id)}
                   className={cn(
                     'data-table-row',
                     onRowClick && 'cursor-pointer',

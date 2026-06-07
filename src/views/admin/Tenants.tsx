@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/select";
 import { formatErpName, useSupportedErps } from "@/hooks/use-supported-erps";
 import { getAdminApiClient } from "@/lib/api/client";
-import { Building2, Edit, Eye, Plus, Power, Trash2 } from "lucide-react";
+import { Building2, Edit, Eye, Mail, Plus, Power, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -105,6 +105,8 @@ export default function Tenants() {
     order: "asc" | "desc";
   } | null>(null);
 
+  const [resendingTenantId, setResendingTenantId] = useState<string | null>(null);
+
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -152,9 +154,15 @@ export default function Tenants() {
         toast.error(errorMessage);
       } else if (response.data?.data) {
         const tenantData = response.data.data as any[];
+        const extractId = (v: any): string | undefined => {
+          if (!v) return undefined;
+          if (typeof v === "string") return v;
+          if (typeof v === "object" && v.$oid) return String(v.$oid);
+          return undefined;
+        };
         const mappedTenants: Tenant[] = tenantData.map((t: any) => ({
-          id: String(t.id?.$oid ?? t._id?.$oid ?? t.id ?? t._id ?? t.tenantId ?? ""),
-          tenantId: String(t.tenantId ?? t.id?.$oid ?? t._id?.$oid ?? t.id ?? t._id ?? ""),
+          id: extractId(t.id) ?? extractId(t._id) ?? String(t.tenantId ?? ""),
+          tenantId: String(t.tenantId ?? extractId(t.id) ?? extractId(t._id) ?? ""),
           businessName: t.businessName,
           tin: t.tin,
           businessRegistrationNumber: t.businessRegistrationNumber,
@@ -347,6 +355,29 @@ export default function Tenants() {
       toast.error(error?.message || "Failed to suspend tenant");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleResendActivation = async (tenant: Tenant) => {
+    setResendingTenantId(tenant.tenantId);
+    try {
+      const response = await (api as any).v1
+        .tenants({ tenantId: tenant.tenantId })
+        ['resend-token'].post({});
+
+      if (response.error) {
+        const errorMessage =
+          (response.error as any)?.value?.error || "Failed to resend activation email";
+        toast.error(errorMessage);
+      } else if (!response.data?.success) {
+        toast.error((response.data as any)?.error || "Failed to resend activation email");
+      } else {
+        toast.success(response.data?.message || "Activation email resent successfully");
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to resend activation email");
+    } finally {
+      setResendingTenantId(null);
     }
   };
 
@@ -604,6 +635,15 @@ export default function Tenants() {
         <Edit className="w-4 h-4 mr-2" />
         Update Onboarding
       </DropdownMenuItem>
+      {tenant.status === "inactive" && (
+        <DropdownMenuItem
+          onClick={() => handleResendActivation(tenant)}
+          disabled={resendingTenantId === tenant.tenantId}
+        >
+          <Mail className="w-4 h-4 mr-2" />
+          {resendingTenantId === tenant.tenantId ? "Sending..." : "Resend Activation Email"}
+        </DropdownMenuItem>
+      )}
       {tenant.status === "active" || tenant.status === "onboarding" ? (
         <DropdownMenuItem
           onClick={() => {

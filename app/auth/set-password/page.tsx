@@ -93,13 +93,21 @@ function SetPasswordPage() {
     setError(null);
 
     try {
-      // Call set-password endpoint with token in query parameter
-      const setPasswordResponse = await api.resetPassword( token,data.password);
+      const setPasswordResponse = await api.setPassword(token, data.password);
 
       if (setPasswordResponse.error) {
         const errorMessage =
           (setPasswordResponse.error as any)?.value?.error ||
           "Failed to set password";
+        setError(errorMessage);
+        toast.error(errorMessage);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!setPasswordResponse.data?.success) {
+        const errorMessage =
+          (setPasswordResponse.data as any)?.error || "Failed to set password";
         setError(errorMessage);
         toast.error(errorMessage);
         setIsLoading(false);
