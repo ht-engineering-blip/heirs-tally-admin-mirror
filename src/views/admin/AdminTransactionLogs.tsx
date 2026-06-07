@@ -886,10 +886,11 @@ export default function AdminTransactionLogs() {
         </>
       )}
       {inv.type === "outbound" &&
+        isFailed(inv.status) &&
         (hasJobError(inv) || !!inv.lastJobError?.action) && (
           <DropdownMenuSeparator />
         )}
-      {inv.type === "outbound" && hasJobError(inv) && (
+      {inv.type === "outbound" && isFailed(inv.status) && hasJobError(inv) && (
         <DropdownMenuItem
           onClick={() => {
             setSelectedInvoice(inv);
@@ -900,7 +901,7 @@ export default function AdminTransactionLogs() {
           Resend Invoice
         </DropdownMenuItem>
       )}
-      {inv.type === "outbound" && inv.lastJobError?.action && (
+      {inv.type === "outbound" && isFailed(inv.status) && inv.lastJobError?.action && (
         <DropdownMenuItem
           onClick={() => {
             setSelectedInvoice(inv);
@@ -1597,7 +1598,9 @@ export default function AdminTransactionLogs() {
             </Tabs>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {selectedInvoice && hasJobError(selectedInvoice) && (
+            {selectedInvoice &&
+              isFailed(selectedInvoice.status) &&
+              hasJobError(selectedInvoice) && (
               <Button
                 variant="outline"
                 className="w-full sm:w-auto"
@@ -1611,6 +1614,11 @@ export default function AdminTransactionLogs() {
               </Button>
             )}
             {selectedInvoice?.type === "outbound" &&
+              isFailed(
+                invoiceDetails?.invoice?.status ??
+                  selectedInvoice?.status ??
+                  "",
+              ) &&
               (invoiceDetails?.invoice?.lastJobError?.action ??
                 selectedInvoice?.lastJobError?.action) && (
                 <Button
@@ -1648,7 +1656,7 @@ export default function AdminTransactionLogs() {
             <DialogTitle>Retry from Step</DialogTitle>
             <DialogDescription>
               Resume the failed workflow for invoice{" "}
-              <strong>
+              <strong className="break-all">
                 {selectedInvoice?.invoiceNumber || selectedInvoice?.irn}
               </strong>{" "}
               from a specific step.
@@ -1661,23 +1669,9 @@ export default function AdminTransactionLogs() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(() => {
-                  const failedAction = selectedInvoice?.lastJobError?.action;
-                  const failedIndex = failedAction
-                    ? WORKFLOW_STEP_MAP.findIndex(
-                        (s) => s.apiValue === failedAction,
-                      )
-                    : -1;
-                  return (
-                    failedIndex >= 0
-                      ? WORKFLOW_STEP_MAP.slice(failedIndex)
-                      : WORKFLOW_STEP_MAP
-                  ).map((s) => (
-                    <SelectItem key={s.apiValue} value={s.apiValue}>
-                      {s.label}
-                    </SelectItem>
-                  ));
-                })()}
+                <SelectItem value={selectedInvoice?.lastJobError?.action}>
+                  {selectedInvoice?.lastJobError?.action?.replace(/[-_]/g, " ")}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
@@ -1713,7 +1707,7 @@ export default function AdminTransactionLogs() {
             <AlertDialogTitle>Resend Invoice</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to resend invoice{" "}
-              <strong>
+              <strong className="break-all">
                 {selectedInvoice?.invoiceNumber || selectedInvoice?.irn}
               </strong>
               ? This will restart the workflow from the beginning.
