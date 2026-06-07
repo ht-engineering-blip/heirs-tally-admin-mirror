@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Plus, Eye, Edit, Trash2, Power, Building2, Server, CheckCircle2, XCircle } from 'lucide-react';
 import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
@@ -111,12 +111,13 @@ export default function AdminErpSyncConfig() {
   const ERP_OPTIONS = erpOptions.filter(
     (erp) => !erp.includes('UBL') && !erp.includes('PEPPOL') && erp !== 'CUSTOM'
   );
-  const [configs, setConfigs] = useState<ErpSyncConfig[]>([]);
+  const [allConfigs, setAllConfigs] = useState<ErpSyncConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [columnSort, setColumnSort] = useState<{ key: string; order: 'asc' | 'desc' } | null>(null);
 
   // Modal states
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -138,12 +139,7 @@ export default function AdminErpSyncConfig() {
     try {
       // Fetch all tenants and extract their ERP sync configurations
       const response = await api.v1.tenants.get({
-        query: {
-          page: page,
-          limit: 100, // Get more to show all configs
-          ...(searchQuery && { search: searchQuery }),
-          ...(filters.status && filters.status !== 'all' && { status: filters.status === 'active' ? undefined : filters.status }),
-        },
+        query: { limit: 1000 },
       });
 
       if (response.error) {
@@ -151,13 +147,20 @@ export default function AdminErpSyncConfig() {
         toast.error(errorMessage);
       } else if (response.data?.data) {
         const tenantData = response.data.data as any[];
+        const extractId = (v: any): string | undefined => {
+          if (!v) return undefined;
+          if (typeof v === 'string') return v;
+          if (typeof v === 'object' && v.$oid) return String(v.$oid);
+          return undefined;
+        };
         const mappedConfigs: ErpSyncConfig[] = tenantData
           .filter((t: any) => t.erpSystem || t.config?.erpSystem || t.config?.erpSyncConfig) // Only tenants with ERP systems or sync configs
           .map((t: any) => {
             const syncConfig = t.config?.erpSyncConfig;
+            const tenantId = extractId(t.tenantId) ?? extractId(t.id) ?? extractId(t._id) ?? '';
             return {
-              id: t.id || t._id || t.tenantId,
-              tenantId: t.tenantId || t.id || t._id,
+              id: extractId(t.id) ?? extractId(t._id) ?? tenantId,
+              tenantId,
               tenantName: t.businessName,
               erpType: t.config?.erpSystem || t.erpSystem || '',
               status: t.status || 'inactive',
@@ -183,23 +186,7 @@ export default function AdminErpSyncConfig() {
             };
           });
 
-        // Apply enabled filter
-        let filtered = mappedConfigs;
-        if (filters.status && filters.status !== 'all') {
-          filtered = filtered.filter((c) => {
-            const displayStatus = c.status === 'onboarding' ? 'active' : c.status;
-            return displayStatus === filters.status;
-          });
-        }
-
-        if (filters.enabled && filters.enabled !== 'all') {
-          filtered = filtered.filter((c) =>
-            filters.enabled === 'enabled' ? c.enabled : !c.enabled
-          );
-        }
-
-        setConfigs(filtered);
-        setTotal(filtered.length);
+        setAllConfigs(mappedConfigs);
       }
     } catch (error: any) {
       toast.error(error?.message || 'Failed to load ERP sync configurations');
@@ -210,7 +197,72 @@ export default function AdminErpSyncConfig() {
 
   useEffect(() => {
     fetchConfigs();
-  }, [page, searchQuery, filters]);
+  }, []);
+
+  useEffect(() => { setPage(1); }, [searchQuery, filters]);
+
+  const filteredConfigs = useMemo(() => {
+    let result = [...allConfigs];
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((c) =>
+        c.tenantName?.toLowerCase().includes(q) ||
+        c.tenantId?.toLowerCase().includes(q) ||
+        c.erpType?.toLowerCase().includes(q)
+      );
+    }
+
+    if (filters.status && filters.status !== 'all') {
+      result = result.filter((c) => {
+        const displayStatus = c.status === 'onboarding' ? 'active' : c.status;
+        return displayStatus === filters.status;
+      });
+    }
+
+    if (filters.enabled && filters.enabled !== 'all') {
+      result = result.filter((c) =>
+        filters.enabled === 'enabled' ? c.enabled : !c.enabled
+      );
+    }
+
+    const statusPriority = (status: string) => {
+      if (status === 'active' || status === 'onboarding') return 0;
+      if (status === 'inactive') return 1;
+      if (status === 'suspended') return 2;
+      return 3;
+    };
+
+    if (columnSort) {
+      result.sort((a, b) => {
+        let aVal: any = a[columnSort.key as keyof ErpSyncConfig];
+        let bVal: any = b[columnSort.key as keyof ErpSyncConfig];
+        if (['createdAt', 'updatedAt', 'lastSyncAt'].includes(columnSort.key)) {
+          aVal = new Date(aVal || 0).getTime();
+          bVal = new Date(bVal || 0).getTime();
+        } else if (typeof aVal === 'boolean') {
+          aVal = aVal ? 1 : 0;
+          bVal = bVal ? 1 : 0;
+        } else if (typeof aVal === 'string') {
+          aVal = aVal.toLowerCase();
+          bVal = (bVal || '').toLowerCase();
+        }
+        if (aVal < bVal) return columnSort.order === 'asc' ? -1 : 1;
+        if (aVal > bVal) return columnSort.order === 'asc' ? 1 : -1;
+        return 0;
+      });
+    } else {
+      result.sort((a, b) => {
+        const priorityDiff = statusPriority(a.status) - statusPriority(b.status);
+        if (priorityDiff !== 0) return priorityDiff;
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+    }
+
+    return result;
+  }, [allConfigs, searchQuery, filters, columnSort]);
 
   const handleFormSubmit = async (payload: ErpSyncPayload) => {
     if (!isEditMode && (!adminTenantId || !adminErpType)) {
@@ -338,26 +390,7 @@ export default function AdminErpSyncConfig() {
   };
 
   const handleSort = (key: string, order: 'asc' | 'desc') => {
-    const sorted = [...configs].sort((a, b) => {
-      let aVal: any = a[key as keyof ErpSyncConfig];
-      let bVal: any = b[key as keyof ErpSyncConfig];
-
-      if (key === 'createdAt' || key === 'updatedAt' || key === 'lastSyncAt') {
-        aVal = new Date(aVal || 0).getTime();
-        bVal = new Date(bVal || 0).getTime();
-      } else if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase();
-        bVal = bVal.toLowerCase();
-      } else if (typeof aVal === 'boolean') {
-        aVal = aVal ? 1 : 0;
-        bVal = bVal ? 1 : 0;
-      }
-
-      if (aVal < bVal) return order === 'asc' ? -1 : 1;
-      if (aVal > bVal) return order === 'asc' ? 1 : -1;
-      return 0;
-    });
-    setConfigs(sorted);
+    setColumnSort({ key, order });
   };
 
   const columns: Column<ErpSyncConfig>[] = [
@@ -509,10 +542,10 @@ export default function AdminErpSyncConfig() {
   );
 
   const stats = {
-    total: configs.length,
-    enabled: configs.filter(c => c.enabled).length,
-    disabled: configs.filter(c => !c.enabled).length,
-    active: configs.filter(c => c.status === 'active' || c.status === 'onboarding').length,
+    total: allConfigs.length,
+    enabled: allConfigs.filter(c => c.enabled).length,
+    disabled: allConfigs.filter(c => !c.enabled).length,
+    active: allConfigs.filter(c => c.status === 'active' || c.status === 'onboarding').length,
   };
 
   // Fetch tenants for dropdown
@@ -609,7 +642,7 @@ export default function AdminErpSyncConfig() {
 
         {/* Data Table */}
         <DataTable
-          data={configs}
+          data={filteredConfigs.slice((page - 1) * pageSize, page * pageSize)}
           columns={columns}
           searchPlaceholder="Search by tenant name, ID, or ERP type..."
           filters={erpSyncFilters}
@@ -617,10 +650,12 @@ export default function AdminErpSyncConfig() {
           selectable
           isLoading={isLoading}
           currentPage={page}
-          totalItems={total}
+          pageSize={pageSize}
+          totalItems={filteredConfigs.length}
           onPageChange={setPage}
-          onSearch={setSearchQuery}
-          onFilterChange={setFilters}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          onSearch={(q) => { setSearchQuery(q); setPage(1); }}
+          onFilterChange={(f) => { setFilters(f); setPage(1); }}
           onSort={handleSort}
           emptyMessage="No ERP sync configurations found. Click 'Configure ERP Sync' to get started."
         />

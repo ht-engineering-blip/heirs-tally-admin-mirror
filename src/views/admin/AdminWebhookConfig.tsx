@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Eye, Edit, Trash2, Power, Building2, Webhook, CheckCircle2, XCircle, Copy, Loader2, EyeOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { DataTable, Column, FilterOption, StatusBadge, EventMappingEditor, InvoiceIdKeyEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
@@ -101,12 +101,13 @@ async function fetchTenantEventRouting(api: any, tenantId: string): Promise<Even
 export default function AdminWebhookConfig() {
   const api = getAdminApiClient();
   const router = useRouter();
-  const [configs, setConfigs] = useState<WebhookConfigEntry[]>([]);
+  const [allConfigs, setAllConfigs] = useState<WebhookConfigEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [columnSort, setColumnSort] = useState<{ key: string; order: 'asc' | 'desc' } | null>(null);
 
   // Modal states
   const [showViewModal, setShowViewModal] = useState(false);
@@ -132,12 +133,7 @@ export default function AdminWebhookConfig() {
     setIsLoading(true);
     try {
       const response = await api.v1.tenants.get({
-        query: {
-          page: page,
-          limit: 100,
-          ...(searchQuery && { search: searchQuery }),
-          ...(filters.status && filters.status !== 'all' && { status: filters.status === 'active' ? undefined : filters.status }),
-        },
+        query: { limit: 1000 },
       });
 
       if (response.error) {
@@ -145,18 +141,24 @@ export default function AdminWebhookConfig() {
         toast.error(errorMessage);
       } else if (response.data?.data) {
         const tenantData = response.data.data as any[];
+        const extractId = (v: any): string | undefined => {
+          if (!v) return undefined;
+          if (typeof v === 'string') return v;
+          if (typeof v === 'object' && v.$oid) return String(v.$oid);
+          return undefined;
+        };
         const mappedConfigs: WebhookConfigEntry[] = await Promise.all(
           tenantData
             .map(async (t: any) => {
               const config = t.config || {};
               const metadata = t.metadata || {};
-              const tenantId = t.tenantId || t.id || t._id;
+              const tenantId = extractId(t.tenantId) ?? extractId(t.id) ?? extractId(t._id) ?? '';
 
               // Fetch event routing from the new API
               const eventMappings = await fetchTenantEventRouting(api, tenantId);
 
               return {
-                id: t.id || t._id || t.tenantId,
+                id: extractId(t.id) ?? extractId(t._id) ?? tenantId,
                 tenantId,
                 tenantName: t.businessName,
                 webhookUrl: config.webhookUrl || metadata.webhookUrl || '',
@@ -171,22 +173,7 @@ export default function AdminWebhookConfig() {
             })
         );
 
-        let filtered = mappedConfigs;
-        if (filters.status && filters.status !== 'all') {
-          filtered = filtered.filter((c) => {
-            const displayStatus = c.tenantStatus === 'onboarding' ? 'active' : c.tenantStatus;
-            return displayStatus === filters.status;
-          });
-        }
-
-        if (filters.enabled && filters.enabled !== 'all') {
-          filtered = filtered.filter((c) =>
-            filters.enabled === 'enabled' ? c.webhookEnabled : !c.webhookEnabled
-          );
-        }
-
-        setConfigs(filtered);
-        setTotal(filtered.length);
+        setAllConfigs(mappedConfigs);
       }
     } catch (error: any) {
       toast.error(error?.message || 'Failed to load webhook configurations');
@@ -197,7 +184,9 @@ export default function AdminWebhookConfig() {
 
   useEffect(() => {
     fetchConfigs();
-  }, [page, searchQuery, filters]);
+  }, []);
+
+  useEffect(() => { setPage(1); }, [searchQuery, filters]);
 
   // ===== Handlers =====
 
@@ -395,30 +384,74 @@ export default function AdminWebhookConfig() {
   };
 
   const handleSort = (key: string, order: 'asc' | 'desc') => {
-    const sorted = [...configs].sort((a, b) => {
-      let aVal: any = a[key as keyof WebhookConfigEntry];
-      let bVal: any = b[key as keyof WebhookConfigEntry];
-
-      if (key === 'createdAt' || key === 'updatedAt') {
-        aVal = new Date(aVal || 0).getTime();
-        bVal = new Date(bVal || 0).getTime();
-      } else if (key === 'eventMappings') {
-        aVal = (a.eventMappings || []).length;
-        bVal = (b.eventMappings || []).length;
-      } else if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase();
-        bVal = (bVal || '').toLowerCase();
-      } else if (typeof aVal === 'boolean') {
-        aVal = aVal ? 1 : 0;
-        bVal = bVal ? 1 : 0;
-      }
-
-      if (aVal < bVal) return order === 'asc' ? -1 : 1;
-      if (aVal > bVal) return order === 'asc' ? 1 : -1;
-      return 0;
-    });
-    setConfigs(sorted);
+    setColumnSort({ key, order });
   };
+
+  const filteredConfigs = useMemo(() => {
+    let result = [...allConfigs];
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((c) =>
+        c.tenantName?.toLowerCase().includes(q) ||
+        c.tenantId?.toLowerCase().includes(q) ||
+        c.webhookUrl?.toLowerCase().includes(q)
+      );
+    }
+
+    if (filters.status && filters.status !== 'all') {
+      result = result.filter((c) => {
+        const displayStatus = c.tenantStatus === 'onboarding' ? 'active' : c.tenantStatus;
+        return displayStatus === filters.status;
+      });
+    }
+
+    if (filters.enabled && filters.enabled !== 'all') {
+      result = result.filter((c) =>
+        filters.enabled === 'enabled' ? c.webhookEnabled : !c.webhookEnabled
+      );
+    }
+
+    if (columnSort) {
+      const { key, order } = columnSort;
+      result.sort((a, b) => {
+        let aVal: any = a[key as keyof WebhookConfigEntry];
+        let bVal: any = b[key as keyof WebhookConfigEntry];
+        if (key === 'createdAt' || key === 'updatedAt') {
+          aVal = new Date(aVal || 0).getTime();
+          bVal = new Date(bVal || 0).getTime();
+        } else if (key === 'eventMappings') {
+          aVal = (a.eventMappings || []).length;
+          bVal = (b.eventMappings || []).length;
+        } else if (typeof aVal === 'string') {
+          aVal = aVal.toLowerCase();
+          bVal = (bVal || '').toLowerCase();
+        } else if (typeof aVal === 'boolean') {
+          aVal = aVal ? 1 : 0;
+          bVal = bVal ? 1 : 0;
+        }
+        if (aVal < bVal) return order === 'asc' ? -1 : 1;
+        if (aVal > bVal) return order === 'asc' ? 1 : -1;
+        return 0;
+      });
+    } else {
+      const statusPriority = (status: string) => {
+        if (status === 'active' || status === 'onboarding') return 0;
+        if (status === 'inactive') return 1;
+        if (status === 'suspended') return 2;
+        return 3;
+      };
+      result.sort((a, b) => {
+        const priorityDiff = statusPriority(a.tenantStatus) - statusPriority(b.tenantStatus);
+        if (priorityDiff !== 0) return priorityDiff;
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+    }
+
+    return result;
+  }, [allConfigs, searchQuery, filters, columnSort]);
 
   // ===== Columns =====
 
@@ -558,10 +591,10 @@ export default function AdminWebhookConfig() {
   // ===== Stats =====
 
   const stats = {
-    total: configs.length,
-    enabled: configs.filter(c => c.webhookEnabled).length,
-    disabled: configs.filter(c => !c.webhookEnabled).length,
-    active: configs.filter(c => c.tenantStatus === 'active' || c.tenantStatus === 'onboarding').length,
+    total: allConfigs.length,
+    enabled: allConfigs.filter(c => c.webhookEnabled).length,
+    disabled: allConfigs.filter(c => !c.webhookEnabled).length,
+    active: allConfigs.filter(c => c.tenantStatus === 'active' || c.tenantStatus === 'onboarding').length,
   };
 
   // ===== Render =====
@@ -635,7 +668,7 @@ export default function AdminWebhookConfig() {
 
         {/* Data Table */}
         <DataTable
-          data={configs}
+          data={filteredConfigs.slice((page - 1) * pageSize, page * pageSize)}
           columns={columns}
           searchPlaceholder="Search by tenant name or ID..."
           filters={webhookFilters}
@@ -643,10 +676,12 @@ export default function AdminWebhookConfig() {
           selectable
           isLoading={isLoading}
           currentPage={page}
-          totalItems={total}
+          pageSize={pageSize}
+          totalItems={filteredConfigs.length}
           onPageChange={setPage}
-          onSearch={setSearchQuery}
-          onFilterChange={setFilters}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          onSearch={(q) => { setSearchQuery(q); setPage(1); }}
+          onFilterChange={(f) => { setFilters(f); setPage(1); }}
           onSort={handleSort}
           emptyMessage="No tenants found."
         />

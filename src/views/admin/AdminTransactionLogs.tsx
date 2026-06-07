@@ -156,8 +156,6 @@ export default function AdminTransactionLogs() {
     rejectionReason: "",
   });
 
-  console.log("invoice details: ", invoiceDetails);
-
   const fetchInvoices = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -166,7 +164,7 @@ export default function AdminTransactionLogs() {
     setIsLoading(true);
     try {
       const api = getAdminApiClient();
-      const allInvoices: Invoice[] = [];
+      const allFetched: Invoice[] = [];
       let totalCount = 0;
       let hadError = false;
       let outboundApiTotal = 0;
@@ -192,7 +190,7 @@ export default function AdminTransactionLogs() {
             const outboundData = outboundResponse.data.data as any[];
             const pagination = outboundResponse.data.pagination;
             outboundData.forEach((invoice: any) => {
-              allInvoices.push({
+              allFetched.push({
                 id: invoice.irn,
                 irn: invoice.irn,
                 invoiceNumber: invoice.invoiceNumber || invoice.irn,
@@ -200,6 +198,11 @@ export default function AdminTransactionLogs() {
                 tenantId: invoice.tenantId,
                 tenantName: invoice.tenantName,
                 status: invoice.status,
+                lastJobError: {
+                  action: invoice.lastJobError?.action,
+                  error: invoice.lastJobError?.error,
+                  failedAt: invoice.lastJobError?.failedAt,
+                },
                 paymentStatus: invoice?.paymentStatus,
                 totalAmount: invoice.totalAmount || 0,
                 currency: invoice.currency || "NGN",
@@ -244,19 +247,15 @@ export default function AdminTransactionLogs() {
               limit: apiLimit,
               ...(filters.status &&
                 filters.status !== "all" && { status: filters.status }),
-              ...(filters.paymentStatus && {
-                paymentStatus: filters.paymentStatus,
-              }),
               ...(searchQuery && { search: searchQuery }),
             },
           });
 
           if (inboundResponse.data?.data) {
             const inboundData = inboundResponse.data.data as any[];
-
             const pagination = inboundResponse.data.pagination;
             inboundData.forEach((invoice: any) => {
-              allInvoices.push({
+              allFetched.push({
                 id: invoice.irn,
                 irn: invoice.irn,
                 invoiceNumber: invoice.invoiceNumber || invoice.irn,
@@ -264,6 +263,11 @@ export default function AdminTransactionLogs() {
                 tenantId: invoice.tenantId,
                 tenantName: invoice.tenantName,
                 status: invoice.status,
+                lastJobError: {
+                  action: invoice.lastJobError?.action,
+                  error: invoice.lastJobError?.error,
+                  failedAt: invoice.lastJobError?.failedAt,
+                },
                 paymentStatus: invoice?.paymentStatus,
                 totalAmount: invoice.totalAmount || 0,
                 currency: invoice.currency || "NGN",
@@ -299,31 +303,28 @@ export default function AdminTransactionLogs() {
 
       if (controller.signal.aborted) return;
 
-      // Client-side type filter (for 'all' tab)
-      let filtered = allInvoices;
+      // Client-side type filter for 'all' tab
+      let filtered = allFetched;
       if (filters.type && filters.type !== "all") {
-        filtered = allInvoices.filter((inv) => inv.type === filters.type);
+        filtered = allFetched.filter((inv) => inv.type === filters.type);
       }
 
-      if (hadError && allInvoices.length === 0) {
+      if (hadError && allFetched.length === 0) {
         toast.error("Failed to load transactions. Please try refreshing.");
       }
 
-      // Stats from API-reported totals — independent of page/pageSize
       setStatsData({
         total: outboundApiTotal + inboundApiTotal,
         outbound: outboundApiTotal,
         inbound: inboundApiTotal,
-        failed: allInvoices.filter((i) => {
+        failed: allFetched.filter((i) => {
           const s = (i.status || "").toLowerCase();
           return s === "failed" || s === "rejected";
         }).length,
-        pending: allInvoices.filter(
-          (i) => i.status?.toLowerCase() === "pending",
-        ).length,
+        pending: allFetched.filter((i) => i.status?.toLowerCase() === "pending")
+          .length,
       });
 
-      // Client-side pagination slice for 'all' tab; server paginates for single-type tabs
       const displayInvoices = isAllTab
         ? filtered.slice((page - 1) * pageSize, page * pageSize)
         : filtered;
@@ -606,40 +607,18 @@ export default function AdminTransactionLogs() {
     return "An unexpected error occurred. Please try again.";
   };
 
-  const getStatusIcon = (status: string) => {
-    const s = status?.toLowerCase() || "";
-    switch (s) {
-      case "validated":
-      case "signed":
-      case "transmitted":
-      case "acknowledged":
-        return <CheckCircle className="w-4 h-4 text-success" />;
-      case "pending":
-      case "received":
-        return <Clock className="w-4 h-4 text-warning" />;
-      case "failed":
-      case "rejected":
-        return <AlertCircle className="w-4 h-4 text-destructive" />;
-      default:
-        return <FileText className="w-4 h-4 text-muted-foreground" />;
-    }
-  };
-
   const isFailed = (status: string) => {
-    const s = status?.toLowerCase() || "";
+    const s = (status || "").toLowerCase();
     return s === "failed" || s === "rejected";
-  };
-
-  const hasIncompleteSteps = (workflowState: any) => {
-    if (!workflowState) return false;
-    return WORKFLOW_STEP_MAP.some((s) => !workflowState[s.stateKey]);
   };
 
   const hasJobError = (inv: Invoice) => {
     if (inv.type !== "outbound") return false;
-    const ws = inv.workflowState;
-    if (!ws) return false;
-    return !!(ws.error || ws.jobError || ws.failed);
+    return (
+      isFailed(inv?.status) &&
+      !!inv?.lastJobError &&
+      Object.keys(inv.lastJobError).length > 0
+    );
   };
 
   const columns: Column<Invoice>[] = [
@@ -692,17 +671,44 @@ export default function AdminTransactionLogs() {
       header: "Invoice Status",
       sortable: true,
       accessor: (inv) => {
+        const isTerminalSuccess = TERMINAL_SUCCESS_STATUSES.includes(
+          inv.status?.toUpperCase() || "",
+        );
         const hasError =
-          hasJobError(inv) ||
-          !!inv.lastJobError?.action ||
-          !!inv.hasRoutingError;
+          !isTerminalSuccess &&
+          (hasJobError(inv) ||
+            !!inv.lastJobError?.action ||
+            !!inv.hasRoutingError);
         const alreadyFailed = inv.status?.toUpperCase() === "FAILED";
-        const displayStatus = inv.status;
+        const displayStatus =
+          hasError && !alreadyFailed
+            ? "failed"
+            : inv.status?.toLowerCase() || "";
+        const displayLabel =
+          hasError && !alreadyFailed ? "FAILED" : inv.status;
+        const styles: Record<string, string> = {
+          created: "bg-muted text-muted-foreground",
+          validated: "bg-success/10 text-success",
+          signed: "bg-success/10 text-success",
+          transmitted: "bg-success/10 text-success",
+          delivered: "bg-success/10 text-success",
+          failed: "bg-destructive/10 text-destructive",
+          acknowledged: "bg-success/10 text-success",
+          downloaded: "bg-success/10 text-success",
+          synced_to_erp: "bg-success/10 text-success",
+          paid: "bg-success/10 text-success",
+          rejected: "bg-destructive/10 text-destructive",
+          canceled: "bg-muted text-muted-foreground",
+        };
         return (
-          <div className="flex items-center gap-2">
-            {getStatusIcon(displayStatus)}
-            <StatusBadge status={displayStatus} />
-          </div>
+          <Badge
+            className={cn(
+              "text-xs capitalize",
+              styles[displayStatus] ?? "bg-muted text-muted-foreground",
+            )}
+          >
+            {displayLabel}
+          </Badge>
         );
       },
     },
@@ -880,10 +886,11 @@ export default function AdminTransactionLogs() {
         </>
       )}
       {inv.type === "outbound" &&
+        isFailed(inv.status) &&
         (hasJobError(inv) || !!inv.lastJobError?.action) && (
           <DropdownMenuSeparator />
         )}
-      {inv.type === "outbound" && hasJobError(inv) && (
+      {inv.type === "outbound" && isFailed(inv.status) && hasJobError(inv) && (
         <DropdownMenuItem
           onClick={() => {
             setSelectedInvoice(inv);
@@ -894,7 +901,7 @@ export default function AdminTransactionLogs() {
           Resend Invoice
         </DropdownMenuItem>
       )}
-      {inv.type === "outbound" && inv.lastJobError?.action && (
+      {inv.type === "outbound" && isFailed(inv.status) && inv.lastJobError?.action && (
         <DropdownMenuItem
           onClick={() => {
             setSelectedInvoice(inv);
@@ -1591,7 +1598,9 @@ export default function AdminTransactionLogs() {
             </Tabs>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {selectedInvoice && hasJobError(selectedInvoice) && (
+            {selectedInvoice &&
+              isFailed(selectedInvoice.status) &&
+              hasJobError(selectedInvoice) && (
               <Button
                 variant="outline"
                 className="w-full sm:w-auto"
@@ -1605,6 +1614,11 @@ export default function AdminTransactionLogs() {
               </Button>
             )}
             {selectedInvoice?.type === "outbound" &&
+              isFailed(
+                invoiceDetails?.invoice?.status ??
+                  selectedInvoice?.status ??
+                  "",
+              ) &&
               (invoiceDetails?.invoice?.lastJobError?.action ??
                 selectedInvoice?.lastJobError?.action) && (
                 <Button
@@ -1642,7 +1656,7 @@ export default function AdminTransactionLogs() {
             <DialogTitle>Retry from Step</DialogTitle>
             <DialogDescription>
               Resume the failed workflow for invoice{" "}
-              <strong>
+              <strong className="break-all">
                 {selectedInvoice?.invoiceNumber || selectedInvoice?.irn}
               </strong>{" "}
               from a specific step.
@@ -1655,23 +1669,9 @@ export default function AdminTransactionLogs() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(() => {
-                  const failedAction = selectedInvoice?.lastJobError?.action;
-                  const failedIndex = failedAction
-                    ? WORKFLOW_STEP_MAP.findIndex(
-                        (s) => s.apiValue === failedAction,
-                      )
-                    : -1;
-                  return (
-                    failedIndex >= 0
-                      ? WORKFLOW_STEP_MAP.slice(failedIndex)
-                      : WORKFLOW_STEP_MAP
-                  ).map((s) => (
-                    <SelectItem key={s.apiValue} value={s.apiValue}>
-                      {s.label}
-                    </SelectItem>
-                  ));
-                })()}
+                <SelectItem value={selectedInvoice?.lastJobError?.action}>
+                  {selectedInvoice?.lastJobError?.action?.replace(/[-_]/g, " ")}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
@@ -1707,7 +1707,7 @@ export default function AdminTransactionLogs() {
             <AlertDialogTitle>Resend Invoice</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to resend invoice{" "}
-              <strong>
+              <strong className="break-all">
                 {selectedInvoice?.invoiceNumber || selectedInvoice?.irn}
               </strong>
               ? This will restart the workflow from the beginning.
