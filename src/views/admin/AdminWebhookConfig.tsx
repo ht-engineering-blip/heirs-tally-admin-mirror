@@ -145,18 +145,24 @@ export default function AdminWebhookConfig() {
         toast.error(errorMessage);
       } else if (response.data?.data) {
         const tenantData = response.data.data as any[];
+        const extractId = (v: any): string | undefined => {
+          if (!v) return undefined;
+          if (typeof v === 'string') return v;
+          if (typeof v === 'object' && v.$oid) return String(v.$oid);
+          return undefined;
+        };
         const mappedConfigs: WebhookConfigEntry[] = await Promise.all(
           tenantData
             .map(async (t: any) => {
               const config = t.config || {};
               const metadata = t.metadata || {};
-              const tenantId = t.tenantId || t.id || t._id;
+              const tenantId = extractId(t.tenantId) ?? extractId(t.id) ?? extractId(t._id) ?? '';
 
               // Fetch event routing from the new API
               const eventMappings = await fetchTenantEventRouting(api, tenantId);
 
               return {
-                id: t.id || t._id || t.tenantId,
+                id: extractId(t.id) ?? extractId(t._id) ?? tenantId,
                 tenantId,
                 tenantName: t.businessName,
                 webhookUrl: config.webhookUrl || metadata.webhookUrl || '',

@@ -151,13 +151,20 @@ export default function AdminErpSyncConfig() {
         toast.error(errorMessage);
       } else if (response.data?.data) {
         const tenantData = response.data.data as any[];
+        const extractId = (v: any): string | undefined => {
+          if (!v) return undefined;
+          if (typeof v === 'string') return v;
+          if (typeof v === 'object' && v.$oid) return String(v.$oid);
+          return undefined;
+        };
         const mappedConfigs: ErpSyncConfig[] = tenantData
           .filter((t: any) => t.erpSystem || t.config?.erpSystem || t.config?.erpSyncConfig) // Only tenants with ERP systems or sync configs
           .map((t: any) => {
             const syncConfig = t.config?.erpSyncConfig;
+            const tenantId = extractId(t.tenantId) ?? extractId(t.id) ?? extractId(t._id) ?? '';
             return {
-              id: t.id || t._id || t.tenantId,
-              tenantId: t.tenantId || t.id || t._id,
+              id: extractId(t.id) ?? extractId(t._id) ?? tenantId,
+              tenantId,
               tenantName: t.businessName,
               erpType: t.config?.erpSystem || t.erpSystem || '',
               status: t.status || 'inactive',
@@ -197,6 +204,20 @@ export default function AdminErpSyncConfig() {
             filters.enabled === 'enabled' ? c.enabled : !c.enabled
           );
         }
+
+        const statusPriority = (status: string) => {
+          if (status === 'active' || status === 'onboarding') return 0;
+          if (status === 'inactive') return 1;
+          if (status === 'suspended') return 2;
+          return 3;
+        };
+        filtered.sort((a, b) => {
+          const priorityDiff = statusPriority(a.status) - statusPriority(b.status);
+          if (priorityDiff !== 0) return priorityDiff;
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
 
         setConfigs(filtered);
         setTotal(filtered.length);
