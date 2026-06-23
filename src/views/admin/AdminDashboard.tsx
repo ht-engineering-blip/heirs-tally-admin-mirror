@@ -42,8 +42,9 @@ export default function AdminDashboard() {
           query: { limit: 1000, page: 1 },
         });
 
-        if (!response.error && response.data?.data) {
-          const tenants = response.data.data as any[];
+        const rawTenants = response.data?.data;
+        if (!response.error && Array.isArray(rawTenants)) {
+          const tenants = rawTenants as any[];
           const summary: TenantSummary = {
             total: (response.data as any).pagination?.total || tenants.length,
             active: tenants.filter((t: any) => t.status === 'active' || t.onboarding?.status === 'active').length,
