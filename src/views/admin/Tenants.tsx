@@ -692,6 +692,7 @@ export default function Tenants() {
     inactive: tenants.filter((t) => t.status === "inactive").length,
   };
 
+
   return (
     <>
       <div className="space-y-6 animate-fade-in">
@@ -798,6 +799,7 @@ export default function Tenants() {
             setPage(1);
           }}
           onSort={handleSort}
+          onRowClick={(tenant) => router.push(`/admin/tenants/${tenant.tenantId}`)}
           emptyMessage="No tenants found"
           rowClassName={(tenant) =>
             tenant.status === "inactive" || tenant.status === "suspended"

@@ -31,16 +31,18 @@ import { toast } from "@/components/ui/sonner";
 import { getAdminApiClient } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
+  AlertCircle,
   ArrowRight,
   Check,
   ChevronsUpDown,
   Copy,
   Loader2,
   Plus,
+  RefreshCw,
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 // ===== Types =====
 
@@ -68,110 +70,49 @@ interface WorkflowOption {
   order?: number;
 }
 
-// ===== Fallback Constants =====
-
-const FALLBACK_EVENT_TYPES: EventTypeOption[] = [
-  {
-    value: "erp.invoice.created",
-    label: "Invoice Created",
-    description: "New invoice created in the ERP system",
-  },
-  {
-    value: "erp.invoice.updated",
-    label: "Invoice Updated",
-    description: "Existing invoice modified in the ERP",
-  },
-  {
-    value: "erp.payment.received",
-    label: "Payment Received",
-    description: "Payment recorded against an invoice",
-  },
-  {
-    value: "erp.credit_note.created",
-    label: "Credit Note Created",
-    description: "Credit/debit note issued",
-  },
-  {
-    value: "erp.invoice.cancelled",
-    label: "Invoice Cancelled",
-    description: "Invoice cancelled in the ERP",
-  },
-];
-
-const FALLBACK_WORKFLOWS: WorkflowOption[] = [
-  {
-    value: "outbound",
-    label: "Outbound Workflow",
-    description: "Transform → Validate → Sign → Transmit to NRS",
-    order: 0,
-  },
-  {
-    value: "inbound",
-    label: "Inbound Workflow",
-    description: "Receive → Validate → Decrypt → Store",
-    order: 1,
-  },
-  {
-    value: "transform_only",
-    label: "Transform Only",
-    description: "Convert ERP format to UBL without submission",
-    order: 2,
-  },
-  {
-    value: "validate_only",
-    label: "Validate Only",
-    description: "Schema validation without processing",
-    order: 3,
-  },
-  {
-    value: "transform_validate",
-    label: "Transform and Validate",
-    description: "Convert and validate invoice without processing",
-    order: 4,
-  },
-  {
-    value: "acknowledge",
-    label: "Acknowledge",
-    description: "Send acknowledgment back to NRS",
-    order: 5,
-  },
-];
-
-// ===== Default Mappings =====
-
-export const DEFAULT_EVENT_MAPPINGS: EventMapping[] = [
-  {
-    event: "erp.invoice.created",
-    actions: ["transform_validate"],
-    enabled: true,
-  },
-  {
-    event: "erp.invoice.updated",
-    actions: ["transform_validate"],
-    enabled: true,
-  },
-];
-
 // ===== Module-level cache =====
+// Populated only from a successful API response — there are no hardcoded
+// fallback event types/workflows/mappings. If the reference-data fetch
+// fails, callers see an explicit error + retry instead of stale defaults.
 
 let cachedEventTypes: EventTypeOption[] | null = null;
 let cachedWorkflows: WorkflowOption[] | null = null;
 
 // ===== Helpers =====
 
-export const getEventLabel = (value: string) => {
-  const cached = cachedEventTypes || FALLBACK_EVENT_TYPES;
-  return cached.find((e) => e.value === value)?.label || value;
-};
+export const getEventLabel = (value: string) =>
+  cachedEventTypes?.find((e) => e.value === value)?.label || value;
 
-export const getWorkflowLabel = (value: string) => {
-  const cached = cachedWorkflows || FALLBACK_WORKFLOWS;
-  return cached.find((w) => w.value === value)?.label || value;
-};
+export const getWorkflowLabel = (value: string) =>
+  cachedWorkflows?.find((w) => w.value === value)?.label || value;
 
-// Keep old exports for backward compat
-export const INBOUND_EVENT_TYPES = FALLBACK_EVENT_TYPES;
-export const WORKFLOWS = FALLBACK_WORKFLOWS;
+// ===== Shared empty/error state for combobox dropdowns =====
+
+function ComboboxEmptyState({
+  error,
+  onRetry,
+  emptyMessage,
+}: {
+  error?: string;
+  onRetry?: () => void;
+  emptyMessage: string;
+}) {
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-4 px-2 text-center">
+        <AlertCircle className="w-5 h-5 text-destructive" />
+        <p className="text-sm text-destructive">{error}</p>
+        {onRetry && (
+          <Button size="sm" variant="outline" onClick={onRetry}>
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            Retry
+          </Button>
+        )}
+      </div>
+    );
+  }
+  return <span className="py-2 block text-center">{emptyMessage}</span>;
+}
 
 // ===== Searchable Combobox =====
 
@@ -187,6 +128,8 @@ interface SearchableSelectProps {
   placeholder: string;
   disabled?: boolean;
   loading?: boolean;
+  error?: string;
+  onRetry?: () => void;
 }
 
 function SearchableSelect({
@@ -196,6 +139,8 @@ function SearchableSelect({
   placeholder,
   disabled,
   loading,
+  error,
+  onRetry,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const selectedLabel = options.find((o) => o.value === value)?.label;
@@ -222,7 +167,11 @@ function SearchableSelect({
           className="w-full justify-between font-normal h-10"
         >
           <span className="truncate">
-            {loading ? "Loading..." : selectedLabel || placeholder}
+            {loading
+              ? "Loading..."
+              : error && options.length === 0
+                ? "Failed to load"
+                : selectedLabel || placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -236,7 +185,13 @@ function SearchableSelect({
             placeholder={`Search ${placeholder.toLowerCase().replace("select ", "")}...`}
           />
           <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandEmpty>
+              <ComboboxEmptyState
+                error={error}
+                onRetry={onRetry}
+                emptyMessage="No results found."
+              />
+            </CommandEmpty>
             {grouped ? (
               Object.entries(grouped).map(([category, items]) => (
                 <CommandGroup
@@ -326,6 +281,8 @@ interface MultiActionSelectProps {
   placeholder: string;
   disabled?: boolean;
   loading?: boolean;
+  error?: string;
+  onRetry?: () => void;
 }
 
 function MultiActionSelect({
@@ -335,6 +292,8 @@ function MultiActionSelect({
   placeholder,
   disabled,
   loading,
+  error,
+  onRetry,
 }: MultiActionSelectProps) {
   const [open, setOpen] = useState(false);
 
@@ -386,9 +345,11 @@ function MultiActionSelect({
             <span className="truncate">
               {loading
                 ? "Loading..."
-                : values.length > 0
-                  ? `${values.length} action${values.length !== 1 ? "s" : ""} selected`
-                  : placeholder}
+                : error && options.length === 0
+                  ? "Failed to load"
+                  : values.length > 0
+                    ? `${values.length} action${values.length !== 1 ? "s" : ""} selected`
+                    : placeholder}
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -400,7 +361,13 @@ function MultiActionSelect({
           <Command>
             <CommandInput placeholder="Search actions..." />
             <CommandList>
-              <CommandEmpty>No actions found.</CommandEmpty>
+              <CommandEmpty>
+                <ComboboxEmptyState
+                  error={error}
+                  onRetry={onRetry}
+                  emptyMessage="No actions found."
+                />
+              </CommandEmpty>
               {grouped ? (
                 Object.entries(grouped).map(([category, items]) => (
                   <CommandGroup
@@ -522,63 +489,76 @@ export function EventMappingEditor({
   onDeleteRoute,
 }: EventMappingEditorProps) {
   const [eventTypes, setEventTypes] = useState<EventTypeOption[]>(
-    cachedEventTypes || FALLBACK_EVENT_TYPES,
+    cachedEventTypes || [],
   );
   const [workflows, setWorkflows] = useState<WorkflowOption[]>(
-    cachedWorkflows || FALLBACK_WORKFLOWS,
+    cachedWorkflows || [],
   );
   const [loading, setLoading] = useState(!cachedEventTypes || !cachedWorkflows);
+  const [eventsError, setEventsError] = useState<string | undefined>();
+  const [workflowsError, setWorkflowsError] = useState<string | undefined>();
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const fetchReferenceData = useCallback(async () => {
+    setLoading(true);
+    setEventsError(undefined);
+    setWorkflowsError(undefined);
+    try {
+      const api = getAdminApiClient();
+
+      const [eventsRes, workflowsRes] = await Promise.all([
+        (api as any).v1.admin.config.reference.events.get(),
+        (api as any).v1.admin.config.reference["workflow-actions"].get(),
+      ]);
+
+      if (!eventsRes.error && eventsRes.data?.data?.events) {
+        const mapped: EventTypeOption[] = eventsRes.data.data.events.map(
+          (e: any) => ({
+            value: e.id,
+            label: e.name,
+            description: e.description || "",
+            category: e.category,
+            direction: e.direction,
+          }),
+        );
+        cachedEventTypes = mapped;
+        setEventTypes(mapped);
+      } else {
+        setEventsError(
+          (eventsRes.error as any)?.value?.error || "Failed to load event types.",
+        );
+      }
+
+      if (!workflowsRes.error && workflowsRes.data?.data?.actions) {
+        const mapped: WorkflowOption[] = workflowsRes.data.data.actions.map(
+          (a: any) => ({
+            value: a.id,
+            label: a.name,
+            description: a.description || "",
+            category: a.category,
+            order: a.order ?? 0,
+          }),
+        );
+        cachedWorkflows = mapped;
+        setWorkflows(mapped);
+      } else {
+        setWorkflowsError(
+          (workflowsRes.error as any)?.value?.error || "Failed to load actions.",
+        );
+      }
+    } catch (error: any) {
+      setEventsError(error?.message || "Failed to load event types.");
+      setWorkflowsError(error?.message || "Failed to load actions.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (cachedEventTypes && cachedWorkflows) return;
-
-    const fetchReferenceData = async () => {
-      try {
-        const api = getAdminApiClient();
-
-        const [eventsRes, workflowsRes] = await Promise.all([
-          (api as any).v1.admin.config.reference.events.get(),
-          (api as any).v1.admin.config.reference["workflow-actions"].get(),
-        ]);
-
-        if (!eventsRes.error && eventsRes.data?.data?.events) {
-          const mapped: EventTypeOption[] = eventsRes.data.data.events.map(
-            (e: any) => ({
-              value: e.id,
-              label: e.name,
-              description: e.description || "",
-              category: e.category,
-              direction: e.direction,
-            }),
-          );
-          cachedEventTypes = mapped;
-          setEventTypes(mapped);
-        }
-
-        if (!workflowsRes.error && workflowsRes.data?.data?.actions) {
-          const mapped: WorkflowOption[] = workflowsRes.data.data.actions.map(
-            (a: any) => ({
-              value: a.id,
-              label: a.name,
-              description: a.description || "",
-              category: a.category,
-              order: a.order ?? 0,
-            }),
-          );
-          cachedWorkflows = mapped;
-          setWorkflows(mapped);
-        }
-      } catch {
-        // Silently fall back to hardcoded constants
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchReferenceData();
-  }, []);
+  }, [fetchReferenceData]);
 
   const addMapping = () => {
     onChange([...mappings, { event: "", actions: [], enabled: true }]);
@@ -701,6 +681,8 @@ export function EventMappingEditor({
                   placeholder="Select event..."
                   disabled={readOnly}
                   loading={loading}
+                  error={eventsError}
+                  onRetry={fetchReferenceData}
                 />
                 {/* Copy Event */}
                 <div>
@@ -735,6 +717,8 @@ export function EventMappingEditor({
                 placeholder="Select actions..."
                 disabled={readOnly}
                 loading={loading}
+                error={workflowsError}
+                onRetry={fetchReferenceData}
               />
 
               <div className="flex items-center justify-center">

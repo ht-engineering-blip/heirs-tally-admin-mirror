@@ -13,6 +13,10 @@ interface InvoiceIdKeyEditorProps {
   onSave: (key: string) => Promise<void>
   onSaved?: (key: string) => void
   disabled?: boolean
+  label?: string
+  placeholder?: string
+  helpText?: string
+  successMessage?: string
 }
 
 export function InvoiceIdKeyEditor({
@@ -20,6 +24,10 @@ export function InvoiceIdKeyEditor({
   onSave,
   onSaved,
   disabled,
+  label = 'Invoice ID Key',
+  placeholder = 'e.g. invoice.documentId',
+  helpText = 'Dot-notation path to the invoice ID field in the webhook payload',
+  successMessage = 'Invoice ID key updated',
 }: InvoiceIdKeyEditorProps) {
   const [value, setValue] = useState(initialValue)
   const [saving, setSaving] = useState(false)
@@ -32,7 +40,7 @@ export function InvoiceIdKeyEditor({
     setSaving(true)
     try {
       await onSave(value)
-      toast.success('Invoice ID key updated')
+      toast.success(successMessage)
       onSaved?.(value)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update invoice ID key')
@@ -45,12 +53,12 @@ export function InvoiceIdKeyEditor({
 
   return (
     <div className="space-y-2">
-      <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
+      <Label className="text-xs text-muted-foreground">{label}</Label>
       <div className="flex gap-2">
         <Input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="e.g. invoice.documentId"
+          placeholder={placeholder}
           className="font-mono text-xs"
           disabled={disabled}
         />
@@ -63,7 +71,7 @@ export function InvoiceIdKeyEditor({
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Dot-notation path to the invoice ID field in the webhook payload
+        {helpText}
       </p>
     </div>
   )
