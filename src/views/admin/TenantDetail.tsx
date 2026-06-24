@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePersistedTab } from '@/hooks/use-persisted-tab';
-import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw, Webhook, Copy, Loader2, Eye, EyeOff, AlertCircle, Shield } from 'lucide-react';
+import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw, Webhook, Copy, Loader2, Eye, EyeOff, AlertCircle, Shield, Lock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { StatusBadge } from '@/components/shared';
+import { StatusBadge, InvoiceIdKeyEditor } from '@/components/shared';
 import { toast } from 'sonner';
 import { getAdminApiClient } from '@/lib/api/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -44,6 +44,8 @@ import {
 import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 import { SectionLoader } from '@/components/shared/SectionLoader';
 import { createTenantApi } from '@/lib/api/tenant-api';
+
+const CREDIT_NOTE_EVENT_TYPE = 'erp.creditnote.issued';
 
 interface Tenant {
   id: string;
@@ -97,13 +99,17 @@ export default function TenantDetail() {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [invoiceIdKey, setInvoiceIdKey] = useState('');
   const [generatedWebhook, setGeneratedWebhook] = useState<{
     webhookUrl: string;
     webhookSecret: string;
-    invoiceIdKey?: string;
   } | null>(null);
   const [secretVisible, setSecretVisible] = useState(false);
+  const [keyConfig, setKeyConfig] = useState({
+    invoiceIdKey: '',
+    creditNoteIdKey: '',
+    creditNoteReferenceIdKey: '',
+  });
+  const [keyConfigLoading, setKeyConfigLoading] = useState(true);
   const [showFirsCredentialsModal, setShowFirsCredentialsModal] = useState(false);
   const [firsCredentialsSaving, setFirsCredentialsSaving] = useState(false);
   const [firsCredentialsForm, setFirsCredentialsForm] = useState({ certificate: '', publicKey: '' });
@@ -181,9 +187,35 @@ export default function TenantDetail() {
     }
   };
 
+  const fetchKeyConfig = async () => {
+    if (!tenantId) return;
+    setKeyConfigLoading(true);
+    try {
+      const response = await (api as any).v1.tenants({ tenantId })['key-config'].get();
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to load invoice ID key configuration';
+        console.error('getKeyConfig failed:', response.error);
+        toast.error(errorMessage);
+      } else if (response.data?.data) {
+        const data = response.data.data as any;
+        setKeyConfig({
+          invoiceIdKey: data.invoiceIdKey || '',
+          creditNoteIdKey: data.idKeyMap?.[CREDIT_NOTE_EVENT_TYPE] || '',
+          creditNoteReferenceIdKey: data.referenceIdKeyMap?.[CREDIT_NOTE_EVENT_TYPE] || '',
+        });
+      }
+    } catch (error: any) {
+      console.error('getKeyConfig threw:', error);
+      toast.error(error?.message || 'Failed to load invoice ID key configuration');
+    } finally {
+      setKeyConfigLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (tenantId) {
       fetchTenant();
+      fetchKeyConfig();
     }
   }, [tenantId]);
 
@@ -264,7 +296,7 @@ export default function TenantDetail() {
     setIsGenerating(true);
     try {
       const tenantApi = createTenantApi();
-      const response = await tenantApi.generateWebhook(tenant.tenantId, invoiceIdKey || undefined);
+      const response = await tenantApi.generateWebhook(tenant.tenantId);
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to generate webhook URL');
       } else {
@@ -273,7 +305,6 @@ export default function TenantDetail() {
           setGeneratedWebhook({
             webhookUrl: data.webhookUrl,
             webhookSecret: data.webhookSecret,
-            invoiceIdKey: data.invoiceIdKey || invoiceIdKey || undefined,
           });
           setSecretVisible(true);
           toast.success("Webhook generated. Copy your secret now — it won't be shown again.");
@@ -589,27 +620,11 @@ export default function TenantDetail() {
                           </Button>
                         </div>
                       </div>
-                      {generatedWebhook.invoiceIdKey && (
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
-                          <p className="font-mono text-xs">{generatedWebhook.invoiceIdKey}</p>
-                        </div>
-                      )}
                     </div>
                   )}
 
                   {/* Generate controls */}
                   <div className="space-y-2 pt-2 border-t">
-                    <Label htmlFor="invoiceIdKey" className="text-xs text-muted-foreground">
-                      Invoice ID Key <span className="text-muted-foreground">(optional)</span>
-                    </Label>
-                    <Input
-                      id="invoiceIdKey"
-                      value={invoiceIdKey}
-                      onChange={(e) => setInvoiceIdKey(e.target.value)}
-                      placeholder="e.g. invoice.documentId"
-                      className="font-mono text-xs"
-                    />
                     {tenant.config?.webhookUrl ? (
                       <>
                         <AlertDialog>
@@ -663,6 +678,84 @@ export default function TenantDetail() {
                       </Button>
                     )}
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Invoice ID Keys */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Key className="w-5 h-5" />
+                    Invoice ID Keys
+                  </CardTitle>
+                  <CardDescription>
+                    Configure where to find each invoice type&apos;s ID in incoming webhook payloads
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {keyConfigLoading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium">Standard Invoice</p>
+                        <InvoiceIdKeyEditor
+                          initialValue={keyConfig.invoiceIdKey}
+                          onSave={async (key) => {
+                            const res = await (api as any).v1.tenants({ tenantId: tenant.tenantId })['invoice-id-key'].put({ invoiceIdKey: key });
+                            if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update invoice ID key');
+                          }}
+                          onSaved={() => fetchKeyConfig()}
+                        />
+                      </div>
+
+                      <div className="space-y-3 pt-4 border-t">
+                        <p className="text-sm font-medium">Credit Note</p>
+                        <InvoiceIdKeyEditor
+                          initialValue={keyConfig.creditNoteIdKey}
+                          placeholder="e.g. creditNote.documentId"
+                          successMessage="Credit note ID key updated"
+                          onSave={async (key) => {
+                            const res = await (api as any).v1.tenants({ tenantId: tenant.tenantId })['id-key-map'].put({ eventType: CREDIT_NOTE_EVENT_TYPE, idKey: key });
+                            if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update credit note ID key');
+                          }}
+                          onSaved={() => fetchKeyConfig()}
+                        />
+                        <InvoiceIdKeyEditor
+                          initialValue={keyConfig.creditNoteReferenceIdKey}
+                          label="Reference ID Key"
+                          placeholder="e.g. creditNote.originalInvoiceId"
+                          helpText="Dot-notation path to the original invoice's ID, used to validate this credit note against it"
+                          successMessage="Credit note reference ID key updated"
+                          onSave={async (key) => {
+                            const res = await (api as any).v1.tenants({ tenantId: tenant.tenantId })['reference-id-key-map'].put({ eventType: CREDIT_NOTE_EVENT_TYPE, idKey: key });
+                            if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update credit note reference ID key');
+                          }}
+                          onSaved={() => fetchKeyConfig()}
+                        />
+                      </div>
+
+                      <div className="space-y-3 pt-4 border-t">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-muted-foreground">Debit Note</p>
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <Lock className="w-3 h-3" />
+                            Coming soon
+                          </Badge>
+                        </div>
+                        <div className="space-y-2 opacity-60">
+                          <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
+                          <Input disabled placeholder="e.g. debitNote.documentId" className="font-mono text-xs" />
+                        </div>
+                        <div className="space-y-2 opacity-60">
+                          <Label className="text-xs text-muted-foreground">Reference ID Key</Label>
+                          <Input disabled placeholder="e.g. debitNote.originalInvoiceId" className="font-mono text-xs" />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 

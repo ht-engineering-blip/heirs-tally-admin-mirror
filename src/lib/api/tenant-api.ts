@@ -48,6 +48,15 @@ export function createTenantApi() {
     updateInvoiceIdKey: (tenantId: string, invoiceIdKey: string) =>
       api.v1.tenants({ tenantId })['invoice-id-key'].put({ invoiceIdKey }),
 
+    getKeyConfig: (tenantId: string) =>
+      (api as any).v1.tenants({ tenantId })['key-config'].get(),
+
+    updateIdKeyMap: (tenantId: string, eventType: string, idKey: string) =>
+      (api as any).v1.tenants({ tenantId })['id-key-map'].put({ eventType, idKey }),
+
+    updateReferenceIdKeyMap: (tenantId: string, eventType: string, idKey: string) =>
+      (api as any).v1.tenants({ tenantId })['reference-id-key-map'].put({ eventType, idKey }),
+
     updatePaymentStatus: (irn: string, data: {
       status: string;
       paymentDate?: string;
