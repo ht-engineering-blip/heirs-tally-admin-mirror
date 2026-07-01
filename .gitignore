@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .doc
+*.md
 
 # Next.js
 .next
