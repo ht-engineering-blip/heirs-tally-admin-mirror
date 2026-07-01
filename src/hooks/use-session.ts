@@ -9,7 +9,7 @@ export function useSession() {
     session,
     user: session?.user,
     tenantId: session?.user?.tenantId,
-    memberRole: session?.user?.memberRole,
+    memberRole: session?.user?.role,
     isAuthenticated: status === 'authenticated',
     isLoading: status === 'loading',
     isSuperAdmin: session?.user?.role === 'SUPER_ADMIN',
