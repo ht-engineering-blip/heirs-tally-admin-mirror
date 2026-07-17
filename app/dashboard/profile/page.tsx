@@ -365,16 +365,16 @@ export default function ProfilePage() {
             <div className="space-y-4">
               <ProfileField
                 label="FIRS Status"
-                value={(tenantData as any)?.config?.nrs ? 'Connected' : 'Not connected'}
+                value={config?.firs ? 'Connected' : 'Not connected'}
               />
-              {(tenantData as any)?.config?.nrs && (
+              {config?.firs && (
                 <>
                   <ProfileField
                     label="Service ID"
-                    value={(tenantData as any)?.config?.nrs.serviceId}
+                    value={config.firs.serviceId}
                   />
-                  <ProfileField label="Business Name" value={tenantData?.businessName} />
-                  <ProfileField label="TIN" value={tenantData.tin} />
+                  <ProfileField label="Business Name" value={tenant?.businessName} />
+                  <ProfileField label="TIN" value={tenant?.tin} />
                 </>
               )}
             </div>
