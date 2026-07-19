@@ -2,15 +2,18 @@
 
 import app from '@/types/server'
 import { treaty } from '@elysiajs/eden'
+import Cookies from 'js-cookie'
 import { signOut } from 'next-auth/react'
 
 const API_URL = typeof window !== 'undefined'
   ? (process.env.NEXT_PUBLIC_API_URL || `${window.location.origin}/api/v1`)
   : process.env.NEXT_PUBLIC_API_URL || '/api/v1'
 
+const COOKIE_OPTIONS = { expires: 7, path: '/', sameSite: 'lax' } as const
+
 function getAccessToken(): string | undefined {
   if (typeof window === 'undefined') return undefined
-  return localStorage.getItem('access_token') ?? undefined
+  return Cookies.get('access_token')
 }
 
 // Singleton refresh promise — prevents multiple simultaneous refresh calls
@@ -38,7 +41,7 @@ async function refreshAccessToken(): Promise<string | null> {
       const body = await res.json()
       const newToken = body?.data?.token
       if (newToken) {
-        localStorage.setItem('access_token', newToken)
+        Cookies.set('access_token', newToken, COOKIE_OPTIONS)
         return newToken as string
       }
       return null
