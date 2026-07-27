@@ -36,8 +36,11 @@ export function createTenantApi() {
     firsOAuth: (email: string, password: string, mock = false) =>
       api.v1.auth.oauth.firs.post({ email, password, mock }),
 
+    updateCredentials: (tenantId: string, certificate: string, publicKey: string) =>
+      (api as any).v1.tenants({ tenantId })['credentials'].put({ certificate, publicKey }),
+
     putFirsCredentials: (tenantId: string, certificate: string, publicKey: string) =>
-      api.v1.tenants({ tenantId })['firs-credentials'].put({ certificate, publicKey }),
+      (api as any).v1.tenants({ tenantId })['firs-credentials'].put({ certificate, publicKey }),
 
     getOnboarding: (tenantId: string) =>
       api.v1.tenants({ tenantId }).onboarding.get(),

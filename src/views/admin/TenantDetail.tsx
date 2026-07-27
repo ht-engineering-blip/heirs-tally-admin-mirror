@@ -322,12 +322,11 @@ export default function TenantDetail() {
     if (!tenant || !firsCredentialsForm.certificate || !firsCredentialsForm.publicKey) return;
     setFirsCredentialsSaving(true);
     try {
-      const tenantApi = createTenantApi();
-      const response = await tenantApi.putFirsCredentials(
-        tenant.tenantId,
-        firsCredentialsForm.certificate,
-        firsCredentialsForm.publicKey
-      );
+      const adminApi = getAdminApiClient();
+      const response = await (adminApi as any).v1.tenants({ tenantId: tenant.tenantId })['credentials'].put({
+        certificate: firsCredentialsForm.certificate,
+        publicKey: firsCredentialsForm.publicKey,
+      });
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to update FIRS credentials');
       } else {

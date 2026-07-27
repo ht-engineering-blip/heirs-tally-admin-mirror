@@ -115,34 +115,38 @@ Real-time overview of the tenant's e-invoicing activity and the entry point for 
 
 *(Business Admin only)*
 
-After reviewing the dashboard, the tenant configures their webhook integration in detail.
+After reviewing the dashboard, the tenant configures their webhook integration across five tabs. On small screens, tabs show icons only with hover tooltips to identify each tab.
 
-**Step 1 — Pass in Invoice ID**
-- Tenant enters the **Invoice ID** to associate with the webhook test configuration
-- This ties the webhook setup to a real or test invoice reference
+**Tab 1 — Configuration**
+- View the current webhook URL and secret (secret is masked by default; toggle to reveal)
+- **Generate / Regenerate** — produces a new webhook URL and secret:
+  - Both values are shown immediately after generation — tenant must copy and store them securely
+  - Regenerating immediately invalidates the previous URL and secret
+  - Webhook can be enabled or disabled independently of the URL
 
-**Step 2 — Regenerate Webhook URL and Secret**
-- Tenant triggers regeneration of:
-  - **Webhook URL** — the new endpoint the platform will POST events to
-  - **Webhook Secret** — used to sign outgoing payloads so the receiving system can verify authenticity
-- Both values are displayed once — tenant copies and stores them securely
-- Previous URL and secret are immediately invalidated
+**Tab 2 — Invoice Keys**
+- Defines how the platform extracts the invoice identifier from the ERP payload for each document type. These keys are the single source of truth and are configured independently of webhook generation.
+- **Standard Invoices** — dot-notation path to the invoice ID field in the inbound payload (e.g. `invoice.documentId`)
+- **Credit Notes** — two fields:
+  - *Invoice ID Key* — dot-notation path to the credit note's own ID
+  - *Reference ID Key* — dot-notation path to the field that references the original invoice being credited
+- **Debit Notes** — same two-field structure as Credit Notes
+- Each field has an independent Save button; changes take effect immediately
 
-**Step 3 — Test**
-- Tenant fires a test event to the newly configured webhook endpoint
+**Tab 3 — Test**
+- Tenant fires a test event to the configured webhook endpoint
 - Platform sends a sample payload to the URL
 - Tenant verifies receipt on the receiving end (their ERP or backend system)
 - Test result (success / failure / timeout) is displayed in the UI
 
-**Step 4 — Map**
-- Tenant defines which platform events should trigger the webhook:
-  - Invoice submitted
-  - Invoice accepted
-  - Invoice rejected
-  - Status changed
-  - Payment received
-- Each event can be toggled on or off independently
-- Mapping saved — the webhook will now fire only for the selected events
+**Tab 4 — Routing**
+- Tenant defines which platform events should trigger the webhook and maps each ERP event to a platform workflow action
+- Each event mapping can be added, edited, or removed independently
+- If the reference data (event types / workflows) fails to load, an error message and Retry button are shown inside the dropdown
+
+**Tab 5 — History**
+- Log of all webhook events delivered to the tenant's endpoint
+- Shows event type, delivery status, timestamp, and response details
 
 ---
 
@@ -302,6 +306,7 @@ The following table summarises how access differs between Business Admin and Bus
 | Dashboard | Full view | Read-only |
 | Onboarding | Completes setup | N/A — joins via invite after setup |
 | Webhook Configuration | Full access (configure, test, map) | No access |
+| Invoice Keys | Configure per document type | No access |
 | ERP Sync | Configure + map events to workflows | Read-only |
 | Transactions | View + resend failed | View only |
 | Transaction Detail | View + resend | View only |
