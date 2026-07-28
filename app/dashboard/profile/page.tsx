@@ -101,7 +101,7 @@ export default function ProfilePage() {
     setIsSavingCredentials(true)
     try {
       const api = createTenantApi()
-      const response = await api.putFirsCredentials(tenantId, data.certificate, data.publicKey)
+      const response = await api.updateCredentials(tenantId, data.certificate, data.publicKey)
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to update FIRS credentials')
         return
