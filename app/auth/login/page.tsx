@@ -65,6 +65,14 @@ function LoginPage() {
     }
   }, [searchParams])
 
+  // Edge and Chrome autofill login forms after mount even when autoComplete="off"
+  // is set. Resetting after a short delay runs after the browser autofill fires
+  // and clears it — without affecting values the user has already typed.
+  useEffect(() => {
+    const t = setTimeout(() => form.reset({ email: '', password: '' }), 100)
+    return () => clearTimeout(t)
+  }, [])
+
   const handleTabChange = (value: string) => {
     setPersistedTab(value)
     setError(null)
@@ -237,7 +245,7 @@ function LoginPage() {
                           type={showPassword ? 'text' : 'password'}
                           placeholder="Enter your password"
                           className="pl-10 pr-10"
-                          autoComplete="current-password"
+                          autoComplete="off"
                           {...field}
                         />
                         <Button
