@@ -2,6 +2,7 @@
 
 import Cookies from 'js-cookie'
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { signOut } from 'next-auth/react'
 import { Loader2, LogOut } from 'lucide-react'
 import {
@@ -23,10 +24,12 @@ interface LogoutDialogProps {
 
 export function LogoutDialog({ callbackUrl = '/auth/login', children }: LogoutDialogProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const queryClient = useQueryClient()
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
     Cookies.remove('access_token', { path: '/' })
+    queryClient.clear()
     await signOut({ callbackUrl })
   }
 
