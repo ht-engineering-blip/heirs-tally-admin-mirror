@@ -102,8 +102,8 @@ function AcceptInvitePage() {
 
       // Call /me endpoint to get additional user information using fetch
       const API_URL = typeof window !== 'undefined'
-        ? (process.env.NEXT_PUBLIC_API_URL || `${window.location.origin}/api/v1`)
-        : process.env.NEXT_PUBLIC_API_URL || '/api/v1'
+        ? `${window.location.origin}/api/v1`
+        : '/api/v1'
 
       const meRes = await fetch(`${API_URL}/v1/auth/me`, {
         headers: {
