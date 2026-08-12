@@ -1,182 +1,49 @@
-# Heirs EInvoicing Admin Dashboard
+# Heirs E-Invoicing Admin
 
-A management and administration platform for the Heirs Tally e-invoicing system. Provides centralized control for Super Admins managing all tenants and system operations, and Business Admins managing their own tenant's invoicing, team, and integrations.
+A multi-tenant B2B e-invoicing platform that helps businesses generate, validate, and submit invoices electronically in compliance with NRS/FIRS requirements in Nigeria.
 
----
+## Overview
 
-## Features
+The platform bridges a business's internal ERP system (Tally, SAP, NetSuite, etc.) and the government's tax authority infrastructure. It intercepts invoice events, signs and validates payloads using NRS-issued credentials, submits them to the NRS, and returns an Invoice Reference Number (IRN).
 
-**Super Admin**
-- Tenant lifecycle management (create, onboard, suspend, delete)
-- System health monitoring and uptime metrics
-- Global transaction logs across all tenants
-- ERP synchronization configuration per tenant
-- API key and webhook management
-- NRS (National Revenue Service) dictionary management
-- API testing sandbox
+## Portals
 
-**Business Admin / Team**
-- Dashboard with KPIs: invoice volume, revenue, ERP distribution
-- Transaction history with full invoice data and status timeline
-- ERP sync setup and monitoring
-- Webhook configuration and event routing
-- Team member invitations and role management
-- API key generation and management
-- Account onboarding flow
-
----
+- **Super Admin** (`/admin`) — platform management: tenant onboarding, ERP configuration, webhook oversight, transaction auditing
+- **Tenant Dashboard** (`/dashboard`) — self-service: webhook setup, ERP sync, invoice ID key configuration, API keys, team management
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 15 (App Router) |
-| Language | TypeScript 5.8 |
-| Styling | Tailwind CSS 3.4 |
-| Auth | NextAuth v5 (JWT, Credentials provider) |
-| API Proxy | Elysia 1.4 + Eden Treaty |
-| State / Data Fetching | React Query 5 |
-| Forms | React Hook Form 7 + Zod |
-| UI Primitives | Radix UI |
-| Charts | Recharts 2 |
-| Code Editor | Monaco Editor |
-| Testing | Vitest |
-
----
-
-## Roles & Access
-
-| Role | Access |
-|---|---|
-| `SUPER_ADMIN` | Full system access via `/admin` routes |
-| `BUSINESS_ADMIN` | Full tenant access via `/dashboard` routes |
-| `BUSINESS_TEAM_MEMBER` | Read-only/limited access via `/dashboard` routes |
-
----
-
-## Project Structure
-
-```
-heirs-tally-admin/
-├── app/
-│   ├── admin/              # Super admin pages
-│   ├── dashboard/          # Business dashboard pages
-│   ├── auth/               # Login, register, password flows
-│   └── api/                # API proxy routes (Elysia) + NextAuth
-├── src/
-│   ├── components/
-│   │   ├── dashboard/      # KPI cards, charts, tables
-│   │   ├── layout/         # Header, sidebar, wrappers
-│   │   ├── shared/         # DataTable, StatusBadge, loaders
-│   │   ├── onboarding/     # Tenant onboarding steps
-│   │   └── ui/             # Radix UI primitives
-│   ├── hooks/              # use-session, use-permissions, use-mobile, etc.
-│   ├── lib/
-│   │   ├── api/            # Eden Treaty client + React Query hooks
-│   │   ├── auth/           # NextAuth config and helpers
-│   │   ├── mockData/       # Mock data for dev/testing
-│   │   └── schema/         # Zod schemas
-│   ├── types/              # Shared TypeScript types
-│   └── views/              # Page-level view components
-└── ...config files
-```
-
----
+- **Framework:** Next.js 15 (App Router)
+- **Auth:** NextAuth v5 (credentials provider, JWT session strategy)
+- **API Client:** Eden Treaty (`@elysiajs/eden`) with typed server types
+- **UI:** Radix UI + Tailwind CSS + shadcn/ui components
+- **State:** TanStack Query v5
+- **Forms:** React Hook Form + Zod
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 18+
-- npm or compatible package manager
-
-### Installation
-
 ```bash
-npm install
+yarn install
+yarn dev
 ```
 
-### Environment Variables
+Copy `.env.example` to `.env` and fill in the required values before running.
 
-Create a `.env` file at the project root:
+## Environment Variables
 
-```env
-# Backend middleware base URL
-API_BASE_URL=https://e-invoicing-middleware.vercel.app
-
-# Admin API key sent to backend for super admin requests
-ADMIN_API_KEY=dev-admin-key
-
-# Public environment flag (used for dev-only UI like mock credential toggles)
-APP_ENV=development
-
-# NextAuth secret (auto-generated if omitted in development)
-NEXTAUTH_SECRET=your-secret-here
-```
-
-### Running Locally
-
-```bash
-npm run dev       # Start dev server at http://localhost:3000
-npm run build     # Production build
-npm start         # Start production server
-npm run lint      # Lint
-npm run test      # Run unit tests (Vitest)
-npm run test:watch
-```
-
----
-
-## Key Routes
-
-### Super Admin (`/admin`)
-
-| Route | Description |
+| Variable | Description |
 |---|---|
-| `/admin` | Overview dashboard |
-| `/admin/tenants/all` | All tenants list |
-| `/admin/tenants/[tenantId]` | Tenant detail |
-| `/admin/tenants/api-keys` | API key management |
-| `/admin/tenants/erp-sync-config` | ERP sync config |
-| `/admin/tenants/transactions` | Transaction logs |
-| `/admin/tenants/webhook-config` | Webhook config |
-| `/admin/system/settings` | System settings |
-| `/admin/system/health` | Health monitoring |
-| `/admin/system/nrs-dictionary` | NRS dictionary |
-| `/admin/sandbox` | API testing sandbox |
+| `NEXT_PUBLIC_API_URL` | Base URL for the API proxy (defaults to `window.location.origin/api/v1`) |
+| `API_BASE_URL` | Backend middleware URL (defaults to `https://e-invoicing-middleware.vercel.app`) |
+| `ADMIN_API_KEY` | Secret key injected as `x-admin-key` on all admin proxy requests |
+| `NEXTAUTH_SECRET` | Secret used to sign/encrypt NextAuth session tokens |
+| `NEXTAUTH_URL` | Full URL of this deployment (required in production) |
 
-### Business Dashboard (`/dashboard`)
+## Architecture
 
-| Route | Description |
-|---|---|
-| `/dashboard` | KPI + charts overview |
-| `/dashboard/onboarding` | Onboarding flow |
-| `/dashboard/transactions` | Transaction history |
-| `/dashboard/transactions/[irn]` | Transaction detail |
-| `/dashboard/erp-sync` | ERP sync management |
-| `/dashboard/settings/api-keys` | API keys |
-| `/dashboard/settings/webhook` | Webhook settings |
-| `/dashboard/team` | Team management |
-| `/dashboard/sandbox` | API sandbox |
+API requests from the browser go through a local Next.js proxy at `/api/v1/[[...slugs]]`, which routes to either the admin or tenant backend:
 
-### Auth (`/auth`)
+- `/api/v1/admin/*` → injects `x-admin-key` header → forwards to backend
+- `/api/v1/tenants/*` → injects `Authorization: Bearer` from cookie → forwards to backend
 
-| Route | Description |
-|---|---|
-| `/auth/login` | Business user login |
-| `/auth/super-admin/login` | Super admin login |
-| `/auth/register` | Registration |
-| `/auth/activate` | Account activation |
-| `/auth/accept-invite` | Invite acceptance |
-| `/auth/forgot-password` | Password reset request |
-| `/auth/reset-password` | Password reset |
-| `/auth/set-password` | Set new password |
-
----
-
-## Architecture Notes
-
-- **API Proxy**: All requests from the browser go through an Elysia-based proxy at `/api/[...]`. The proxy attaches auth tokens (from cookies or NextAuth JWT) before forwarding to the backend middleware.
-- **RBAC**: Route protection and UI gating are handled via `use-permissions` hook and NextAuth session role checks.
-- **Mock-first development**: A full mock API layer in `src/lib/mockData/` allows development and testing independent of the backend.
-- **Dev-only features**: Some UI elements (e.g. NRS OAuth mock credentials toggle) are gated by `APP_ENV=development` or `NODE_ENV`.
+Bearer tokens (backend JWTs) are stored in a `js-cookie` cookie (`access_token`, 7-day expiry). NextAuth manages identity/role in a separate encrypted session cookie.
