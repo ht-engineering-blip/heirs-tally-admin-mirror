@@ -1,3 +1,3 @@
-export const APP_ENV = process.env.APP_ENV || 'production'
+export const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV || 'production'
 
 console.log('App env: ', APP_ENV);

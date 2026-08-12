@@ -101,7 +101,7 @@ export default function ProfilePage() {
     setIsSavingCredentials(true)
     try {
       const api = createTenantApi()
-      const response = await api.putFirsCredentials(tenantId, data.certificate, data.publicKey)
+      const response = await api.updateCredentials(tenantId, data.certificate, data.publicKey)
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to update FIRS credentials')
         return
@@ -365,16 +365,16 @@ export default function ProfilePage() {
             <div className="space-y-4">
               <ProfileField
                 label="FIRS Status"
-                value={(tenantData as any)?.config?.nrs ? 'Connected' : 'Not connected'}
+                value={config?.firs ? 'Connected' : 'Not connected'}
               />
-              {(tenantData as any)?.config?.nrs && (
+              {config?.firs && (
                 <>
                   <ProfileField
                     label="Service ID"
-                    value={(tenantData as any)?.config?.nrs.serviceId}
+                    value={config.firs.serviceId}
                   />
-                  <ProfileField label="Business Name" value={tenantData?.businessName} />
-                  <ProfileField label="TIN" value={tenantData.tin} />
+                  <ProfileField label="Business Name" value={tenant?.businessName} />
+                  <ProfileField label="TIN" value={tenant?.tin} />
                 </>
               )}
             </div>

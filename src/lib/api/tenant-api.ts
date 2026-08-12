@@ -36,8 +36,11 @@ export function createTenantApi() {
     firsOAuth: (email: string, password: string, mock = false) =>
       api.v1.auth.oauth.firs.post({ email, password, mock }),
 
+    updateCredentials: (tenantId: string, certificate: string, publicKey: string) =>
+      (api as any).v1.tenants({ tenantId })['credentials'].put({ certificate, publicKey }),
+
     putFirsCredentials: (tenantId: string, certificate: string, publicKey: string) =>
-      api.v1.tenants({ tenantId })['firs-credentials'].put({ certificate, publicKey }),
+      (api as any).v1.tenants({ tenantId })['firs-credentials'].put({ certificate, publicKey }),
 
     getOnboarding: (tenantId: string) =>
       api.v1.tenants({ tenantId }).onboarding.get(),
@@ -47,6 +50,15 @@ export function createTenantApi() {
 
     updateInvoiceIdKey: (tenantId: string, invoiceIdKey: string) =>
       api.v1.tenants({ tenantId })['invoice-id-key'].put({ invoiceIdKey }),
+
+    getKeyConfig: (tenantId: string) =>
+      (api as any).v1.tenants({ tenantId })['key-config'].get(),
+
+    updateIdKeyMap: (tenantId: string, eventType: string, idKey: string) =>
+      (api as any).v1.tenants({ tenantId })['id-key-map'].put({ eventType, idKey }),
+
+    updateReferenceIdKeyMap: (tenantId: string, eventType: string, idKey: string) =>
+      (api as any).v1.tenants({ tenantId })['reference-id-key-map'].put({ eventType, idKey }),
 
     updatePaymentStatus: (irn: string, data: {
       status: string;

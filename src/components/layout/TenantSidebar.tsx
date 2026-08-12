@@ -1,5 +1,6 @@
 'use client'
 
+import { Logo } from '@/components/shared/Logo'
 import { LogoutDialog } from '@/components/shared/LogoutDialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +12,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Logo } from '@/components/shared/Logo'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSession } from '@/hooks/use-session'
@@ -59,6 +59,10 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
   const { hasPermission } = usePermissions()
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const handleNavClick = isMobile ? onClose : undefined
+
+  console.log("user: ", user);
+  console.log("memberRole: ", memberRole);
+  
 
 
 

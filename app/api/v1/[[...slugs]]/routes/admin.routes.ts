@@ -7,14 +7,9 @@ const adminRoutes = new Elysia({ prefix: '/admin' })
     try {
       // Extract the path after /api/v1/admin
       const apiPath = path.replace('/api/v1/admin', '')
-      console.log({path, apiPath})
       const url = new URL(request.url)
       const searchParams = url.searchParams.toString()
-      
-      // Build the target URL to the admin API
       const targetUrl = `${API_BASE_URL}${apiPath}${searchParams ? `?${searchParams}` : ''}`
-      
-      console.log({targetUrl})
       // Get request body if present
       let body: string | undefined
       if (request.method !== 'GET' && request.method !== 'HEAD') {

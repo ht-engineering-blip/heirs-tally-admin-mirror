@@ -18,6 +18,7 @@ import { getTenantApiClient } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, ArrowLeft, ArrowRight, Eye, EyeOff, Loader2, Lock, UserPlus } from 'lucide-react'
+import Cookies from 'js-cookie'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -96,8 +97,7 @@ function AcceptInvitePage() {
       }
 
       const authToken = acceptInviteResponse?.data?.data?.token
-      // Set access_token cookie so the API proxy can read it directly
-      document.cookie = `access_token=${authToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
+      Cookies.set('access_token', authToken, { expires: 7, path: '/', sameSite: 'lax' })
       const userData = acceptInviteResponse?.data?.data
 
       // Call /me endpoint to get additional user information using fetch

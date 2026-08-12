@@ -34,7 +34,7 @@ const environmentsVal = {
 };
 
 const isDev =
-  process.env.APP_ENV === environmentsVal.development ||
+  process.env.NEXT_PUBLIC_APP_ENV === environmentsVal.development ||
   process.env.NODE_ENV === environmentsVal.development;
 
 const firsCredentialsSchema = z.object({

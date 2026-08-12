@@ -1,5 +1,6 @@
 'use client'
 
+import Cookies from 'js-cookie'
 import { useState } from 'react'
 import { signOut } from 'next-auth/react'
 import { Loader2, LogOut } from 'lucide-react'
@@ -25,7 +26,7 @@ export function LogoutDialog({ callbackUrl = '/auth/login', children }: LogoutDi
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
-    localStorage.removeItem('access_token')
+    Cookies.remove('access_token', { path: '/' })
     await signOut({ callbackUrl })
   }
 

@@ -107,6 +107,7 @@ Done immediately after reviewing the dashboard — establishes the platform foun
 - Search by name or email
 - Filter by status: Active, Pending, Suspended, Inactive
 - Filter by ERP type
+- Click any row to navigate directly to that tenant's detail page
 
 **Adding a New Tenant**
 - Admin fills in tenant details: business name, email, assigned ERP
@@ -115,11 +116,19 @@ Done immediately after reviewing the dashboard — establishes the platform foun
 - Tenant record appears in the list with `pending` status until setup is complete
 
 **Viewing Tenant Details** — `/admin/tenants/[tenantId]`
-- Full profile of a specific tenant
-- Linked ERP configuration
-- Associated API keys
-- Transaction history for that tenant
-- Current onboarding status
+
+Three tabs:
+
+*Overview* — Full profile of the tenant: business name, TIN, contact details, ERP system, status, and creation date. FIRS credentials (certificate and service ID) can be viewed or updated here.
+
+*Configuration* — Two cards:
+- **Webhook** — view the tenant's current webhook URL and secret; generate or regenerate a webhook on behalf of the tenant
+- **Invoice ID Keys** — configure the dot-notation field paths used to extract invoice identifiers from the ERP payload, per document type:
+  - *Standard Invoices* — Invoice ID Key
+  - *Credit Notes* — Invoice ID Key + Reference ID Key (path to the field referencing the original invoice)
+  - *Debit Notes* — Invoice ID Key + Reference ID Key
+
+*Onboarding* — Current onboarding status and step-by-step progress; admin can update status and add notes or rejection reasons
 
 **Tenant Lifecycle Actions**
 - **Activate** — move a pending tenant to active status
@@ -140,6 +149,7 @@ Done immediately after reviewing the dashboard — establishes the platform foun
 - Set or override webhook endpoint URLs globally or per tenant
 - Review active webhook subscriptions
 - Inspect webhook delivery logs and failure rates
+- Invoice ID Key configuration (per document type) is managed from the individual tenant's Configuration tab, not from this bulk view
 
 **API Keys Management** — `/admin/tenants/api-keys`
 - View all API keys across all tenants

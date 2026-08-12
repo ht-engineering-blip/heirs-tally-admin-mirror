@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Eye, Edit, Trash2, Power, Building2, Webhook, CheckCircle2, XCircle, Copy, Loader2, EyeOff, RefreshCw, AlertCircle } from 'lucide-react';
-import { DataTable, Column, FilterOption, StatusBadge, EventMappingEditor, InvoiceIdKeyEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
+import { DataTable, Column, FilterOption, StatusBadge, EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +42,6 @@ interface WebhookConfigEntry {
   webhookUrl?: string;
   webhookEnabled: boolean;
   webhookPath?: string;
-  invoiceIdKey?: string;
   eventMappings: EventMapping[];
   tenantStatus: 'active' | 'pending' | 'suspended' | 'inactive' | 'onboarding';
   createdAt: string;
@@ -122,8 +121,7 @@ export default function AdminWebhookConfig() {
 
   // Generate webhook state
   const [isGenerating, setIsGenerating] = useState(false);
-  const [invoiceIdKey, setInvoiceIdKey] = useState('');
-  const [generatedWebhook, setGeneratedWebhook] = useState<{ webhookUrl: string; webhookSecret: string; invoiceIdKey?: string } | null>(null);
+  const [generatedWebhook, setGeneratedWebhook] = useState<{ webhookUrl: string; webhookSecret: string } | null>(null);
   const [secretVisible, setSecretVisible] = useState(false);
 
   // Edit form state
@@ -164,7 +162,6 @@ export default function AdminWebhookConfig() {
                 webhookUrl: config.webhookUrl || metadata.webhookUrl || '',
                 webhookEnabled: config.webhookEnabled ?? metadata.webhookEnabled ?? false,
                 webhookPath: config.webhookPath || metadata.webhookPath || '',
-                invoiceIdKey: config.invoiceIdKey || metadata.invoiceIdKey || '',
                 eventMappings,
                 tenantStatus: t.status || 'inactive',
                 createdAt: t.createdAt,
@@ -335,7 +332,6 @@ export default function AdminWebhookConfig() {
   const openGenerateModal = (config: WebhookConfigEntry) => {
     setSelectedConfig(config);
     setGeneratedWebhook(null);
-    setInvoiceIdKey(config.invoiceIdKey || '');
     setSecretVisible(false);
     setShowGenerateModal(true);
   };
@@ -345,7 +341,7 @@ export default function AdminWebhookConfig() {
     setIsGenerating(true);
     try {
       const tenantApi = createTenantApi();
-      const response = await tenantApi.generateWebhook(selectedConfig.tenantId, invoiceIdKey || undefined);
+      const response = await tenantApi.generateWebhook(selectedConfig.tenantId);
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to generate webhook URL');
       } else {
@@ -354,7 +350,6 @@ export default function AdminWebhookConfig() {
           setGeneratedWebhook({
             webhookUrl: data.webhookUrl,
             webhookSecret: data.webhookSecret,
-            invoiceIdKey: data.invoiceIdKey || invoiceIdKey || undefined,
           });
           setSecretVisible(true);
           setShowRegenerateDialog(false);
@@ -919,7 +914,7 @@ export default function AdminWebhookConfig() {
       </AlertDialog>
 
       {/* Generate Webhook Modal */}
-      <Dialog open={showGenerateModal} onOpenChange={(open) => { setShowGenerateModal(open); if (!open) { setSelectedConfig(null); setGeneratedWebhook(null); setInvoiceIdKey(''); } }}>
+      <Dialog open={showGenerateModal} onOpenChange={(open) => { setShowGenerateModal(open); if (!open) { setSelectedConfig(null); setGeneratedWebhook(null); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -983,47 +978,8 @@ export default function AdminWebhookConfig() {
                     </Button>
                   </div>
                 </div>
-                {generatedWebhook.invoiceIdKey && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
-                    <p className="font-mono text-xs mt-0.5">{generatedWebhook.invoiceIdKey}</p>
-                  </div>
-                )}
               </div>
             )}
-
-            {/* Invoice ID Key */}
-            <div className="pt-1 border-t">
-              {selectedConfig?.webhookUrl && !generatedWebhook ? (
-                <InvoiceIdKeyEditor
-                  initialValue={selectedConfig.invoiceIdKey || ''}
-                  onSave={async (key) => {
-                    const res = await (api as any).v1.tenants({ tenantId: selectedConfig.tenantId })['invoice-id-key'].put({ invoiceIdKey: key });
-                    if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update invoice ID key');
-                  }}
-                  onSaved={(key) => {
-                    setSelectedConfig({ ...selectedConfig, invoiceIdKey: key });
-                    setInvoiceIdKey(key);
-                  }}
-                />
-              ) : !generatedWebhook ? (
-                <div className="space-y-2">
-                  <Label htmlFor="gen-invoiceIdKey" className="text-xs text-muted-foreground">
-                    Invoice ID Key <span className="text-muted-foreground">(optional)</span>
-                  </Label>
-                  <Input
-                    id="gen-invoiceIdKey"
-                    value={invoiceIdKey}
-                    onChange={(e) => setInvoiceIdKey(e.target.value)}
-                    placeholder="e.g. invoice.documentId"
-                    className="font-mono text-xs"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Dot-notation path to the invoice ID field in the webhook payload
-                  </p>
-                </div>
-              ) : null}
-            </div>
 
             {/* Regenerate / Generate action */}
             <div className="space-y-2 pt-1 border-t">

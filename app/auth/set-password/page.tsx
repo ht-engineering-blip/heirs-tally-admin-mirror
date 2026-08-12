@@ -33,6 +33,7 @@ import {
   Loader2,
   Lock,
 } from "lucide-react";
+import Cookies from "js-cookie";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -122,7 +123,7 @@ function SetPasswordPage() {
       }
 
       const authToken = setPasswordResponse.data.data.token;
-      localStorage.setItem("access_token", authToken);
+      Cookies.set("access_token", authToken, { expires: 7, path: "/", sameSite: "lax" });
 
       // Call /me endpoint to get user information
       const meResponse = await api.getMe();

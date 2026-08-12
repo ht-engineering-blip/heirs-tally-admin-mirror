@@ -18,6 +18,7 @@ import { usePersistedTab } from '@/hooks/use-persisted-tab'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, FileText, Loader2, Lock, Mail } from 'lucide-react'
+import Cookies from 'js-cookie'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -64,6 +65,14 @@ function LoginPage() {
     }
   }, [searchParams])
 
+  // Edge and Chrome autofill login forms after mount even when autoComplete="off"
+  // is set. Resetting after a short delay runs after the browser autofill fires
+  // and clears it — without affecting values the user has already typed.
+  useEffect(() => {
+    const t = setTimeout(() => form.reset({ email: '', password: '' }), 100)
+    return () => clearTimeout(t)
+  }, [])
+
   const handleTabChange = (value: string) => {
     setPersistedTab(value)
     setError(null)
@@ -96,7 +105,7 @@ function LoginPage() {
       const authToken = loginData.token
       let tenantId = loginData.tenant?.id
 
-      localStorage.setItem('access_token', authToken)
+      Cookies.set('access_token', authToken, { expires: 7, path: '/', sameSite: 'lax' })
 
       const meResponse = await tenantApi.getMeWithToken(authToken)
       if (meResponse.error) {
@@ -236,7 +245,7 @@ function LoginPage() {
                           type={showPassword ? 'text' : 'password'}
                           placeholder="Enter your password"
                           className="pl-10 pr-10"
-                          autoComplete="current-password"
+                          autoComplete="off"
                           {...field}
                         />
                         <Button
