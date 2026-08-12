@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getAdminApiClient } from '@/lib/api/client'
+import { useSession } from '@/hooks/use-session'
 
 export interface ErpListItem {
   id: string
@@ -37,12 +38,14 @@ export function formatErpName(name: string): string {
 
 export function useSupportedErps(options: UseSupportedErpsOptions = {}) {
   const { includeAll = false } = options
+  const { isAuthenticated, isSuperAdmin } = useSession()
 
   const query = useQuery({
     queryKey: SUPPORTED_ERPS_QUERY_KEY,
     queryFn: fetchSupportedErps,
+    enabled: isAuthenticated && isSuperAdmin,
     staleTime: 5 * 60 * 1000,
-    retry: 2,
+    retry: 1,
   })
 
   const erps = query.data ?? []
