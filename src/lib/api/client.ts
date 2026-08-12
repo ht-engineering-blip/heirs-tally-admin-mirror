@@ -6,8 +6,8 @@ import Cookies from 'js-cookie'
 import { signOut } from 'next-auth/react'
 
 const API_URL = typeof window !== 'undefined'
-  ? (process.env.NEXT_PUBLIC_API_URL || `${window.location.origin}/api/v1`)
-  : process.env.NEXT_PUBLIC_API_URL || '/api/v1'
+  ? `${window.location.origin}/api/v1`
+  : '/api/v1'
 
 const COOKIE_OPTIONS = { expires: 7, path: '/', sameSite: 'lax' } as const
 

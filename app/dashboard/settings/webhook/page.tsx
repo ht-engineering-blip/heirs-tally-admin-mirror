@@ -798,8 +798,7 @@ export default function WebhookSettingsPage() {
       return;
     }
 
-    const apiUrl =
-      process.env.NEXT_PUBLIC_API_URL || `${window.location.origin}/api/v1`;
+    const apiUrl = `${window.location.origin}/api/v1`;
     const sseUrl = webhookConfig?.webhookUrl.replace("inbound", "listen");
     //`${apiUrl}/webhook/listen/${webhookConfig.webhookPath}`
 
