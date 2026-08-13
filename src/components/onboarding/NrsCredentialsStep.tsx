@@ -46,7 +46,7 @@ type FirsCredentialsFormValues = z.infer<typeof firsCredentialsSchema>;
 
 interface FirsCredentialsStepProps {
   tenantId: string;
-  onStepComplete: () => void;
+  onStepComplete: () => void | Promise<void>;
 }
 
 export function NrsCredentialsStep({
