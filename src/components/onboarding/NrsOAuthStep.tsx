@@ -34,7 +34,7 @@ type FirsOAuthFormValues = z.infer<typeof firsOAuthSchema>
 
 interface FirsOAuthStepProps {
   tenantId: string
-  onStepComplete: () => void
+  onStepComplete: () => void | Promise<void>
 }
 
 interface BusinessInfo {

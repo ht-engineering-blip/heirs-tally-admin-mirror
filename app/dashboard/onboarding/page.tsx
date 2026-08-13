@@ -85,21 +85,19 @@ export default function OnboardingPage() {
     ?? (steps.find((s) => s.status === 'current')?.key as StepKey | undefined)
     ?? STEP_KEYS[0]
 
-  const handleStepComplete = () => {
-    // Find the next step after the currently active one
+  const handleStepComplete = async () => {
     const currentIndex = STEP_KEYS.indexOf(activeStepKey)
     const nextStepKey = STEP_KEYS[currentIndex + 1] as StepKey | undefined
 
     if (nextStepKey) {
-      // Immediately advance to next step
       setCurrentStepOverride(nextStepKey)
+      refetch()
     } else {
-      // All steps done — clear override so isOnboardingComplete takes over
+      // Last step — await fresh data before clearing the override so the page
+      // never flashes back to step 1 while the cache is still stale.
+      await refetch()
       setCurrentStepOverride(null)
     }
-
-    // Sync backend state in the background (updates stepper UI + progress %)
-    refetch()
   }
 
   const handleStepClick = (stepKey: string) => {

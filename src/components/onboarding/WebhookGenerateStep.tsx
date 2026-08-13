@@ -12,7 +12,7 @@ import { createTenantApi } from '@/lib/api/tenant-api'
 
 interface WebhookGenerateStepProps {
   tenantId: string
-  onStepComplete: () => void
+  onStepComplete: () => void | Promise<void>
 }
 
 interface WebhookData {
