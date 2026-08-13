@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { createTenantApi } from "@/lib/api/tenant-api";
+import { APP_ENV } from "@/lib/envData";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertCircle,
@@ -28,14 +29,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-const environmentsVal = {
-  development: "development",
-  production: "production",
-};
-
-const isDev =
-  process.env.NEXT_PUBLIC_APP_ENV === environmentsVal.development ||
-  process.env.NODE_ENV === environmentsVal.development;
+const isDev = APP_ENV === "development" || process.env.NODE_ENV === "development";
 
 const firsCredentialsSchema = z.object({
   certificate: z.string().min(1, "Certificate is required"),
@@ -56,16 +50,22 @@ export function NrsCredentialsStep({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
-  const [useMock, v] = useState(false);
+  const [useMock, setUseMock] = useState(false);
 
   const form = useForm<FirsCredentialsFormValues>({
     resolver: zodResolver(firsCredentialsSchema),
     defaultValues: { certificate: "", publicKey: "" },
   });
 
-  const onMockSubmit = () => {
-    toast.success("NRS credentials skipped (mock mode)");
-    onStepComplete();
+  const handleMockToggle = (checked: boolean) => {
+    setUseMock(checked);
+    if (checked) {
+      form.setValue("certificate", "-----BEGIN CERTIFICATE-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuMOCK_FIRS_CERTIFICATE_PEM\n-----END CERTIFICATE-----");
+      form.setValue("publicKey", "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuMOCK_FIRS_PUBLIC_KEY_PEM\n-----END PUBLIC KEY-----");
+    } else {
+      form.setValue("certificate", "");
+      form.setValue("publicKey", "");
+    }
   };
 
   const onSubmit = async (data: FirsCredentialsFormValues) => {
@@ -78,6 +78,7 @@ export function NrsCredentialsStep({
         tenantId,
         data.certificate,
         data.publicKey,
+        useMock,
       );
 
       if (response.error) {
@@ -138,14 +139,14 @@ export function NrsCredentialsStep({
         <div className="flex items-center justify-between rounded-lg border border-dashed border-amber-400 bg-amber-50 px-4 py-3 dark:border-amber-600 dark:bg-amber-950/30">
           <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
             <FlaskConical className="h-4 w-4 shrink-0" />
-            <span className="font-medium">Skip NRS credentials</span>
+            <span className="font-medium">Use mock NRS credentials</span>
             <span className="text-amber-600/70 dark:text-amber-500/70">
               (dev only)
             </span>
           </div>
           <Switch
             checked={useMock}
-            onCheckedChange={v}
+            onCheckedChange={handleMockToggle}
             aria-label="Toggle mock mode"
             className="data-[state=unchecked]:dark:bg-amber-800"
           />
@@ -159,81 +160,65 @@ export function NrsCredentialsStep({
         </Alert>
       )}
 
-      {useMock ? (
-        <div className="space-y-4">
-          <Alert className="border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30">
-            <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <AlertDescription className="text-amber-700 dark:text-amber-400">
-              Mock mode is active. NRS credential validation will be skipped —
-              no real certificate or key needed.
-            </AlertDescription>
-          </Alert>
-          <Button className="w-full" onClick={onMockSubmit}>
-            <FlaskConical className="mr-2 h-4 w-4" />
-            Continue with Mock Credentials
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="certificate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Certificate</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                    className="font-mono text-xs min-h-[120px]"
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Paste your PEM-encoded NRS certificate
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="publicKey"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Public Key</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
+                    className="font-mono text-xs min-h-[120px]"
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Paste your PEM-encoded public key
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving credentials...
+              </>
+            ) : (
+              <>
+                Save Credentials
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
           </Button>
-        </div>
-      ) : (
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="certificate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Certificate</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
-                      className="font-mono text-xs min-h-[120px]"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Paste your PEM-encoded NRS certificate
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="publicKey"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Public Key</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
-                      className="font-mono text-xs min-h-[120px]"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Paste your PEM-encoded public key
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving credentials...
-                </>
-              ) : (
-                <>
-                  Save Credentials
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </form>
-        </Form>
-      )}
+        </form>
+      </Form>
     </div>
   );
 }
