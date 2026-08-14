@@ -39,8 +39,8 @@ export function createTenantApi() {
     updateCredentials: (tenantId: string, certificate: string, publicKey: string) =>
       (api as any).v1.tenants({ tenantId })['credentials'].put({ certificate, publicKey }),
 
-    putFirsCredentials: (tenantId: string, certificate: string, publicKey: string) =>
-      (api as any).v1.tenants({ tenantId })['firs-credentials'].put({ certificate, publicKey }),
+    putFirsCredentials: (tenantId: string, certificate: string, publicKey: string, mock = false) =>
+      (api as any).v1.tenants({ tenantId })['firs-credentials'].put({ certificate, publicKey, mock }),
 
     getOnboarding: (tenantId: string) =>
       api.v1.tenants({ tenantId }).onboarding.get(),
@@ -86,6 +86,15 @@ export function createTenantApi() {
 
     getInboundInvoice: (irn: string) =>
       api.v1.workflow.invoices.inbound({ irn }).get(),
+
+    getInvoices: (query?: { page?: string; limit?: string; type?: string; status?: string; paymentStatus?: string; search?: string; from?: string; to?: string }) =>
+      (api as any).v1.workflow.invoices.get({ query: query || {} }),
+
+    getWebhookEvents: (query?: { page?: string; limit?: string; status?: string; eventType?: string }) =>
+      (api as any).v1.webhook.events.get({ query: query || {} }),
+
+    getWebhookEvent: (eventId: string) =>
+      (api as any).v1.webhook.events[eventId].get(),
 
     resendOutboundInvoice: (irn: string) =>
       api.v1.workflow.invoices.outbound({ irn }).resend.post({}),
