@@ -52,7 +52,7 @@ import { getAdminApiClient } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
-  AlertCircle,
+
   ArrowDownLeft,
   ArrowUpRight,
   CheckCircle,
@@ -66,7 +66,7 @@ import {
   QrCode,
   RefreshCw,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Invoice,
@@ -83,35 +83,41 @@ const WORKFLOW_STEP_MAP = [
   { stateKey: "delivered", apiValue: "deliver", label: "Deliver" },
 ];
 
-const transactionFilters: FilterOption[] = [
-  {
-    key: "status",
-    label: "Status",
-    options: [
-      { value: "all", label: "All Invoice Statuses" },
-      { value: "CREATED", label: "Created" },
-      { value: "VALIDATED", label: "Validated" },
-      { value: "SIGNED", label: "Signed" },
-      { value: "TRANSMITTED", label: "Transmitted" },
-      { value: "DELIVERED", label: "Delivered" },
-      { value: "FAILED", label: "Failed" },
-      { value: "ACKNOWLEDGED", label: "Acknowledged" },
-      { value: "DOWNLOADED", label: "Downloaded" },
-      { value: "SYNCED_TO_ERP", label: "Synced to ERP" },
-      { value: "PAID", label: "Paid" },
-      { value: "REJECTED", label: "Rejected" },
-      { value: "CANCELED", label: "Canceled" },
-    ],
-  },
-  {
-    key: "type",
-    label: "Type",
-    options: [
-      { value: "all", label: "All Types" },
-      { value: "outbound", label: "Outbound" },
-      { value: "inbound", label: "Inbound" },
-    ],
-  },
+const OUTBOUND_STATUS_OPTIONS = [
+  { value: "CREATED", label: "Created" },
+  { value: "VALIDATED", label: "Validated" },
+  { value: "SIGNED", label: "Signed" },
+  { value: "TRANSMITTED", label: "Transmitted" },
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "FAILED", label: "Failed" },
+  { value: "PAID", label: "Paid" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "CANCELED", label: "Canceled" },
+];
+
+const INBOUND_STATUS_OPTIONS = [
+  { value: "ACKNOWLEDGED", label: "Acknowledged" },
+  { value: "DOWNLOADED", label: "Downloaded" },
+  { value: "SYNCED_TO_ERP", label: "Synced to ERP" },
+  { value: "FAILED", label: "Failed" },
+  { value: "PAID", label: "Paid" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "CANCELED", label: "Canceled" },
+];
+
+const ALL_STATUS_OPTIONS = [
+  { value: "CREATED", label: "Created" },
+  { value: "VALIDATED", label: "Validated" },
+  { value: "SIGNED", label: "Signed" },
+  { value: "TRANSMITTED", label: "Transmitted" },
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "FAILED", label: "Failed" },
+  { value: "ACKNOWLEDGED", label: "Acknowledged" },
+  { value: "DOWNLOADED", label: "Downloaded" },
+  { value: "SYNCED_TO_ERP", label: "Synced to ERP" },
+  { value: "PAID", label: "Paid" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "CANCELED", label: "Canceled" },
 ];
 
 export default function AdminTransactionLogs() {
@@ -124,7 +130,6 @@ export default function AdminTransactionLogs() {
     total: 0,
     outbound: 0,
     inbound: 0,
-    failed: 0,
     pending: 0,
   });
   const [searchQuery, setSearchQuery] = useState("");
@@ -132,6 +137,21 @@ export default function AdminTransactionLogs() {
   const [activeTab, setActiveTab] = usePersistedTab("all");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const transactionFilters: FilterOption[] = useMemo(() => {
+    const statusOptions =
+      activeTab === "outbound" ? OUTBOUND_STATUS_OPTIONS
+      : activeTab === "inbound" ? INBOUND_STATUS_OPTIONS
+      : ALL_STATUS_OPTIONS;
+    return [
+      {
+        key: "status",
+        label: "Status",
+        options: [{ value: "all", label: "All Invoice Statuses" }, ...statusOptions],
+      },
+    ];
+  }, [activeTab]);
 
   // Modal states
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -164,172 +184,71 @@ export default function AdminTransactionLogs() {
     setIsLoading(true);
     try {
       const api = getAdminApiClient();
-      const allFetched: Invoice[] = [];
-      let totalCount = 0;
-      let hadError = false;
-      let outboundApiTotal = 0;
-      let inboundApiTotal = 0;
 
-      const isAllTab = activeTab === "all";
-      const apiLimit = isAllTab ? "100" : pageSize.toString();
-      const apiPage = isAllTab ? "1" : page.toString();
-
-      if (isAllTab || activeTab === "outbound") {
-        try {
-          const outboundResponse = await api.v1.workflow.invoices.outbound.get({
-            query: {
-              page: apiPage,
-              limit: apiLimit,
-              ...(filters.status &&
-                filters.status !== "all" && { status: filters.status }),
-              ...(searchQuery && { search: searchQuery }),
-            },
-          });
-
-          if (outboundResponse.data?.data) {
-            const outboundData = outboundResponse.data.data as any[];
-            const pagination = outboundResponse.data.pagination;
-            outboundData.forEach((invoice: any) => {
-              allFetched.push({
-                id: invoice.irn,
-                irn: invoice.irn,
-                invoiceNumber: invoice.invoiceNumber || invoice.irn,
-                type: "outbound",
-                tenantId: invoice.tenantId,
-                tenantName: invoice.tenantName,
-                status: invoice.status,
-                lastJobError: {
-                  action: invoice.lastJobError?.action,
-                  error: invoice.lastJobError?.error,
-                  failedAt: invoice.lastJobError?.failedAt,
-                },
-                paymentStatus: invoice?.paymentStatus,
-                totalAmount: invoice.totalAmount || 0,
-                currency: invoice.currency || "NGN",
-                customerName: invoice.customerName,
-                issueDate: invoice.createdAt,
-                createdAt: invoice.createdAt,
-                updatedAt: invoice.updatedAt,
-                workflowState: invoice.workflowState,
-                qrCode: invoice.qrCode,
-                erpSystem: invoice.erp,
-                erp: invoice.erp,
-              });
-            });
-            outboundApiTotal = pagination?.total || outboundData.length;
-            if (!isAllTab) totalCount += outboundApiTotal;
-          } else if (outboundResponse.error) {
-            hadError = true;
-            console.error(
-              "Failed to fetch outbound invoices:",
-              (outboundResponse.error as any)?.value?.error ??
-                JSON.stringify(outboundResponse.error),
-            );
-          }
-        } catch (error) {
-          if (!controller.signal.aborted) {
-            hadError = true;
-            console.error(
-              "Failed to fetch outbound invoices:",
-              error instanceof Error ? error.message : JSON.stringify(error),
-            );
-          }
-        }
-      }
-
-      if (controller.signal.aborted) return;
-
-      if (isAllTab || activeTab === "inbound") {
-        try {
-          const inboundResponse = await api.v1.workflow.invoices.inbound.get({
-            query: {
-              page: apiPage,
-              limit: apiLimit,
-              ...(filters.status &&
-                filters.status !== "all" && { status: filters.status }),
-              ...(searchQuery && { search: searchQuery }),
-            },
-          });
-
-          if (inboundResponse.data?.data) {
-            const inboundData = inboundResponse.data.data as any[];
-            const pagination = inboundResponse.data.pagination;
-            inboundData.forEach((invoice: any) => {
-              allFetched.push({
-                id: invoice.irn,
-                irn: invoice.irn,
-                invoiceNumber: invoice.invoiceNumber || invoice.irn,
-                type: "inbound",
-                tenantId: invoice.tenantId,
-                tenantName: invoice.tenantName,
-                status: invoice.status,
-                lastJobError: {
-                  action: invoice.lastJobError?.action,
-                  error: invoice.lastJobError?.error,
-                  failedAt: invoice.lastJobError?.failedAt,
-                },
-                paymentStatus: invoice?.paymentStatus,
-                totalAmount: invoice.totalAmount || 0,
-                currency: invoice.currency || "NGN",
-                supplierName: invoice.supplierName,
-                supplierTIN: invoice.supplierTIN,
-                issueDate: invoice.issueDate,
-                dueDate: invoice.dueDate,
-                receivedAt: invoice.receivedAt,
-                createdAt: invoice.receivedAt || invoice.issueDate,
-                updatedAt: invoice.issueDate,
-              });
-            });
-            inboundApiTotal = pagination?.total || inboundData.length;
-            if (!isAllTab) totalCount += inboundApiTotal;
-          } else if (inboundResponse.error) {
-            hadError = true;
-            console.error(
-              "Failed to fetch inbound invoices:",
-              (inboundResponse.error as any)?.value?.error ??
-                JSON.stringify(inboundResponse.error),
-            );
-          }
-        } catch (error) {
-          if (!controller.signal.aborted) {
-            hadError = true;
-            console.error(
-              "Failed to fetch inbound invoices:",
-              error instanceof Error ? error.message : JSON.stringify(error),
-            );
-          }
-        }
-      }
-
-      if (controller.signal.aborted) return;
-
-      // Client-side type filter for 'all' tab
-      let filtered = allFetched;
-      if (filters.type && filters.type !== "all") {
-        filtered = allFetched.filter((inv) => inv.type === filters.type);
-      }
-
-      if (hadError && allFetched.length === 0) {
-        toast.error("Failed to load transactions. Please try refreshing.");
-      }
-
-      setStatsData({
-        total: outboundApiTotal + inboundApiTotal,
-        outbound: outboundApiTotal,
-        inbound: inboundApiTotal,
-        failed: allFetched.filter((i) => {
-          const s = (i.status || "").toLowerCase();
-          return s === "failed" || s === "rejected";
-        }).length,
-        pending: allFetched.filter((i) => i.status?.toLowerCase() === "pending")
-          .length,
+      const response = await (api as any).v1.workflow.invoices.get({
+        query: {
+          page: page.toString(),
+          limit: pageSize.toString(),
+          ...(activeTab !== "all" && { type: activeTab }),
+          ...(filters.status &&
+            filters.status !== "all" && { status: filters.status }),
+          ...(searchQuery && { search: searchQuery }),
+        },
       });
 
-      const displayInvoices = isAllTab
-        ? filtered.slice((page - 1) * pageSize, page * pageSize)
-        : filtered;
-      setInvoices(displayInvoices);
-      setTotal(isAllTab ? filtered.length : totalCount || filtered.length);
+      if (controller.signal.aborted) return;
+
+      if (response.error) {
+        toast.error("Failed to load transactions. Please try refreshing.");
+        return;
+      }
+
+      const data = ((response.data as any)?.data as any[]) ?? [];
+      const meta = (response.data as any)?.meta;
+      const pagination = (response.data as any)?.pagination;
+
+      const mapped: Invoice[] = data.map((invoice: any) => ({
+        id: invoice.irn,
+        irn: invoice.irn,
+        invoiceNumber: invoice.invoiceNumber || invoice.irn,
+        type: (invoice.type || "outbound") as "inbound" | "outbound",
+        tenantId: invoice.tenantId,
+        tenantName: invoice.tenantName,
+        status: invoice.status,
+        lastJobError: {
+          action: invoice.lastJobError?.action,
+          error: invoice.lastJobError?.error,
+          failedAt: invoice.lastJobError?.failedAt,
+        },
+        paymentStatus: invoice?.paymentStatus,
+        totalAmount: invoice.totalAmount || 0,
+        currency: invoice.currency || "NGN",
+        customerName: invoice.customerName,
+        supplierName: invoice.supplierName,
+        supplierTIN: invoice.supplierTIN,
+        issueDate: invoice.issueDate || invoice.createdAt,
+        dueDate: invoice.dueDate,
+        receivedAt: invoice.receivedAt,
+        createdAt: invoice.createdAt,
+        updatedAt: invoice.updatedAt,
+        workflowState: invoice.workflowState,
+        qrCode: invoice.qrCode,
+        erpSystem: invoice.erp,
+        erp: invoice.erp,
+      }));
+
+      const outboundCount = meta?.countsByType?.outbound ?? 0;
+      const inboundCount = meta?.countsByType?.inbound ?? 0;
+
+      setInvoices(mapped);
+      setTotal(pagination?.total ?? mapped.length);
+      setStatsData({
+        total: outboundCount + inboundCount,
+        outbound: outboundCount,
+        inbound: inboundCount,
+        pending: mapped.filter((i) => i.status?.toLowerCase() === "pending")
+          .length,
+      });
     } catch (error: any) {
       if (!controller.signal.aborted) {
         toast.error(error?.message || "Failed to load transactions");
@@ -945,7 +864,7 @@ export default function AdminTransactionLogs() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <Card>
             <CardContent className="p-4 sm:pt-6">
               <div className="flex items-center gap-2 sm:gap-3">
@@ -1012,23 +931,6 @@ export default function AdminTransactionLogs() {
               </div>
             </CardContent>
           </Card>
-          <Card className="col-span-2 sm:col-span-1">
-            <CardContent className="p-4 sm:pt-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.failed}
-                  </p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Failed
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Tabs */}
@@ -1037,6 +939,8 @@ export default function AdminTransactionLogs() {
           onValueChange={(v) => {
             setActiveTab(v as any);
             setPage(1);
+            setFilters({});
+            setSearchQuery("");
           }}
         >
           <TabsList>
@@ -1048,6 +952,7 @@ export default function AdminTransactionLogs() {
 
         {/* Data Table */}
         <DataTable
+          key={activeTab}
           data={invoices}
           columns={columns}
           searchPlaceholder="Search by invoice number, IRN, counterparty..."
@@ -1063,8 +968,11 @@ export default function AdminTransactionLogs() {
             setPage(1);
           }}
           onSearch={(q) => {
-            setSearchQuery(q);
-            setPage(1);
+            if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+            searchDebounceRef.current = setTimeout(() => {
+              setSearchQuery(q);
+              setPage(1);
+            }, 400);
           }}
           onFilterChange={(f) => {
             setFilters(f);

@@ -49,16 +49,23 @@ export default function OnboardingPage() {
   // On re-login, useTenant() fetches /me which returns saved onboarding.steps — so
   // users automatically resume from where they left off.
   const steps: OnboardingStep[] = useMemo(() => {
+    const overrideIndex = currentStepOverride ? STEP_KEYS.indexOf(currentStepOverride) : -1
     let foundCurrent = false
-    return STEP_KEYS.map((key) => {
-      let backendKey = KEY_ALIAS[key]
+    return STEP_KEYS.map((key, index) => {
+      const backendKey = KEY_ALIAS[key as keyof typeof KEY_ALIAS]
       const backendStep = onboardingSteps?.[backendKey]
 
       if (isStepCompleted(backendStep)) {
         return { key, ...STEP_META[key], status: 'completed' as const }
       }
 
-      if (key == 'webhook_generate' && tenantMetadata && tenantMetadata.webhookUrl) {
+      if (key === 'webhook_generate' && tenantMetadata?.webhookUrl) {
+        return { key, ...STEP_META[key], status: 'completed' as const }
+      }
+
+      // If the user has advanced past this step via the override, treat it as done
+      // so the stepper and progress bar reflect the user's actual position.
+      if (overrideIndex > index) {
         return { key, ...STEP_META[key], status: 'completed' as const }
       }
 
@@ -69,7 +76,9 @@ export default function OnboardingPage() {
 
       return { key, ...STEP_META[key], status: 'pending' as const }
     })
-  }, [onboardingSteps])
+  }, [onboardingSteps, tenantMetadata, currentStepOverride])
+
+  const allStepsComplete = useMemo(() => steps.every(s => s.status === 'completed'), [steps])
 
   useEffect(() => {
     let total = steps.length,
@@ -122,7 +131,7 @@ export default function OnboardingPage() {
     )
   }
 
-  if (isOnboardingComplete) {
+  if (isOnboardingComplete || allStepsComplete) {
     const businessName = tenantData && 'businessName' in tenantData ? (tenantData as any).businessName : undefined
     return (
       <div className="max-w-2xl mx-auto">

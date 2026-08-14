@@ -54,7 +54,7 @@ import { createTenantApi } from "@/lib/api/tenant-api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
-  AlertCircle,
+
   ArrowDownLeft,
   ArrowUpRight,
   CheckCircle,
@@ -68,7 +68,7 @@ import {
   QrCode,
   RefreshCw,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type PaymentStatus = "pending" | "paid" | "rejected" | "cancelled";
 export interface Invoice {
@@ -102,26 +102,41 @@ export interface Invoice {
   hasRoutingError?: boolean;
 }
 
-const transactionFilters: FilterOption[] = [
-  {
-    key: "status",
-    label: "Status",
-    options: [
-      { value: "all", label: "All Invoice Statuses" },
-      { value: "CREATED", label: "Created" },
-      { value: "VALIDATED", label: "Validated" },
-      { value: "SIGNED", label: "Signed" },
-      { value: "TRANSMITTED", label: "Transmitted" },
-      { value: "DELIVERED", label: "Delivered" },
-      { value: "FAILED", label: "Failed" },
-      { value: "ACKNOWLEDGED", label: "Acknowledged" },
-      { value: "DOWNLOADED", label: "Downloaded" },
-      { value: "SYNCED_TO_ERP", label: "Synced to ERP" },
-      { value: "PAID", label: "Paid" },
-      { value: "REJECTED", label: "Rejected" },
-      { value: "CANCELED", label: "Canceled" },
-    ],
-  },
+const OUTBOUND_STATUS_OPTIONS = [
+  { value: "CREATED", label: "Created" },
+  { value: "VALIDATED", label: "Validated" },
+  { value: "SIGNED", label: "Signed" },
+  { value: "TRANSMITTED", label: "Transmitted" },
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "FAILED", label: "Failed" },
+  { value: "PAID", label: "Paid" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "CANCELED", label: "Canceled" },
+];
+
+const INBOUND_STATUS_OPTIONS = [
+  { value: "ACKNOWLEDGED", label: "Acknowledged" },
+  { value: "DOWNLOADED", label: "Downloaded" },
+  { value: "SYNCED_TO_ERP", label: "Synced to ERP" },
+  { value: "FAILED", label: "Failed" },
+  { value: "PAID", label: "Paid" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "CANCELED", label: "Canceled" },
+];
+
+const ALL_STATUS_OPTIONS = [
+  { value: "CREATED", label: "Created" },
+  { value: "VALIDATED", label: "Validated" },
+  { value: "SIGNED", label: "Signed" },
+  { value: "TRANSMITTED", label: "Transmitted" },
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "FAILED", label: "Failed" },
+  { value: "ACKNOWLEDGED", label: "Acknowledged" },
+  { value: "DOWNLOADED", label: "Downloaded" },
+  { value: "SYNCED_TO_ERP", label: "Synced to ERP" },
+  { value: "PAID", label: "Paid" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "CANCELED", label: "Canceled" },
 ];
 
 const PAGE_SIZE = 10;
@@ -138,12 +153,24 @@ export default function TransactionsPage() {
     total: 0,
     outbound: 0,
     inbound: 0,
-    failed: 0,
-    pending: 0,
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = usePersistedTab("all");
+
+  const transactionFilters: FilterOption[] = useMemo(() => {
+    const statusOptions =
+      activeTab === "outbound" ? OUTBOUND_STATUS_OPTIONS
+      : activeTab === "inbound" ? INBOUND_STATUS_OPTIONS
+      : ALL_STATUS_OPTIONS;
+    return [
+      {
+        key: "status",
+        label: "Status",
+        options: [{ value: "all", label: "All Invoice Statuses" }, ...statusOptions],
+      },
+    ];
+  }, [activeTab]);
 
   // Modal states
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -158,6 +185,7 @@ export default function TransactionsPage() {
   const [resending, setResending] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Payment status update
   const [showPaymentStatusDialog, setShowPaymentStatusDialog] = useState(false);
@@ -171,7 +199,6 @@ export default function TransactionsPage() {
   });
 
   const fetchInvoices = useCallback(async () => {
-    // Cancel any in-flight request before starting a new one
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -179,180 +206,64 @@ export default function TransactionsPage() {
     setIsLoading(true);
     try {
       const api = createTenantApi();
-      const allInvoices: Invoice[] = [];
-      let totalCount = 0;
-      let hadError = false;
-      // API-reported totals for stats cards (independent of page/pageSize)
-      let outboundApiTotal = 0;
-      let inboundApiTotal = 0;
 
-      // For the 'all' tab both APIs are fetched with a larger limit so the
-      // DataTable can paginate the combined result client-side.
-      // For single-type tabs we do true server-side pagination.
-      const isAllTab = activeTab === "all";
-      const apiLimit = isAllTab ? "100" : pageSize.toString();
-      const apiPage = isAllTab ? "1" : page.toString();
-
-      if (isAllTab || activeTab === "outbound") {
-        try {
-          const outboundResponse = await api.getOutboundInvoices({
-            page: apiPage,
-            limit: apiLimit,
-            ...(filters.status &&
-              filters.status !== "all" && { status: filters.status }),
-          });
-          if (outboundResponse.data?.data) {
-            const outboundData = outboundResponse.data.data as any[];
-
-            const pagination = outboundResponse.data.pagination;
-
-            outboundData.forEach((invoice: any) => {
-              allInvoices.push({
-                id: invoice.irn,
-                irn: invoice.irn,
-                invoiceNumber: invoice.invoiceNumber || invoice.irn,
-                type: "outbound",
-                status: invoice.status,
-                lastJobError: {
-                  action: invoice.lastJobError?.action,
-                  error: invoice.lastJobError?.error,
-                  failedAt: invoice.lastJobError?.failedAt,
-                },
-                paymentStatus: invoice.paymentStatus,
-                totalAmount: invoice.totalAmount || 0,
-                currency: invoice.currency || "NGN",
-                customerName: invoice.customerName,
-                issueDate: invoice.createdAt,
-                createdAt: invoice.createdAt,
-                updatedAt: invoice.updatedAt,
-                workflowState: invoice.workflowState,
-                qrCode: invoice.qrCode,
-                erp: invoice.erp,
-              });
-            });
-
-            outboundApiTotal = pagination?.total || outboundData.length;
-            if (!isAllTab) totalCount += outboundApiTotal;
-          } else if (outboundResponse.error) {
-            hadError = true;
-            console.error(
-              "Failed to fetch outbound invoices:",
-              (outboundResponse.error as any)?.value?.error ??
-                JSON.stringify(outboundResponse.error),
-            );
-          }
-        } catch (error) {
-          if (!controller.signal.aborted) {
-            hadError = true;
-            console.error(
-              "Failed to fetch outbound invoices:",
-              error instanceof Error ? error.message : JSON.stringify(error),
-            );
-          }
-        }
-      }
-
-      if (controller.signal.aborted) return;
-
-      if (isAllTab || activeTab === "inbound") {
-        try {
-          const inboundResponse = await api.getInboundInvoices({
-            page: apiPage,
-            limit: apiLimit,
-            ...(filters.status &&
-              filters.status !== "all" && { status: filters.status }),
-          });
-          if (inboundResponse.data?.data) {
-            const inboundData = inboundResponse.data.data as any[];
-            const pagination = inboundResponse.data.pagination;
-
-            inboundData.forEach((invoice: any) => {
-              allInvoices.push({
-                id: invoice.irn,
-                irn: invoice.irn,
-                invoiceNumber: invoice.invoiceNumber || invoice.irn,
-                type: "inbound",
-                status: invoice.status,
-                lastJobError: {
-                  action: invoice.lastJobError?.action,
-                  error: invoice.lastJobError?.error,
-                  failedAt: invoice.lastJobError?.failedAt,
-                },
-                paymentStatus: invoice.paymentStatus,
-                totalAmount: invoice.totalAmount || 0,
-                currency: invoice.currency || "NGN",
-                supplierName: invoice.supplierName,
-                supplierTIN: invoice.supplierTIN,
-                issueDate: invoice.issueDate,
-                dueDate: invoice.dueDate,
-                receivedAt: invoice.receivedAt,
-                createdAt: invoice.receivedAt || invoice.issueDate,
-                updatedAt: invoice.issueDate,
-              });
-            });
-
-            inboundApiTotal = pagination?.total || inboundData.length;
-            if (!isAllTab) totalCount += inboundApiTotal;
-          } else if (inboundResponse.error) {
-            hadError = true;
-            console.error(
-              "Failed to fetch inbound invoices:",
-              (inboundResponse.error as any)?.value?.error ??
-                JSON.stringify(inboundResponse.error),
-            );
-          }
-        } catch (error) {
-          if (!controller.signal.aborted) {
-            hadError = true;
-            console.error(
-              "Failed to fetch inbound invoices:",
-              error instanceof Error ? error.message : JSON.stringify(error),
-            );
-          }
-        }
-      }
-
-      if (controller.signal.aborted) return;
-
-      // Client-side search filter
-      let filtered = allInvoices;
-      if (searchQuery) {
-        const searchLower = searchQuery.toLowerCase();
-        filtered = allInvoices.filter(
-          (inv) =>
-            (inv.invoiceNumber || "").toLowerCase().includes(searchLower) ||
-            (inv.irn || "").toLowerCase().includes(searchLower) ||
-            (inv.customerName || "").toLowerCase().includes(searchLower) ||
-            (inv.supplierName || "").toLowerCase().includes(searchLower),
-        );
-      }
-
-      if (hadError && allInvoices.length === 0) {
-        toast.error("Failed to load transactions. Please try refreshing.");
-      }
-
-      // Stats come from API-reported totals (independent of current page/pageSize)
-      // failed/pending are computed from all fetched items as the API has no endpoint for these counts
-      setStatsData({
-        total: outboundApiTotal + inboundApiTotal,
-        outbound: outboundApiTotal,
-        inbound: inboundApiTotal,
-        failed: allInvoices.filter((i) => isFailed(i.status)).length,
-        pending: allInvoices.filter(
-          (i) => i.status?.toLowerCase() === "pending",
-        ).length,
+      const response = await api.getInvoices({
+        page: page.toString(),
+        limit: pageSize.toString(),
+        ...(activeTab !== "all" && { type: activeTab }),
+        ...(filters.status &&
+          filters.status !== "all" && { status: filters.status }),
+        ...(searchQuery && { search: searchQuery }),
       });
 
-      // For the 'all' tab the full combined list is sliced client-side so the
-      // DataTable always receives exactly pageSize rows for the current page.
-      // For single-type tabs the server already returns the right page.
-      const displayInvoices = isAllTab
-        ? filtered.slice((page - 1) * pageSize, page * pageSize)
-        : filtered;
-      setInvoices(displayInvoices);
-      // For 'all' tab, total = full combined count so the paginator is correct.
-      // For single-type tabs, total = server-reported total.
-      setTotal(isAllTab ? filtered.length : totalCount || filtered.length);
+      if (controller.signal.aborted) return;
+
+      if (response.error) {
+        toast.error("Failed to load transactions. Please try refreshing.");
+        return;
+      }
+
+      const data = ((response.data as any)?.data as any[]) ?? [];
+      const meta = (response.data as any)?.meta;
+      const pagination = (response.data as any)?.pagination;
+
+      const mapped: Invoice[] = data.map((invoice: any) => ({
+        id: invoice.irn,
+        irn: invoice.irn,
+        invoiceNumber: invoice.invoiceNumber || invoice.irn,
+        type: (invoice.type || "outbound") as "inbound" | "outbound",
+        status: invoice.status,
+        lastJobError: {
+          action: invoice.lastJobError?.action,
+          error: invoice.lastJobError?.error,
+          failedAt: invoice.lastJobError?.failedAt,
+        },
+        paymentStatus: invoice.paymentStatus,
+        totalAmount: invoice.totalAmount || 0,
+        currency: invoice.currency || "NGN",
+        customerName: invoice.customerName,
+        supplierName: invoice.supplierName,
+        supplierTIN: invoice.supplierTIN,
+        issueDate: invoice.issueDate || invoice.createdAt,
+        dueDate: invoice.dueDate,
+        receivedAt: invoice.receivedAt,
+        createdAt: invoice.createdAt,
+        updatedAt: invoice.updatedAt,
+        workflowState: invoice.workflowState,
+        qrCode: invoice.qrCode,
+        erp: invoice.erp,
+      }));
+
+      const outboundCount = meta?.countsByType?.outbound ?? 0;
+      const inboundCount = meta?.countsByType?.inbound ?? 0;
+
+      setInvoices(mapped);
+      setTotal(pagination?.total ?? mapped.length);
+      setStatsData({
+        total: outboundCount + inboundCount,
+        outbound: outboundCount,
+        inbound: inboundCount,
+      });
     } catch (error: any) {
       if (!controller.signal.aborted) {
         toast.error(error?.message || "Failed to load transactions");
@@ -937,7 +848,7 @@ export default function TransactionsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <Card className="dark:border dark:border-grey-100">
             <CardContent className="p-4">
               <div className="flex flex-col gap-2">
@@ -977,19 +888,6 @@ export default function TransactionsPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex flex-col gap-2">
-                <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
-                  <AlertCircle className="w-4 h-4 text-destructive" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{formatStatNumber(stats.failed)}</p>
-                  <p className="text-xs text-muted-foreground">Failed</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Tabs */}
@@ -998,6 +896,8 @@ export default function TransactionsPage() {
           onValueChange={(v) => {
             setActiveTab(v as any);
             setPage(1);
+            setFilters({});
+            setSearchQuery("");
           }}
         >
           <TabsList>
@@ -1009,6 +909,7 @@ export default function TransactionsPage() {
 
         {/* Data Table */}
         <DataTable
+          key={activeTab}
           data={invoices}
           columns={columns}
           searchPlaceholder="Search by invoice number, IRN, customer..."
@@ -1024,8 +925,11 @@ export default function TransactionsPage() {
             setPage(1);
           }}
           onSearch={(q) => {
-            setSearchQuery(q);
-            setPage(1);
+            if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+            searchDebounceRef.current = setTimeout(() => {
+              setSearchQuery(q);
+              setPage(1);
+            }, 400);
           }}
           onFilterChange={(f) => {
             setFilters(f);
