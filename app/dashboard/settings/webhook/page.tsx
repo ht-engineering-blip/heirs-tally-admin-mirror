@@ -116,14 +116,19 @@ interface FirsDictionaryField {
 
 interface WebhookEvent {
   id: string;
-  eventId?: string;
+  eventId: string;
   eventType: string;
   status: string;
-  invoiceIrn?: string;
-  invoiceNumber?: string;
-  timestamp: string | Date;
-  response?: any;
+  irn?: string;
+  erpInvoiceId?: string;
+  jobErrorCount?: number;
+  createdAt: string;
+  // populated on row click from detail endpoint
   payload?: any;
+  metadata?: any;
+  jobErrors?: { step: number; action: string; error: string; failedAt: string }[];
+  failureReason?: string;
+  webhookUrl?: string;
 }
 
 // ===== Utilities =====
@@ -271,6 +276,11 @@ export default function WebhookSettingsPage() {
   // History state
   const [webhookHistory, setWebhookHistory] = useState<WebhookEvent[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
+  const historyLoadedRef = useRef(false);
   const [selectedEvent, setSelectedEvent] = useState<WebhookEvent | null>(null);
   const [viewingJson, setViewingJson] = useState<{
     title: string;
@@ -411,61 +421,76 @@ export default function WebhookSettingsPage() {
     }
   }, []);
 
-  // Fetch webhook history from recent outbound invoices
-  const fetchWebhookHistory = useCallback(async () => {
+  const fetchWebhookEvents = useCallback(async (page: number, limit: number) => {
     if (!tenantId) return;
     setHistoryLoading(true);
     try {
       const api = createTenantApi();
-      const response = await api.getOutboundInvoices({
-        limit: "20",
-        page: "1",
+      const response = await api.getWebhookEvents({
+        page: page.toString(),
+        limit: limit.toString(),
       });
-
-      if (response.data?.data) {
-        const invoices = response.data.data as any[];
-        const events: WebhookEvent[] = [];
-
-        for (const inv of invoices) {
-          // Try to get detail for webhook events
-          try {
-            const detail = await api.getOutboundInvoice(inv.irn);
-            const detailData = (detail.data as any)?.data;
-            if (
-              detailData?.webhookEvents &&
-              Array.isArray(detailData.webhookEvents)
-            ) {
-              for (const evt of detailData.webhookEvents) {
-                events.push({
-                  id: evt._id || evt.eventId || `${inv.irn}-${events.length}`,
-                  eventId: evt.eventId,
-                  eventType: evt.eventType || "unknown",
-                  status: evt.status || "unknown",
-                  invoiceIrn: inv.irn,
-                  invoiceNumber: inv.invoiceNumber,
-                  timestamp: evt.createdAt || evt.timestamp || inv.createdAt,
-                  response: evt.response,
-                  payload: evt.payload,
-                });
-              }
-            }
-          } catch {
-            // Skip invoice if detail fetch fails
-          }
-        }
-
-        events.sort(
-          (a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      if (response.error) {
+        toast.error(
+          (response.error as any)?.value?.error || "Failed to load webhook history",
         );
-        setWebhookHistory(events);
+        return;
       }
+      const data = ((response.data as any)?.data as any[]) ?? [];
+      const meta = (response.data as any)?.meta;
+      const events: WebhookEvent[] = data.map((evt: any) => ({
+        id: evt.eventId,
+        eventId: evt.eventId,
+        eventType: evt.eventType || "unknown",
+        status: evt.status || "unknown",
+        irn: evt.irn,
+        erpInvoiceId: evt.erpInvoiceId,
+        jobErrorCount: evt.jobErrorCount ?? 0,
+        createdAt: evt.createdAt,
+      }));
+      setWebhookHistory(events);
+      setHistoryTotal(meta?.total ?? events.length);
+      historyLoadedRef.current = true;
     } catch (error: any) {
       toast.error(error?.message || "Failed to load webhook history");
     } finally {
       setHistoryLoading(false);
     }
   }, [tenantId]);
+
+  const fetchWebhookEventDetail = useCallback(async (evt: WebhookEvent) => {
+    setSelectedEvent(evt);
+    setHistoryDetailLoading(true);
+    try {
+      const api = createTenantApi();
+      const response = await api.getWebhookEvent(evt.eventId);
+      if (!response.error) {
+        const detail = (response.data as any)?.data;
+        setSelectedEvent((prev) =>
+          prev
+            ? {
+                ...prev,
+                payload: detail?.payload,
+                metadata: detail?.metadata,
+                jobErrors: detail?.jobErrors,
+                failureReason: detail?.failureReason,
+                webhookUrl: detail?.webhookUrl,
+              }
+            : prev,
+        );
+      }
+    } catch {
+      // basic info still shows in dialog
+    } finally {
+      setHistoryDetailLoading(false);
+    }
+  }, []);
+
+  // Re-fetch when page or page size changes (only after first load)
+  useEffect(() => {
+    if (!historyLoadedRef.current) return;
+    fetchWebhookEvents(historyPage, historyPageSize);
+  }, [historyPage, historyPageSize, fetchWebhookEvents]);
 
   // ===== Handlers =====
 
@@ -926,30 +951,40 @@ export default function WebhookSettingsPage() {
       accessor: (evt) => <StatusBadge status={evt.status} />,
     },
     {
-      key: "invoiceIrn",
-      header: "Invoice",
+      key: "irn",
+      header: "Invoice IRN",
       accessor: (evt) => (
         <span className="text-xs text-muted-foreground font-mono">
-          {evt.invoiceNumber || evt.invoiceIrn || "N/A"}
+          {evt.irn || "N/A"}
         </span>
       ),
     },
     {
-      key: "timestamp",
+      key: "jobErrors",
+      header: "Errors",
+      accessor: (evt) =>
+        evt.jobErrorCount ? (
+          <Badge variant="destructive" className="text-xs">
+            {evt.jobErrorCount} error{evt.jobErrorCount !== 1 ? "s" : ""}
+          </Badge>
+        ) : null,
+    },
+    {
+      key: "createdAt",
       header: "Time",
       sortable: true,
       accessor: (evt) => (
         <div className="text-xs">
           <p className="text-muted-foreground">
-            {evt.timestamp
-              ? formatDistanceToNow(new Date(evt.timestamp), {
+            {evt.createdAt
+              ? formatDistanceToNow(new Date(evt.createdAt), {
                   addSuffix: true,
                 })
               : "N/A"}
           </p>
-          {evt.timestamp && (
+          {evt.createdAt && (
             <p className="text-muted-foreground/70">
-              {format(new Date(evt.timestamp), "MMM dd, HH:mm")}
+              {format(new Date(evt.createdAt), "MMM dd, HH:mm")}
             </p>
           )}
         </div>
@@ -1041,8 +1076,8 @@ export default function WebhookSettingsPage() {
                   value="history"
                   className="text-xs sm:text-sm px-2 sm:px-3"
                   onClick={() => {
-                    if (webhookHistory.length === 0 && !historyLoading)
-                      fetchWebhookHistory();
+                    if (!historyLoadedRef.current && !historyLoading)
+                      fetchWebhookEvents(historyPage, historyPageSize);
                   }}
                 >
                   <Activity className="w-4 h-4 sm:mr-2" />
@@ -1902,14 +1937,14 @@ export default function WebhookSettingsPage() {
                     <div>
                       <CardTitle>Webhook History</CardTitle>
                       <CardDescription>
-                        Recent webhook events from your outbound invoices
+                        All webhook events processed for your tenant
                       </CardDescription>
                     </div>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={fetchWebhookHistory}
+                    onClick={() => fetchWebhookEvents(historyPage, historyPageSize)}
                     disabled={historyLoading}
                   >
                     <RefreshCw
@@ -1925,8 +1960,16 @@ export default function WebhookSettingsPage() {
                   columns={historyColumns}
                   isLoading={historyLoading}
                   emptyMessage="No webhook events found. Events will appear here after invoices are processed."
-                  onRowClick={(evt) => setSelectedEvent(evt)}
-                  searchPlaceholder="Search events..."
+                  onRowClick={(evt) => fetchWebhookEventDetail(evt)}
+                  searchPlaceholder="Search by event type, status, or IRN..."
+                  currentPage={historyPage}
+                  totalItems={historyTotal}
+                  pageSize={historyPageSize}
+                  onPageChange={(p) => setHistoryPage(p)}
+                  onPageSizeChange={(s) => {
+                    setHistoryPageSize(s);
+                    setHistoryPage(1);
+                  }}
                 />
               </CardContent>
             </Card>
@@ -1973,9 +2016,7 @@ export default function WebhookSettingsPage() {
             <DialogTitle>Webhook Event Details</DialogTitle>
             <DialogDescription>
               {selectedEvent?.eventType} :{" "}
-              {selectedEvent?.invoiceNumber ||
-                selectedEvent?.invoiceIrn ||
-                "N/A"}
+              {selectedEvent?.irn || "N/A"}
             </DialogDescription>
           </DialogHeader>
           {selectedEvent && (
@@ -1995,10 +2036,10 @@ export default function WebhookSettingsPage() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">
-                    Invoice
+                    Invoice IRN
                   </p>
                   <p className="text-sm font-mono">
-                    {selectedEvent.invoiceIrn || "N/A"}
+                    {selectedEvent.irn || "N/A"}
                   </p>
                 </div>
                 <div>
@@ -2006,8 +2047,8 @@ export default function WebhookSettingsPage() {
                     Timestamp
                   </p>
                   <p className="text-sm">
-                    {selectedEvent.timestamp
-                      ? format(new Date(selectedEvent.timestamp), "PPpp")
+                    {selectedEvent.createdAt
+                      ? format(new Date(selectedEvent.createdAt), "PPpp")
                       : "N/A"}
                   </p>
                 </div>
@@ -2020,6 +2061,48 @@ export default function WebhookSettingsPage() {
                   </div>
                 )}
               </div>
+
+              {historyDetailLoading && !selectedEvent.payload && (
+                <div className="flex items-center gap-2 py-1 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-xs">Loading event details...</span>
+                </div>
+              )}
+
+              {selectedEvent.failureReason && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    {selectedEvent.failureReason}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {selectedEvent.jobErrors && selectedEvent.jobErrors.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Job Errors
+                  </p>
+                  <div className="space-y-2">
+                    {selectedEvent.jobErrors.map((err, i) => (
+                      <div
+                        key={i}
+                        className="text-xs p-3 rounded-lg border bg-destructive/5 border-destructive/20 space-y-1"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Badge variant="destructive" className="text-[10px]">
+                            {err.action}
+                          </Badge>
+                          <span className="text-muted-foreground">
+                            {format(new Date(err.failedAt), "PPpp")}
+                          </span>
+                        </div>
+                        <p className="font-mono text-destructive">{err.error}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {selectedEvent.payload && (
                 <div className="space-y-2">
@@ -2060,26 +2143,23 @@ export default function WebhookSettingsPage() {
                 </div>
               )}
 
-              {selectedEvent.response && (
+              {selectedEvent.metadata && (
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">
-                    Response
+                    Metadata
                   </p>
-                  <pre className="text-xs font-mono bg-muted p-3 rounded-lg overflow-auto max-h-[200px]">
-                    {JSON.stringify(selectedEvent.response, null, 2)}
-                  </pre>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() =>
                       setViewingJson({
-                        title: "Response",
-                        data: selectedEvent.response,
+                        title: "Metadata",
+                        data: selectedEvent.metadata,
                       })
                     }
                   >
                     <Eye className="w-3 h-3 mr-2" />
-                    View Full Response
+                    View Metadata
                   </Button>
                 </div>
               )}

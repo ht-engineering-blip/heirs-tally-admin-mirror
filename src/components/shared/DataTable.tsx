@@ -215,7 +215,7 @@ export function DataTable<T extends { id: string }>({
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue placeholder={filter.label} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-60">
                 {filter.options.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
