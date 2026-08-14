@@ -179,12 +179,13 @@ function SearchableSelect({
       <PopoverContent
         className="w-[--radix-popover-trigger-width] p-0"
         align="start"
+        sideOffset={4}
       >
         <Command>
           <CommandInput
             placeholder={`Search ${placeholder.toLowerCase().replace("select ", "")}...`}
           />
-          <CommandList>
+          <CommandList className="max-h-[180px]">
             <CommandEmpty>
               <ComboboxEmptyState
                 error={error}
@@ -217,7 +218,7 @@ function SearchableSelect({
                         <span className="text-sm">{option.label}</span>
                         {option.description && (
                           <p
-                            className="text-xs text-muted-foreground truncate group-hover/item:whitespace-normal group-hover/item:overflow-visible"
+                            className="text-xs text-muted-foreground truncate"
                             title={option.description}
                           >
                             {option.description}
@@ -249,7 +250,7 @@ function SearchableSelect({
                       <span className="text-sm">{option.label}</span>
                       {option.description && (
                         <p
-                          className="text-xs text-muted-foreground truncate group-hover/item:whitespace-normal group-hover/item:overflow-visible"
+                          className="text-xs text-muted-foreground truncate"
                           title={option.description}
                         >
                           {option.description}
@@ -357,10 +358,11 @@ function MultiActionSelect({
         <PopoverContent
           className="w-[--radix-popover-trigger-width] p-0"
           align="start"
+          sideOffset={4}
         >
           <Command>
             <CommandInput placeholder="Search actions..." />
-            <CommandList>
+            <CommandList className="max-h-[180px]">
               <CommandEmpty>
                 <ComboboxEmptyState
                   error={error}
@@ -394,7 +396,7 @@ function MultiActionSelect({
                           <span className="text-sm">{option.label}</span>
                           {option.description && (
                             <p
-                              className="text-xs text-muted-foreground truncate group-hover/item:whitespace-normal group-hover/item:overflow-visible"
+                              className="text-xs text-muted-foreground truncate"
                               title={option.description}
                             >
                               {option.description}
@@ -425,7 +427,7 @@ function MultiActionSelect({
                         <span className="text-sm">{option.label}</span>
                         {option.description && (
                           <p
-                            className="text-xs text-muted-foreground truncate group-hover/item:whitespace-normal group-hover/item:overflow-visible"
+                            className="text-xs text-muted-foreground truncate"
                             title={option.description}
                           >
                             {option.description}
@@ -671,7 +673,7 @@ export function EventMappingEditor({
           {mappings.map((mapping, index) => (
             <div
               key={mapping.routeId || index}
-              className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_auto] gap-3 items-center p-3 rounded-lg border bg-card"
+              className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_auto] gap-3 items-start p-3 rounded-lg border bg-card"
             >
               <div className="space-y-1">
                 <SearchableSelect
@@ -706,7 +708,7 @@ export function EventMappingEditor({
                 </div>
               </div>
 
-              <div className="hidden md:flex items-center justify-center">
+              <div className="hidden md:flex items-center justify-center pt-3">
                 <ArrowRight className="w-4 h-4 text-muted-foreground" />
               </div>
 
@@ -721,7 +723,7 @@ export function EventMappingEditor({
                 onRetry={fetchReferenceData}
               />
 
-              <div className="flex items-center justify-center">
+              <div className="flex items-center justify-center pt-1">
                 <Switch
                   checked={mapping.enabled}
                   onCheckedChange={(val) =>
@@ -735,7 +737,7 @@ export function EventMappingEditor({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive mt-1"
                   onClick={() => setDeleteIndex(index)}
                 >
                   <Trash2 className="w-4 h-4" />
