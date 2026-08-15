@@ -384,7 +384,7 @@ export default function TenantDetail() {
               <p className="page-subtitle">Tenant Details and Configuration</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => router.push(`/admin/tenants/erp-sync-config?tenantId=${tenant.tenantId}`)}
@@ -429,7 +429,7 @@ export default function TenantDetail() {
                 <div>
                   <h3 className="text-xl font-semibold">{tenant.businessName}</h3>
                   <p className="text-sm text-muted-foreground">Tenant ID: {tenant.tenantId}</p>
-                  <div className="flex items-center gap-4 mt-2">
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
                     <StatusBadge status={tenant.status} />
                     {tenant.onboarding && (
                       <Badge className={
@@ -970,7 +970,7 @@ export default function TenantDetail() {
 
       {/* Edit Tenant Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Tenant</DialogTitle>
             <DialogDescription>
@@ -993,7 +993,7 @@ export default function TenantDetail() {
                   onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-contactEmail">Contact Email *</Label>
                   <Input
@@ -1030,7 +1030,7 @@ export default function TenantDetail() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-webhookUrl">Webhook URL</Label>
                   <Input
