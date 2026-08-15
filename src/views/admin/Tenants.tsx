@@ -130,7 +130,7 @@ export default function Tenants() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const [onboardingData, setOnboardingData] = useState({
-    status: "pending" as
+    status: "in_progress" as
       | "active"
       | "pending"
       | "in_progress"
@@ -361,9 +361,9 @@ export default function Tenants() {
   const handleResendActivation = async (tenant: Tenant) => {
     setResendingTenantId(tenant.tenantId);
     try {
-      const response = await (api as any).v1
-        .tenants({ tenantId: tenant.tenantId })
-        ['resend-token'].post({});
+      const response = await (api as any).v1.tenants.resend
+        .token({ tenantId: tenant.tenantId })
+        .post({});
 
       if (response.error) {
         const errorMessage =
@@ -429,7 +429,7 @@ export default function Tenants() {
 
   const resetOnboardingForm = () => {
     setOnboardingData({
-      status: "pending",
+      status: "in_progress",
       notes: "",
       rejectionReason: "",
     });
@@ -452,7 +452,7 @@ export default function Tenants() {
   const openOnboardingModal = (tenant: Tenant) => {
     setSelectedTenant(tenant);
     setOnboardingData({
-      status: tenant.onboarding?.status || "pending",
+      status: tenant.onboarding?.status || "in_progress",
       notes: tenant.onboarding?.notes || "",
       rejectionReason: tenant.onboarding?.rejectionReason || "",
     });
@@ -581,9 +581,7 @@ export default function Tenants() {
       header: "Status",
       sortable: true,
       accessor: (tenant) => (
-        <StatusBadge
-          status={tenant.status === "onboarding" ? "active" : tenant.status}
-        />
+        <StatusBadge status={tenant.status} />
       ),
     },
     {
@@ -635,7 +633,7 @@ export default function Tenants() {
         <Edit className="w-4 h-4 mr-2" />
         Update Onboarding
       </DropdownMenuItem>
-      {tenant.status === "inactive" && (
+      {tenant.status === "onboarding" && (
         <DropdownMenuItem
           onClick={() => handleResendActivation(tenant)}
           disabled={resendingTenantId === tenant.tenantId}

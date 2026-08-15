@@ -56,7 +56,7 @@ interface Tenant {
   contactEmail: string;
   contactPhone: string;
   erpSystem: string;
-  status: 'active' | 'suspended' | 'inactive';
+  status: 'active' | 'suspended' | 'inactive' | 'onboarding';
   createdAt: string;
   updatedAt?: string;
   config?: {
@@ -129,7 +129,7 @@ export default function TenantDetail() {
   });
 
   const [onboardingData, setOnboardingData] = useState({
-    status: 'pending' as 'active' | 'pending' | 'in_progress' | 'testing' | 'rejected',
+    status: 'in_progress' as 'active' | 'pending' | 'in_progress' | 'testing' | 'rejected',
     notes: '',
     rejectionReason: '',
   });
@@ -397,7 +397,7 @@ export default function TenantDetail() {
               variant="outline"
               onClick={() => {
                 setOnboardingData({
-                  status: tenant.onboarding?.status || 'pending',
+                  status: tenant.onboarding?.status || 'in_progress',
                   notes: tenant.onboarding?.notes || '',
                   rejectionReason: tenant.onboarding?.rejectionReason || '',
                 });
