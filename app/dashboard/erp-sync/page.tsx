@@ -28,7 +28,7 @@ export default function ErpSyncPage() {
     name: c.name,
     description: c.description,
     enabled: c.enabled !== false,
-    method: c.method,
+    method: c.method || 'POST',
     baseUrl: c.baseUrl,
     endpoint: c.endpoint,
     timeout: c.timeout,
@@ -172,7 +172,7 @@ export default function ErpSyncPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ConfigField label="HTTP Method" value={<Badge variant="outline">{config.method}</Badge>} />
+              <ConfigField label="HTTP Method" value={<Badge variant="outline">{config.method || 'POST'}</Badge>} />
               <ConfigField label="Base URL" value={config.baseUrl} />
               <ConfigField label="Endpoint" value={config.endpoint} mono />
               <ConfigField label="Timeout" value={config.timeout ? `${config.timeout}ms` : 'Default'} />

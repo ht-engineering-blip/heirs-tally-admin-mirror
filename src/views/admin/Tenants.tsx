@@ -200,10 +200,10 @@ export default function Tenants() {
     if (!formData.businessRegistrationNumber.trim()) {
       errors.businessRegistrationNumber = "Registration number is required";
     } else if (
-      !/^RC-?\d{4,7}$/i.test(formData.businessRegistrationNumber.trim())
+      !/^(RC|BN|IT|LP)[-\s]?\d{4,7}$/i.test(formData.businessRegistrationNumber.trim())
     ) {
       errors.businessRegistrationNumber =
-        "Must be in the format RC-XXXXXX (e.g. RC-123456)";
+        "Must be a valid CAC number (e.g. RC-123456, BN-98765, IT-12345)";
     }
     if (!formData.contactEmail.trim())
       errors.contactEmail = "Email address is required";
@@ -873,7 +873,7 @@ export default function Tenants() {
                         businessRegistrationNumber: "",
                       }));
                   }}
-                  placeholder="RC-123456"
+                  placeholder="RC-123456 or BN-98765"
                   className={
                     formErrors.businessRegistrationNumber
                       ? "border-destructive"
@@ -886,7 +886,7 @@ export default function Tenants() {
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Nigerian CAC number (e.g. RC-123456)
+                    Nigerian CAC number (RC, BN, IT, or LP prefix)
                   </p>
                 )}
               </div>

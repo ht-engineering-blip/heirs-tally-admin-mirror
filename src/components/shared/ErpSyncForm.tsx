@@ -158,7 +158,7 @@ export function ErpSyncForm({
       baseUrl: defaultValues?.baseUrl ?? '',
       endpoint: defaultValues?.endpoint ?? '',
       timeout: defaultValues?.timeout ?? 30000,
-      bodyTemplate: defaultValues?.bodyTemplate ?? '{"invoice": {{invoice}}}',
+      bodyTemplate: defaultValues?.bodyTemplate ?? '{\n  "invoiceRef": "{{irn}}",\n  "erpId": "{{erpInvoiceId}}",\n  "status": "Validated",\n  "qrCode": "{{qrCode}}",\n  "invoiceType": "{{invoice_type}}"\n}',
       authType: (defaultValues?.authentication?.type as any) ?? 'none',
       authToken: defaultValues?.authentication?.token ?? '',
       authUsername: defaultValues?.authentication?.username ?? '',
@@ -349,9 +349,9 @@ export function ErpSyncForm({
             <FormField control={form.control} name="bodyTemplate" render={({ field }) => (
               <FormItem>
                 <FormLabel>Body Template</FormLabel>
-                <FormDescription>Use {'{{invoice}}'} as placeholder for invoice data</FormDescription>
+                <FormDescription>Use tokens like {'{{irn}}'}, {'{{erpInvoiceId}}'}, {'{{qrCode}}'}, {'{{invoice_type}}'} as placeholders</FormDescription>
                 <FormControl>
-                  <Textarea placeholder='{"data": {{invoice}}}' rows={4} className="font-mono text-sm" {...field} />
+                  <Textarea placeholder={'{\n  "invoiceRef": "{{irn}}",\n  "erpId": "{{erpInvoiceId}}",\n  "status": "Validated",\n  "qrCode": "{{qrCode}}",\n  "invoiceType": "{{invoice_type}}"\n}'} rows={6} className="font-mono text-sm" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
