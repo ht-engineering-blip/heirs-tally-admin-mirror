@@ -90,7 +90,7 @@ export function createTenantApi() {
     getInvoices: (query?: { page?: string; limit?: string; type?: string; status?: string; paymentStatus?: string; search?: string; from?: string; to?: string }) =>
       (api as any).v1.workflow.invoices.get({ query: query || {} }),
 
-    getWebhookEvents: (query?: { page?: string; limit?: string; status?: string; eventType?: string }) =>
+    getWebhookEvents: (query?: { page?: string; limit?: string; status?: string; eventType?: string; irn?: string; search?: string }) =>
       (api as any).v1.webhook.events.get({ query: query || {} }),
 
     getWebhookEvent: (eventId: string) =>
