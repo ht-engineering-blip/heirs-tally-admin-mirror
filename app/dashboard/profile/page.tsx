@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
+import { useSession } from '@/hooks/use-session'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,7 +19,7 @@ import {
 } from '@/components/ui/form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Building2, AlertCircle, CheckCircle, Pencil, X, Shield, Eye, EyeOff, Copy } from 'lucide-react'
+import { Loader2, Building2, AlertCircle, CheckCircle, Pencil, X, Shield, Eye, EyeOff, Copy, Mail } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { SectionLoader } from '@/components/shared/SectionLoader'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -27,7 +28,6 @@ import { createTenantApi } from '@/lib/api/tenant-api'
 
 const profileSchema = z.object({
   businessName: z.string().min(1, 'Business name is required'),
-  contactEmail: z.string().email('Invalid email address'),
   contactPhone: z.string().min(1, 'Phone number is required'),
 })
 
@@ -50,6 +50,13 @@ export default function ProfilePage() {
   const [isEditingCredentials, setIsEditingCredentials] = useState(false)
   const [isSavingCredentials, setIsSavingCredentials] = useState(false)
 
+  // Email change state
+  const [isChangingEmail, setIsChangingEmail] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [isRequestingEmailChange, setIsRequestingEmailChange] = useState(false)
+  const [emailChangeSuccess, setEmailChangeSuccess] = useState<string | null>(null)
+  const [emailChangeError, setEmailChangeError] = useState<string | null>(null)
+
   const tenant = tenantData as Record<string, any> | undefined
   const config = tenant?.config as Record<string, any> | undefined
 
@@ -57,7 +64,6 @@ export default function ProfilePage() {
     resolver: zodResolver(profileSchema),
     values: {
       businessName: tenant?.businessName || '',
-      contactEmail: tenant?.contactEmail || '',
       contactPhone: tenant?.contactPhone || '',
     },
   })
@@ -73,8 +79,7 @@ export default function ProfilePage() {
 
     try {
       const api = createTenantApi()
-      const { contactEmail: _omit, ...payload } = data
-      const response = await api.updateTenant(tenantId, payload)
+      const response = await api.updateTenant(tenantId, data)
 
       if (response.error) {
         const msg = (response.error as any)?.value?.error || 'Failed to update profile'
@@ -89,6 +94,26 @@ export default function ProfilePage() {
       toast.error('An unexpected error occurred')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleRequestEmailChange = async () => {
+    if (!tenantId || !newEmail.trim()) return
+    setEmailChangeError(null)
+    setIsRequestingEmailChange(true)
+    try {
+      const api = createTenantApi()
+      const response = await api.requestEmailChange(tenantId, newEmail.trim())
+      if (response.error) {
+        setEmailChangeError((response.error as any)?.value?.error || 'Failed to request email change')
+        return
+      }
+      setEmailChangeSuccess(newEmail.trim())
+      setNewEmail('')
+    } catch (err: any) {
+      setEmailChangeError(err?.message || 'An unexpected error occurred')
+    } finally {
+      setIsRequestingEmailChange(false)
     }
   }
 
@@ -193,18 +218,6 @@ export default function ProfilePage() {
                 />
                 <FormField
                   control={form.control}
-                  name="contactEmail"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contact Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} disabled />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
                   name="contactPhone"
                   render={({ field }) => (
                     <FormItem>
@@ -217,7 +230,7 @@ export default function ProfilePage() {
                   )}
                 />
                 <div className="flex justify-end pt-2">
-                  <Button type="submit" disabled={isSaving}>
+                  <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
                     {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Save Changes
                   </Button>
@@ -236,6 +249,92 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Email Address Card */}
+      {canEdit && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5" />
+                  Email Address
+                </CardTitle>
+                <CardDescription>Change your account contact email</CardDescription>
+              </div>
+              {!isChangingEmail && !emailChangeSuccess && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setIsChangingEmail(true); setEmailChangeError(null) }}
+                >
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Change
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <ProfileField label="Current Email" value={tenant?.contactEmail} />
+
+            {emailChangeSuccess ? (
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-success/10 border border-success/20">
+                <CheckCircle className="h-5 w-5 text-success shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-success">Verification email sent</p>
+                  <p className="text-sm text-muted-foreground">
+                    A verification link has been sent to <span className="font-medium text-foreground">{emailChangeSuccess}</span>. Click the link in that email to confirm the change.
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => { setEmailChangeSuccess(null); setIsChangingEmail(false) }}
+                  >
+                    Send to a different address
+                  </Button>
+                </div>
+              </div>
+            ) : isChangingEmail ? (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">New Email Address</label>
+                  <Input
+                    type="email"
+                    placeholder="new-email@company.com"
+                    value={newEmail}
+                    onChange={(e) => { setNewEmail(e.target.value); setEmailChangeError(null) }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleRequestEmailChange()}
+                  />
+                  {emailChangeError && (
+                    <p className="text-xs text-destructive">{emailChangeError}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    A verification link will be sent to the new address. The change only applies after you click that link.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleRequestEmailChange}
+                    disabled={isRequestingEmailChange || !newEmail.trim()}
+                  >
+                    {isRequestingEmailChange && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Send Verification
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => { setIsChangingEmail(false); setNewEmail(''); setEmailChangeError(null) }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Configuration Card */}
       <Card>
@@ -354,7 +453,7 @@ export default function ProfilePage() {
                     <X className="h-4 w-4 mr-1" />
                     Cancel
                   </Button>
-                  <Button type="submit" size="sm" disabled={isSavingCredentials}>
+                  <Button type="submit" size="sm" disabled={isSavingCredentials || !credentialsForm.formState.isDirty}>
                     {isSavingCredentials && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Save Credentials
                   </Button>

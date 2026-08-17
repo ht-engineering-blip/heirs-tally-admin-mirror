@@ -949,7 +949,6 @@ export default function TransactionsPage() {
             setPage(1);
           }}
           onSort={handleSort}
-          onRowClick={handleViewDetails}
           emptyMessage="No transactions found"
         />
       </div>
