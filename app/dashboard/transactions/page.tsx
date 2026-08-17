@@ -254,16 +254,8 @@ export default function TransactionsPage() {
         erp: invoice.erp,
       }));
 
-      const outboundCount = meta?.countsByType?.outbound ?? 0;
-      const inboundCount = meta?.countsByType?.inbound ?? 0;
-
       setInvoices(mapped);
       setTotal(pagination?.total ?? mapped.length);
-      setStatsData({
-        total: outboundCount + inboundCount,
-        outbound: outboundCount,
-        inbound: inboundCount,
-      });
     } catch (error: any) {
       if (!controller.signal.aborted) {
         toast.error(error?.message || "Failed to load transactions");
@@ -273,6 +265,23 @@ export default function TransactionsPage() {
     }
   }, [page, pageSize, searchQuery, filters, activeTab]);
 
+  const fetchMetrics = useCallback(async () => {
+    try {
+      const api = createTenantApi();
+      const res = await api.getInvoiceMetrics();
+      if (!res.error) {
+        const data = (res.data as any)?.data;
+        setStatsData({
+          total: data?.total ?? 0,
+          outbound: data?.outbound ?? 0,
+          inbound: data?.inbound ?? 0,
+        });
+      }
+    } catch {
+      // non-critical
+    }
+  }, []);
+
   // Re-fetch when params or manual refresh trigger changes; abort on cleanup
   useEffect(() => {
     fetchInvoices();
@@ -280,6 +289,10 @@ export default function TransactionsPage() {
       abortRef.current?.abort();
     };
   }, [fetchInvoices, refreshTrigger]);
+
+  useEffect(() => {
+    fetchMetrics();
+  }, [fetchMetrics, refreshTrigger]);
 
   // Auto-refresh every 15 minutes
   useEffect(() => {
@@ -468,8 +481,8 @@ export default function TransactionsPage() {
 
   const formatStatNumber = (n: number): string => {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;
-    return String(n);
+    if (n >= 100_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;
+    return n.toLocaleString();
   };
 
   const isFailed = (status: string) => {
@@ -936,7 +949,6 @@ export default function TransactionsPage() {
             setPage(1);
           }}
           onSort={handleSort}
-          onRowClick={handleViewDetails}
           emptyMessage="No transactions found"
         />
       </div>

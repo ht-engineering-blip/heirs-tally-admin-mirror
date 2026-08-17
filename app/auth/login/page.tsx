@@ -156,7 +156,8 @@ function LoginPage() {
       }
 
       toast.success('Login successful!')
-      router.push('/dashboard')
+      const next = searchParams.get('next')
+      router.push(next && next.startsWith('/') ? next : '/dashboard')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in. Please try again.'
       setError(errorMessage)
