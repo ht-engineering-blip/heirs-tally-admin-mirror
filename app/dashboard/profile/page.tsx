@@ -73,7 +73,8 @@ export default function ProfilePage() {
 
     try {
       const api = createTenantApi()
-      const response = await api.updateTenant(tenantId, data)
+      const { contactEmail: _omit, ...payload } = data
+      const response = await api.updateTenant(tenantId, payload)
 
       if (response.error) {
         const msg = (response.error as any)?.value?.error || 'Failed to update profile'
@@ -197,9 +198,8 @@ export default function ProfilePage() {
                     <FormItem>
                       <FormLabel>Contact Email</FormLabel>
                       <FormControl>
-                        <Input type="email" {...field} />
+                        <Input type="email" {...field} disabled />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
