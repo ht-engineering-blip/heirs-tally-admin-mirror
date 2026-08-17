@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle, XCircle, Loader2, Mail } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSession } from '@/hooks/use-session'
@@ -11,7 +11,7 @@ import { createTenantApi } from '@/lib/api/tenant-api'
 
 type Status = 'loading' | 'success' | 'error' | 'missing-token' | 'unauthenticated'
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const { tenantId, isAuthenticated, isLoading: sessionLoading } = useSession()
@@ -133,5 +133,20 @@ export default function VerifyEmailPage() {
         </Button>
       </CardContent>
     </Card>
+  )
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <Card className="w-full max-w-md mx-4">
+        <CardContent className="flex flex-col items-center gap-4 py-12">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        </CardContent>
+      </Card>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   )
 }
