@@ -465,16 +465,16 @@ export default function AdminSandbox() {
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="transform">
-                  <Code2 className="w-4 h-4 mr-2" />
-                  Transform
+                  <Code2 className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Transform</span>
                 </TabsTrigger>
                 <TabsTrigger value="validate">
-                  <FileCheck className="w-4 h-4 mr-2" />
-                  Validate
+                  <FileCheck className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Validate</span>
                 </TabsTrigger>
                 <TabsTrigger value="full">
-                  <Workflow className="w-4 h-4 mr-2" />
-                  Full Workflow
+                  <Workflow className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Full Workflow</span>
                 </TabsTrigger>
               </TabsList>
 

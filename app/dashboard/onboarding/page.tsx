@@ -21,7 +21,7 @@ type StepKey = typeof STEP_KEYS[number]
 const KEY_ALIAS = {
   firs_oauth: "firsProvisioning",
   firs_credentials: "firsProvisioning",
-
+  webhook_generate: "erpConfiguration",
 }
 const STEP_META: Record<StepKey, { label: string; description: string }> = {
   firs_oauth: { label: 'NRS Auth', description: 'Authenticate with NRS portal' },

@@ -841,7 +841,7 @@ export default function AdminTransactionLogs() {
     <>
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="page-title">Transaction Logs</h1>
             <p className="page-subtitle">
@@ -979,7 +979,6 @@ export default function AdminTransactionLogs() {
             setPage(1);
           }}
           onSort={handleSort}
-          onRowClick={handleViewDetails}
           emptyMessage="No transactions found"
         />
       </div>

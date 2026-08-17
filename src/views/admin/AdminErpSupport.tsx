@@ -535,13 +535,13 @@ export default function AdminErpSupport() {
 
   // Stepper component
   const Stepper = () => (
-    <div className="flex items-center gap-2 mb-6">
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-6">
       {CONFIG_STEPS.map((step, idx) => {
         const currentIdx = CONFIG_STEPS.findIndex(s => s.id === configStep);
         const isActive = step.id === configStep;
         const isCompleted = idx < currentIdx;
         return (
-          <div key={step.id} className="flex items-center gap-2 flex-1">
+          <div key={step.id} className="flex items-center gap-2 sm:flex-1">
             <button
               onClick={() => {
                 if (isCompleted || isActive) setConfigStep(step.id);
@@ -569,7 +569,7 @@ export default function AdminErpSupport() {
               </div>
             </button>
             {idx < CONFIG_STEPS.length - 1 && (
-              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              <ChevronRight className="hidden sm:block w-4 h-4 text-muted-foreground shrink-0" />
             )}
           </div>
         );
@@ -580,7 +580,7 @@ export default function AdminErpSupport() {
   // Process Modal Component
   const ProcessModal = () => (
     <Dialog open={showProcessModal} onOpenChange={setShowProcessModal}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Process ERP Payload</DialogTitle>
           <DialogDescription>
@@ -749,7 +749,7 @@ export default function AdminErpSupport() {
         </div>
 
         {/* Mapping UI */}
-        <div className="grid grid-cols-2 gap-6" ref={mappingContainerRef}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" ref={mappingContainerRef}>
           {/* Source (ERP Fields) */}
           <Card>
             <CardHeader className="pb-3">
@@ -944,7 +944,7 @@ export default function AdminErpSupport() {
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {configStep !== 'setup' && (
                 <Button
                   onClick={handlePrevStep}

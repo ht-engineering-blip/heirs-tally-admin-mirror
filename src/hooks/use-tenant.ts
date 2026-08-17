@@ -52,7 +52,8 @@ export function useTenant() {
   // member /me response, or allow GET /v1/tenants/:id/onboarding with member tokens.
   const isOnboardingComplete = isBusinessTeamMember
     ? !!resolvedTenantId
-    : onboarding?.steps?.firsProvisioning?.completed === true
+    : onboarding?.steps?.firsProvisioning?.completed === true &&
+      onboarding?.steps?.erpConfiguration?.completed === true
 
   return {
     tenantId: resolvedTenantId as string | undefined,

@@ -585,7 +585,7 @@ export default function AdminErpSyncConfig() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -672,7 +672,7 @@ export default function AdminErpSyncConfig() {
           setIsEditMode(false);
         }
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit' : 'Create'} ERP Sync Configuration</DialogTitle>
             <DialogDescription>
@@ -694,7 +694,7 @@ export default function AdminErpSyncConfig() {
             }}
             submitLabel={isEditMode ? 'Update Configuration' : 'Create Configuration'}
             topSlot={
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Tenant {!isEditMode && '*'}</Label>
                   {isEditMode ? (
@@ -731,7 +731,7 @@ export default function AdminErpSyncConfig() {
 
       {/* View Configuration Modal */}
       <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>ERP Sync Configuration Details</DialogTitle>
             <DialogDescription>
@@ -740,7 +740,7 @@ export default function AdminErpSyncConfig() {
           </DialogHeader>
           {selectedConfig && (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm">Tenant Information</CardTitle>

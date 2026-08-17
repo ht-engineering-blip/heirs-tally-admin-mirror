@@ -578,7 +578,7 @@ export default function AdminFirsDictionary() {
             <h1 className="page-title">NRS Dictionary</h1>
             <p className="page-subtitle">{dictionary.name}</p>
           </div>
-          <div className='flex gap-2'>
+          <div className='flex flex-wrap gap-2'>
           <Button 
                 onClick={() => setShowProcessModal(true)}
                 className="rounded-full"
@@ -600,7 +600,7 @@ export default function AdminFirsDictionary() {
         {/* Info Card */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
                   <FileJson className="w-6 h-6 text-primary" />
@@ -613,7 +613,7 @@ export default function AdminFirsDictionary() {
                   {dictionary.description && (
                     <p className="text-sm text-muted-foreground mt-1">{dictionary.description}</p>
                   )}
-                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
                     {dictionary.createdAt && (
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
@@ -728,7 +728,7 @@ export default function AdminFirsDictionary() {
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[600px]">
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>

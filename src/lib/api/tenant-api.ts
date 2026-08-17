@@ -90,7 +90,16 @@ export function createTenantApi() {
     getInvoices: (query?: { page?: string; limit?: string; type?: string; status?: string; paymentStatus?: string; search?: string; from?: string; to?: string }) =>
       (api as any).v1.workflow.invoices.get({ query: query || {} }),
 
-    getWebhookEvents: (query?: { page?: string; limit?: string; status?: string; eventType?: string }) =>
+    getInvoiceMetrics: () =>
+      (api as any).v1.workflow.invoices.metrics.get(),
+
+    requestEmailChange: (tenantId: string, newEmail: string) =>
+      (api as any).v1.tenants({ tenantId }).settings.email['request-change'].post({ newEmail }),
+
+    verifyEmailChange: (tenantId: string, token: string) =>
+      (api as any).v1.tenants({ tenantId }).settings.email.verify.post({ _u: token }),
+
+    getWebhookEvents: (query?: { page?: string; limit?: string; status?: string; eventType?: string; irn?: string; search?: string }) =>
       (api as any).v1.webhook.events.get({ query: query || {} }),
 
     getWebhookEvent: (eventId: string) =>

@@ -606,7 +606,7 @@ export default function AdminWebhookConfig() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -684,7 +684,7 @@ export default function AdminWebhookConfig() {
 
       {/* View Configuration Modal */}
       <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
-        <DialogContent className="max-w-2xl flex flex-col max-h-[85vh]">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl flex flex-col max-h-[85vh]">
           <DialogHeader className="shrink-0">
             <DialogTitle>Webhook Configuration Details</DialogTitle>
             <DialogDescription>
@@ -693,7 +693,7 @@ export default function AdminWebhookConfig() {
           </DialogHeader>
           {selectedConfig && (
             <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0 pr-1">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm">Tenant Information</CardTitle>
@@ -800,7 +800,7 @@ export default function AdminWebhookConfig() {
               </Card>
 
               {/* Timestamps */}
-              <div className="flex gap-4 text-xs text-muted-foreground">
+              <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                 <span>Created: {new Date(selectedConfig.createdAt).toLocaleString()}</span>
                 {selectedConfig.updatedAt && (
                   <span>Updated: {formatDistanceToNow(new Date(selectedConfig.updatedAt), { addSuffix: true })}</span>
@@ -833,7 +833,7 @@ export default function AdminWebhookConfig() {
           setEditMappings([]);
         }
       }}>
-        <DialogContent className="max-w-3xl flex flex-col max-h-[85vh]">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl flex flex-col max-h-[85vh]">
           <DialogHeader className="shrink-0">
             <DialogTitle>Edit Event Routing</DialogTitle>
             <DialogDescription>
@@ -915,7 +915,7 @@ export default function AdminWebhookConfig() {
 
       {/* Generate Webhook Modal */}
       <Dialog open={showGenerateModal} onOpenChange={(open) => { setShowGenerateModal(open); if (!open) { setSelectedConfig(null); setGeneratedWebhook(null); } }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Webhook className="w-5 h-5" />

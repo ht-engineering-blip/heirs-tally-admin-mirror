@@ -308,6 +308,10 @@
     box-shadow: 0 5px 9px 0 rgb(0 0 0 / 0.08), 0 2px 4px -1px rgb(0 0 0 / 0.08);
   }
 
+  .dark .shadow-card {
+    box-shadow: inset 0 0 0 1px hsl(var(--border)), 0 5px 9px 0 rgb(0 0 0 / 0.3), 0 2px 4px -1px rgb(0 0 0 / 0.2);
+  }
+
   .shadow-sidebar {
     box-shadow: 0 8px 12px 0 rgb(0 0 0 / 0.08), 0 8px 10px -1px rgb(0 0 0 / 0.18);
   }

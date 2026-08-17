@@ -130,7 +130,7 @@ export default function Tenants() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const [onboardingData, setOnboardingData] = useState({
-    status: "pending" as
+    status: "in_progress" as
       | "active"
       | "pending"
       | "in_progress"
@@ -361,9 +361,9 @@ export default function Tenants() {
   const handleResendActivation = async (tenant: Tenant) => {
     setResendingTenantId(tenant.tenantId);
     try {
-      const response = await (api as any).v1
-        .tenants({ tenantId: tenant.tenantId })
-        ['resend-token'].post({});
+      const response = await (api as any).v1.tenants.resend
+        .token({ tenantId: tenant.tenantId })
+        .post({});
 
       if (response.error) {
         const errorMessage =
@@ -429,7 +429,7 @@ export default function Tenants() {
 
   const resetOnboardingForm = () => {
     setOnboardingData({
-      status: "pending",
+      status: "in_progress",
       notes: "",
       rejectionReason: "",
     });
@@ -452,7 +452,7 @@ export default function Tenants() {
   const openOnboardingModal = (tenant: Tenant) => {
     setSelectedTenant(tenant);
     setOnboardingData({
-      status: tenant.onboarding?.status || "pending",
+      status: tenant.onboarding?.status || "in_progress",
       notes: tenant.onboarding?.notes || "",
       rejectionReason: tenant.onboarding?.rejectionReason || "",
     });
@@ -581,9 +581,7 @@ export default function Tenants() {
       header: "Status",
       sortable: true,
       accessor: (tenant) => (
-        <StatusBadge
-          status={tenant.status === "onboarding" ? "active" : tenant.status}
-        />
+        <StatusBadge status={tenant.status} />
       ),
     },
     {
@@ -635,7 +633,7 @@ export default function Tenants() {
         <Edit className="w-4 h-4 mr-2" />
         Update Onboarding
       </DropdownMenuItem>
-      {tenant.status === "inactive" && (
+      {tenant.status === "onboarding" && (
         <DropdownMenuItem
           onClick={() => handleResendActivation(tenant)}
           disabled={resendingTenantId === tenant.tenantId}
@@ -714,7 +712,7 @@ export default function Tenants() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -811,7 +809,7 @@ export default function Tenants() {
 
       {/* Create Tenant Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Tenant</DialogTitle>
             <DialogDescription>
@@ -837,7 +835,7 @@ export default function Tenants() {
                 <p className="text-xs text-destructive">{formErrors.businessName}</p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="tin">TIN *</Label>
                 <Input
@@ -891,7 +889,7 @@ export default function Tenants() {
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="contactEmail">Email *</Label>
                 <Input
@@ -928,7 +926,7 @@ export default function Tenants() {
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="erpSystem">ERP System *</Label>
                 <Select
@@ -1002,7 +1000,7 @@ export default function Tenants() {
 
       {/* Edit Tenant Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Tenant</DialogTitle>
             <DialogDescription>
@@ -1021,7 +1019,7 @@ export default function Tenants() {
                 placeholder="Enter business name"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-contactEmail">Email *</Label>
                 <Input
@@ -1167,7 +1165,7 @@ export default function Tenants() {
 
       {/* Update Onboarding Status Modal */}
       <Dialog open={showOnboardingModal} onOpenChange={setShowOnboardingModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Update Onboarding Status</DialogTitle>
             <DialogDescription>

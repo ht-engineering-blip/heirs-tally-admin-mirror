@@ -279,8 +279,10 @@ export default function WebhookSettingsPage() {
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize, setHistoryPageSize] = useState(10);
   const [historyTotal, setHistoryTotal] = useState(0);
+  const [historySearch, setHistorySearch] = useState("");
   const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
   const historyLoadedRef = useRef(false);
+  const historySearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<WebhookEvent | null>(null);
   const [viewingJson, setViewingJson] = useState<{
     title: string;
@@ -421,7 +423,7 @@ export default function WebhookSettingsPage() {
     }
   }, []);
 
-  const fetchWebhookEvents = useCallback(async (page: number, limit: number) => {
+  const fetchWebhookEvents = useCallback(async (page: number, limit: number, search?: string) => {
     if (!tenantId) return;
     setHistoryLoading(true);
     try {
@@ -429,6 +431,7 @@ export default function WebhookSettingsPage() {
       const response = await api.getWebhookEvents({
         page: page.toString(),
         limit: limit.toString(),
+        ...(search && { search }),
       });
       if (response.error) {
         toast.error(
@@ -486,11 +489,11 @@ export default function WebhookSettingsPage() {
     }
   }, []);
 
-  // Re-fetch when page or page size changes (only after first load)
+  // Re-fetch when page, page size, or search changes (only after first load)
   useEffect(() => {
     if (!historyLoadedRef.current) return;
-    fetchWebhookEvents(historyPage, historyPageSize);
-  }, [historyPage, historyPageSize, fetchWebhookEvents]);
+    fetchWebhookEvents(historyPage, historyPageSize, historySearch);
+  }, [historyPage, historyPageSize, historySearch, fetchWebhookEvents]);
 
   // ===== Handlers =====
 
@@ -1077,7 +1080,7 @@ export default function WebhookSettingsPage() {
                   className="text-xs sm:text-sm px-2 sm:px-3"
                   onClick={() => {
                     if (!historyLoadedRef.current && !historyLoading)
-                      fetchWebhookEvents(historyPage, historyPageSize);
+                      fetchWebhookEvents(historyPage, historyPageSize, historySearch);
                   }}
                 >
                   <Activity className="w-4 h-4 sm:mr-2" />
@@ -1944,7 +1947,7 @@ export default function WebhookSettingsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => fetchWebhookEvents(historyPage, historyPageSize)}
+                    onClick={() => fetchWebhookEvents(historyPage, historyPageSize, historySearch)}
                     disabled={historyLoading}
                   >
                     <RefreshCw
@@ -1969,6 +1972,14 @@ export default function WebhookSettingsPage() {
                   onPageSizeChange={(s) => {
                     setHistoryPageSize(s);
                     setHistoryPage(1);
+                  }}
+                  onSearch={(q) => {
+                    if (historySearchDebounceRef.current)
+                      clearTimeout(historySearchDebounceRef.current);
+                    historySearchDebounceRef.current = setTimeout(() => {
+                      setHistorySearch(q);
+                      setHistoryPage(1);
+                    }, 400);
                   }}
                 />
               </CardContent>
