@@ -11,15 +11,21 @@ import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { SectionLoader } from '@/components/shared/SectionLoader'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function DashboardPage() {
-  const { tenantData, isOnboardingComplete, onboardingProgress, onboardingStatus } = useTenant()
+  const {
+    tenantData,
+    isOnboardingComplete,
+    onboardingProgress,
+    onboardingStatus,
+    isLoading: tenantLoading,
+  } = useTenant()
 
   const tenant = tenantData as Record<string, any> | undefined
   const businessName = tenant?.businessName
 
-  const { data: metricsData } = useQuery({
+  const { data: metricsData, isLoading: metricsLoading } = useQuery({
     queryKey: ['dashboard-metrics'],
     queryFn: async () => {
       const api = createTenantApi()
@@ -95,18 +101,21 @@ export default function DashboardPage() {
             icon={FileText}
             subtitle="All time"
             variant="primary"
+            isLoading={metricsLoading}
           />
           <KpiCard
             title="Outbound"
             value={outboundTotal}
             icon={ArrowUpRight}
             subtitle="Sent invoices"
+            isLoading={metricsLoading}
           />
           <KpiCard
             title="Inbound"
             value={inboundTotal}
             icon={ArrowDownLeft}
             subtitle="Received invoices"
+            isLoading={metricsLoading}
           />
           <KpiCard
             title="Status"
@@ -114,6 +123,7 @@ export default function DashboardPage() {
             icon={Activity}
             subtitle="Account status"
             variant="success"
+            isLoading={tenantLoading}
           />
         </div>
       )}
@@ -133,7 +143,22 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {recentLoading ? (
-              <SectionLoader message="Loading transactions" size="sm" />
+              <div className="space-y-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 sm:gap-4 p-3">
+                    <Skeleton className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg shrink-0" />
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                    <div className="hidden sm:block space-y-1.5">
+                      <Skeleton className="h-4 w-20 ml-auto" />
+                      <Skeleton className="h-3 w-16 ml-auto" />
+                    </div>
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </div>
+                ))}
+              </div>
             ) : recentInvoices.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <FileText className="h-10 w-10 text-muted-foreground/50 mb-2" />
@@ -196,19 +221,35 @@ export default function DashboardPage() {
             <CardContent className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Business Name</span>
-                <span className="font-medium">{tenant?.businessName || 'N/A'}</span>
+                {tenantLoading ? (
+                  <Skeleton className="h-4 w-32" />
+                ) : (
+                  <span className="font-medium">{tenant?.businessName || 'N/A'}</span>
+                )}
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">TIN</span>
-                <span className="font-medium">{tenant?.tin || 'N/A'}</span>
+                {tenantLoading ? (
+                  <Skeleton className="h-4 w-24" />
+                ) : (
+                  <span className="font-medium">{tenant?.tin || 'N/A'}</span>
+                )}
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">ERP System</span>
-                <span className="font-medium">{tenant?.erpSystem || 'N/A'}</span>
+                {tenantLoading ? (
+                  <Skeleton className="h-4 w-20" />
+                ) : (
+                  <span className="font-medium">{tenant?.erpSystem || 'N/A'}</span>
+                )}
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Contact</span>
-                <span className="font-medium">{tenant?.contactEmail || 'N/A'}</span>
+                {tenantLoading ? (
+                  <Skeleton className="h-4 w-36" />
+                ) : (
+                  <span className="font-medium">{tenant?.contactEmail || 'N/A'}</span>
+                )}
               </div>
             </CardContent>
           </Card>

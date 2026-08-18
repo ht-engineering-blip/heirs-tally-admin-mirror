@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -760,7 +761,11 @@ export default function Tenants() {
                   <Building2 className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.total}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold">{stats.total}</p>
+                  )}
                   <p className="text-sm text-muted-foreground">Total Tenants</p>
                 </div>
               </div>
@@ -773,9 +778,13 @@ export default function Tenants() {
                   <Building2 className="w-5 h-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-success">
-                    {stats.active}
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-success">
+                      {stats.active}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">Active</p>
                 </div>
               </div>
@@ -788,9 +797,13 @@ export default function Tenants() {
                   <Building2 className="w-5 h-5 text-warning" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-warning">
-                    {stats.suspended}
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-warning">
+                      {stats.suspended}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">Suspended</p>
                 </div>
               </div>
@@ -803,7 +816,11 @@ export default function Tenants() {
                   <Building2 className="w-5 h-5 text-destructive" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.inactive}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold">{stats.inactive}</p>
+                  )}
                   <p className="text-sm text-muted-foreground">Inactive</p>
                 </div>
               </div>

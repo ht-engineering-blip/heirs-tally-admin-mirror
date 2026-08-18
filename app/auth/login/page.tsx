@@ -16,6 +16,7 @@ import { toast } from '@/components/ui/sonner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePersistedTab } from '@/hooks/use-persisted-tab'
 import { createTenantApi } from '@/lib/api/tenant-api'
+import { truncateErrorMessage } from '@/lib/utils'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, FileText, Loader2, Lock, Mail } from 'lucide-react'
 import Cookies from 'js-cookie'
@@ -78,6 +79,12 @@ function LoginPage() {
     setError(null)
   }
 
+  const showError = (message: string) => {
+    const truncated = truncateErrorMessage(message)
+    setError(truncated)
+    toast.error(truncated)
+  }
+
   const onSubmit = async (data: LoginFormValues) => {
     try {
       setError(null)
@@ -89,16 +96,14 @@ function LoginPage() {
 
       if (loginResponse.error || (loginResponse.data as any)?.error) {
         const errorMessage = (loginResponse.error as any)?.value?.error || (loginResponse.data as any)?.error || 'Invalid credentials'
-        setError(errorMessage)
-        toast.error(errorMessage)
+        showError(errorMessage)
         return
       }
 
       const loginData = (loginResponse.data as any)?.data
 
       if (!loginData?.token) {
-        setError('Failed to authenticate')
-        toast.error('Failed to authenticate')
+        showError('Failed to authenticate')
         return
       }
 
@@ -110,8 +115,7 @@ function LoginPage() {
       const meResponse = await tenantApi.getMeWithToken(authToken)
       if (meResponse.error) {
         const errorMessage = (meResponse.error as any)?.value?.error || 'Failed to fetch user data'
-        setError(errorMessage)
-        toast.error(errorMessage)
+        showError(errorMessage)
         return
       }
 
@@ -149,9 +153,7 @@ function LoginPage() {
       })
 
       if (!result?.ok) {
-        const errorMsg = result?.error || 'Failed to complete sign in'
-        setError(errorMsg)
-        toast.error(errorMsg)
+        showError(result?.error || 'Failed to complete sign in')
         return
       }
 
@@ -160,8 +162,7 @@ function LoginPage() {
       router.push(next && next.startsWith('/') ? next : '/dashboard')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in. Please try again.'
-      setError(errorMessage)
-      toast.error(errorMessage)
+      showError(errorMessage)
     }
   }
 

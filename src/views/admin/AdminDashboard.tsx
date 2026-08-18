@@ -15,7 +15,7 @@ import {
 import { getAdminApiClient } from '@/lib/api/client';
 import { useSession } from '@/hooks/use-session';
 import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
-import { SectionLoader } from '@/components/shared/SectionLoader';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface TenantSummary {
   total: number;
@@ -80,10 +80,6 @@ export default function AdminDashboard() {
       ].filter((s) => s.count > 0)
     : [];
 
-  if (isLoading) {
-    return <SectionLoader message="Loading dashboard" />;
-  }
-
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
@@ -105,6 +101,7 @@ export default function AdminDashboard() {
           value={tenantSummary?.total ?? 0}
           icon={Building2}
           subtitle={`${tenantSummary?.active ?? 0} active`}
+          isLoading={isLoading}
         />
         <KpiCard
           title="Active Tenants"
@@ -112,6 +109,7 @@ export default function AdminDashboard() {
           icon={Building2}
           subtitle="Currently active"
           variant="success"
+          isLoading={isLoading}
         />
         <KpiCard
           title="Pending Onboarding"
@@ -119,22 +117,38 @@ export default function AdminDashboard() {
           icon={Clock}
           subtitle="Awaiting setup"
           variant="primary"
+          isLoading={isLoading}
         />
         <KpiCard
           title="Supported ERPs"
           value={supportedErps?.length ?? 0}
           icon={Server}
           subtitle="Configured integrations"
+          isLoading={erpsLoading}
         />
       </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {tenantStatusData.length > 0 && (
-          <TenantStatusChart data={tenantStatusData} />
+        {isLoading ? (
+          <div className="rounded-xl border bg-card p-6 space-y-4">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-64 w-full rounded-lg" />
+          </div>
+        ) : (
+          tenantStatusData.length > 0 && (
+            <TenantStatusChart data={tenantStatusData} />
+          )
         )}
-        {!erpsLoading && erpDistributionData.length > 0 && (
-          <ErpDistributionChart data={erpDistributionData} />
+        {erpsLoading ? (
+          <div className="rounded-xl border bg-card p-6 space-y-4">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-64 w-full rounded-lg" />
+          </div>
+        ) : (
+          erpDistributionData.length > 0 && (
+            <ErpDistributionChart data={erpDistributionData} />
+          )
         )}
       </div>
     </div>

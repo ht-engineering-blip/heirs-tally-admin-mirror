@@ -32,13 +32,15 @@ const adminRoutes = new Elysia({ prefix: '/admin' })
       // Get the response text first to handle both JSON and non-JSON responses
       const responseText = await response.text()
       
-      // Try to parse as JSON, but if it fails, return the raw text
+      // Try to parse as JSON, but if it fails the upstream returned something
+      // non-JSON (e.g. an HTML gateway error page) — don't forward that raw
+      // body to the client, it can be huge and unreadable in an Alert/toast.
       let data: any
       try {
         data = responseText ? JSON.parse(responseText) : {}
       } catch {
-        // If parsing fails, return the raw text as the error message
-        data = { error: responseText || 'Unknown error' }
+        console.error('Non-JSON response from upstream:', responseText.slice(0, 500))
+        data = { error: 'The server is currently unreachable. Please try again later.' }
       }
       
       // Return the API response as-is, preserving status code and error structure
