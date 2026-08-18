@@ -6,6 +6,7 @@ import {
   FilterOption,
   StatusBadge,
 } from "@/components/shared";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,7 +55,7 @@ import { createTenantApi } from "@/lib/api/tenant-api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
-
+  AlertCircle,
   ArrowDownLeft,
   ArrowUpRight,
   CheckCircle,
@@ -180,6 +181,7 @@ export default function TransactionsPage() {
   const [retrying, setRetrying] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [invoiceDetails, setInvoiceDetails] = useState<any>(null);
   const [eventRoutes, setEventRoutes] = useState<any[]>([]);
   const [resending, setResending] = useState(false);
@@ -305,19 +307,19 @@ export default function TransactionsPage() {
 
   const fetchInvoiceDetails = async (invoice: Invoice) => {
     setDetailLoading(true);
+    setDetailError(null);
+    setInvoiceDetails(null);
     try {
       const api = createTenantApi();
 
       if (invoice.type === "outbound") {
         const response = await api.getOutboundInvoice(invoice.irn);
         if (response.error) {
-          toast.error(
-            (response.error as any)?.value?.error ||
-              "Failed to fetch invoice details",
+          setDetailError(
+            (response.error as any)?.value?.error || "Failed to fetch invoice details",
           );
         } else if (response.data?.data) {
           const data = response.data.data;
-          setInvoiceDetails(data);
 
           // Fetch current event routing config to check against webhook event types
           let fetchedRoutes: any[] = [];
@@ -333,7 +335,6 @@ export default function TransactionsPage() {
             }
           }
           setEventRoutes(fetchedRoutes);
-
           setInvoices((prev) =>
             prev.map((inv) =>
               inv.irn === invoice.irn
@@ -348,23 +349,21 @@ export default function TransactionsPage() {
                 : inv,
             ),
           );
-          setShowDetailModal(true);
+          setInvoiceDetails(data);
         }
       } else {
         setEventRoutes([]);
         const response = await api.getInboundInvoice(invoice.irn);
         if (response.error) {
-          toast.error(
-            (response.error as any)?.value?.error ||
-              "Failed to fetch invoice details",
+          setDetailError(
+            (response.error as any)?.value?.error || "Failed to fetch invoice details",
           );
         } else if (response.data?.data) {
           setInvoiceDetails(response.data.data);
-          setShowDetailModal(true);
         }
       }
     } catch (error: any) {
-      toast.error(error?.message || "Failed to fetch invoice details");
+      setDetailError(error?.message || "Failed to fetch invoice details");
     } finally {
       setDetailLoading(false);
     }
@@ -372,6 +371,9 @@ export default function TransactionsPage() {
 
   const handleViewDetails = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
+    setInvoiceDetails(null);
+    setDetailError(null);
+    setShowDetailModal(true);
     fetchInvoiceDetails(invoice);
   };
 
@@ -475,6 +477,32 @@ export default function TransactionsPage() {
     if (action)
       return `${action.charAt(0).toUpperCase() + action.slice(1)} failed. Please try again.`;
     return "An unexpected error occurred. Please try again.";
+  };
+
+  const renderHistoryError = (raw: string) => {
+    const sepIdx = raw.indexOf(" — ");
+    const prefix = sepIdx !== -1 ? raw.slice(0, sepIdx) : null;
+    const rest = sepIdx !== -1 ? raw.slice(sepIdx + 3) : null;
+    let parsed: any = null;
+    if (rest) try { parsed = JSON.parse(rest); } catch {}
+
+    if (!parsed) {
+      return (
+        <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs text-foreground break-words overflow-hidden">
+          <span className="font-medium text-destructive">Error: </span>
+          {raw}
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs break-words overflow-hidden space-y-1.5">
+        <span className="font-medium text-destructive">{prefix}</span>
+        <pre className="text-foreground whitespace-pre-wrap break-all font-mono mt-1">
+          {JSON.stringify(parsed, null, 2)}
+        </pre>
+      </div>
+    );
   };
 
  
@@ -964,8 +992,32 @@ export default function TransactionsPage() {
             </DialogDescription>
           </DialogHeader>
           {detailLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+            <div className="space-y-4 py-2">
+              <div className="flex gap-2">
+                <Skeleton className="h-8 w-24 rounded-md" />
+                <Skeleton className="h-8 w-20 rounded-md" />
+                <Skeleton className="h-8 w-24 rounded-md" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 pt-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-4 w-40" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : detailError ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+              <AlertCircle className="w-8 h-8 text-destructive" />
+              <div>
+                <p className="text-sm font-medium text-destructive">Failed to load invoice details</p>
+                <p className="text-xs text-muted-foreground mt-1">{detailError}</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => selectedInvoice && fetchInvoiceDetails(selectedInvoice)}>
+                <RefreshCw className="w-3 h-3 mr-2" />
+                Retry
+              </Button>
             </div>
           ) : invoiceDetails ? (
             <Tabs defaultValue="overview" className="w-full">
@@ -1377,14 +1429,7 @@ export default function TransactionsPage() {
                                 </div>
 
                                 {/* error */}
-                                {entry.error && (
-                                  <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-xs text-foreground break-words overflow-hidden">
-                                    <span className="font-medium text-destructive whitespace-pre-wrap break-all">
-                                      Error:{" "}
-                                    </span>
-                                    {entry.error}
-                                  </div>
-                                )}
+                                {entry.error && renderHistoryError(entry.error)}
                               </div>
                             </div>
                           ))}
