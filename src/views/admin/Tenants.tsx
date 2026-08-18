@@ -40,7 +40,8 @@ import {
 } from "@/components/ui/select";
 import { formatErpName, useSupportedErps } from "@/hooks/use-supported-erps";
 import { getAdminApiClient } from "@/lib/api/client";
-import { Building2, Edit, Eye, Mail, Plus, Power, Trash2 } from "lucide-react";
+import { createTenantApi } from "@/lib/api/tenant-api";
+import { Building2, CheckCircle, Edit, Eye, Loader2, Mail, Plus, Power, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -116,6 +117,14 @@ export default function Tenants() {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Email change state
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailModalTenant, setEmailModalTenant] = useState<Tenant | null>(null);
+  const [newEmailValue, setNewEmailValue] = useState('');
+  const [emailChangeLoading, setEmailChangeLoading] = useState(false);
+  const [emailChangeSuccess, setEmailChangeSuccess] = useState<string | null>(null);
+  const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -258,7 +267,6 @@ export default function Tenants() {
         .tenants({ tenantId: selectedTenant.tenantId })
         .patch({
           businessName: formData.businessName,
-          contactEmail: formData.contactEmail,
           contactPhone: formData.contactPhone,
           erpSystem: formData.erpSystem as any,
         });
@@ -278,6 +286,34 @@ export default function Tenants() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleRequestEmailChange = async () => {
+    if (!emailModalTenant || !newEmailValue.trim()) return;
+    setEmailChangeError(null);
+    setEmailChangeLoading(true);
+    try {
+      const tenantApi = createTenantApi();
+      const response = await tenantApi.requestEmailChange(emailModalTenant.tenantId, newEmailValue.trim());
+      if (response.error) {
+        setEmailChangeError((response.error as any)?.value?.error || 'Failed to request email change');
+        return;
+      }
+      setEmailChangeSuccess(newEmailValue.trim());
+      setNewEmailValue('');
+    } catch (err: any) {
+      setEmailChangeError(err?.message || 'An unexpected error occurred');
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  };
+
+  const openEmailModal = (tenant: Tenant) => {
+    setEmailModalTenant(tenant);
+    setNewEmailValue('');
+    setEmailChangeSuccess(null);
+    setEmailChangeError(null);
+    setShowEmailModal(true);
   };
 
   const handleDelete = async () => {
@@ -628,6 +664,10 @@ export default function Tenants() {
       <DropdownMenuItem onClick={() => openEditModal(tenant)}>
         <Edit className="w-4 h-4 mr-2" />
         Edit
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => openEmailModal(tenant)}>
+        <Mail className="w-4 h-4 mr-2" />
+        Change Email
       </DropdownMenuItem>
       <DropdownMenuItem onClick={() => openOnboardingModal(tenant)}>
         <Edit className="w-4 h-4 mr-2" />
@@ -1021,14 +1061,12 @@ export default function Tenants() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-contactEmail">Email *</Label>
+                <Label htmlFor="edit-contactEmail">Email</Label>
                 <Input
                   id="edit-contactEmail"
                   type="email"
                   value={formData.contactEmail}
-                  onChange={(e) =>
-                    setFormData({ ...formData, contactEmail: e.target.value })
-                  }
+                  disabled
                   placeholder="contact@business.com"
                 />
               </div>
@@ -1079,6 +1117,63 @@ export default function Tenants() {
             <Button onClick={handleUpdate} disabled={saving}>
               {saving ? "Updating..." : "Update Tenant"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Email Modal */}
+      <Dialog open={showEmailModal} onOpenChange={(open) => { setShowEmailModal(open); if (!open) { setEmailChangeSuccess(null); setEmailChangeError(null); setNewEmailValue(''); } }}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Email Address</DialogTitle>
+            <DialogDescription>
+              Send a verification link to a new email address for{' '}
+              <span className="font-medium">{emailModalTenant?.businessName}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Current Email</Label>
+              <p className="text-sm font-medium">{emailModalTenant?.contactEmail}</p>
+            </div>
+            {emailChangeSuccess ? (
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-success/10 border border-success/20">
+                <CheckCircle className="h-5 w-5 text-success shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-success">Verification email sent</p>
+                  <p className="text-sm text-muted-foreground">
+                    A verification link has been sent to{' '}
+                    <span className="font-medium text-foreground">{emailChangeSuccess}</span>.
+                    The email will update once the tenant clicks the link.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>New Email Address</Label>
+                <Input
+                  type="email"
+                  placeholder="new-email@company.com"
+                  value={newEmailValue}
+                  onChange={(e) => { setNewEmailValue(e.target.value); setEmailChangeError(null); }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleRequestEmailChange()}
+                />
+                {emailChangeError && (
+                  <p className="text-xs text-destructive">{emailChangeError}</p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEmailModal(false)}>
+              {emailChangeSuccess ? 'Close' : 'Cancel'}
+            </Button>
+            {!emailChangeSuccess && (
+              <Button onClick={handleRequestEmailChange} disabled={emailChangeLoading || !newEmailValue.trim()}>
+                {emailChangeLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Send Verification
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
