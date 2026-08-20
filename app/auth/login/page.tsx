@@ -51,6 +51,9 @@ function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [activeTab, setPersistedTab] = usePersistedTab('business-admin', 'type')
 
+  const next = searchParams.get('next')
+  const isEmailVerificationReturn = !!next?.includes('/auth/verify-email')
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -158,7 +161,6 @@ function LoginPage() {
       }
 
       toast.success('Login successful!')
-      const next = searchParams.get('next')
       router.push(next && next.startsWith('/') ? next : '/dashboard')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in. Please try again.'
@@ -181,6 +183,15 @@ function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {isEmailVerificationReturn && (
+            <Alert className="mb-4">
+              <Mail className="h-4 w-4" />
+              <AlertDescription>
+                You're changing your account email. Please sign in with your <strong>current (old)</strong> email address to confirm the change.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {showSuccess && (
             <Alert className="mb-4 border-success bg-success/10">
               <CheckCircle2 className="h-4 w-4 text-success" />
