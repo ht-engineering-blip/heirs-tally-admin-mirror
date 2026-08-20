@@ -81,14 +81,7 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
 
       const responseText = await response.text()
 
-      let data: any
-      try {
-        data = responseText ? JSON.parse(responseText) : {}
-      } catch {
-        data = { error: responseText || 'Unknown error' }
-      }
-
-      return new Response(JSON.stringify(data), {
+      return new Response(responseText, {
         status: response.status,
         headers: { 'Content-Type': 'application/json' },
       })
