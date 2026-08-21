@@ -92,6 +92,7 @@ const OUTBOUND_STATUS_OPTIONS = [
   { value: "TRANSMITTED", label: "Transmitted" },
   { value: "DELIVERED", label: "Delivered" },
   { value: "FAILED", label: "Failed" },
+  { value: "TRANSMISSION_FAILED", label: "Transmission Failed" },
   { value: "PAID", label: "Paid" },
   { value: "REJECTED", label: "Rejected" },
   { value: "CANCELED", label: "Canceled" },
@@ -114,6 +115,7 @@ const ALL_STATUS_OPTIONS = [
   { value: "TRANSMITTED", label: "Transmitted" },
   { value: "DELIVERED", label: "Delivered" },
   { value: "FAILED", label: "Failed" },
+  { value: "TRANSMISSION_FAILED", label: "Transmission Failed" },
   { value: "ACKNOWLEDGED", label: "Acknowledged" },
   { value: "DOWNLOADED", label: "Downloaded" },
   { value: "SYNCED_TO_ERP", label: "Synced to ERP" },
@@ -531,7 +533,7 @@ export default function AdminTransactionLogs() {
 
   const isFailed = (status: string) => {
     const s = (status || "").toLowerCase();
-    return s === "failed" || s === "rejected";
+    return s === "failed" || s === "rejected" || s === "transmission_failed";
   };
 
   const hasJobError = (inv: Invoice) => {
@@ -977,6 +979,7 @@ export default function AdminTransactionLogs() {
           searchPlaceholder="Search by invoice number, IRN, counterparty..."
           filters={transactionFilters}
           rowActions={rowActions}
+          onRowClick={handleViewDetails}
           isLoading={isLoading}
           currentPage={page}
           totalItems={total}
@@ -1043,7 +1046,7 @@ export default function AdminTransactionLogs() {
               </Button>
             </div>
           ) : invoiceDetails ? (
-            <Tabs defaultValue="overview" className="w-full">
+            <Tabs defaultValue="overview" className="w-full animate-fade-in">
               <TabsList className="w-full flex overflow-x-auto">
                 <TabsTrigger value="overview" className="text-xs sm:text-sm">
                   Overview
