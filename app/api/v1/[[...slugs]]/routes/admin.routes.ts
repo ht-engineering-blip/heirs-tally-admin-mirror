@@ -29,9 +29,20 @@ const adminRoutes = new Elysia({ prefix: '/admin' })
         body,
       })
 
+      // Get the response text first to handle both JSON and non-JSON responses
       const responseText = await response.text()
       
-      return new Response(responseText, {
+      // Try to parse as JSON, but if it fails, return the raw text
+      let data: any
+      try {
+        data = responseText ? JSON.parse(responseText) : {}
+      } catch {
+        // If parsing fails, return the raw text as the error message
+        data = { error: responseText || 'Unknown error' }
+      }
+      
+      // Return the API response as-is, preserving status code and error structure
+      return new Response(JSON.stringify(data), {
         status: response.status,
         headers: {
           'Content-Type': 'application/json',

@@ -335,14 +335,21 @@ export default function TransactionsPage() {
             }
           }
           setEventRoutes(fetchedRoutes);
-          setInvoiceDetails({
-            ...data,
-            hasRoutingError: hasUnroutedWebhookEvent(
-              data.webhookEvents,
-              fetchedRoutes,
-              data.invoice?.status,
+          setInvoices((prev) =>
+            prev.map((inv) =>
+              inv.irn === invoice.irn
+                ? {
+                    ...inv,
+                    hasRoutingError: hasUnroutedWebhookEvent(
+                      data.webhookEvents,
+                      fetchedRoutes,
+                      data.invoice?.status,
+                    ),
+                  }
+                : inv,
             ),
-          });
+          );
+          setInvoiceDetails(data);
         }
       } else {
         setEventRoutes([]);
