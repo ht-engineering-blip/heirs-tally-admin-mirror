@@ -230,8 +230,9 @@ export default function TenantDetail() {
     setEmailChangeLoading(true);
     setEmailChangeError(null);
     try {
-      const tenantApi = createTenantApi();
-      const response = await tenantApi.requestEmailChange(tenant.tenantId, newEmailValue.trim());
+      const response = await (api as any).v1
+        .tenants({ tenantId: tenant.tenantId })
+        .settings.email['request-change'].post({ newEmail: newEmailValue.trim() });
       if (response.error) {
         setEmailChangeError((response.error as any)?.value?.error || 'Failed to send verification email.');
       } else {

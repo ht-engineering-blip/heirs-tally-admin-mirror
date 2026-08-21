@@ -1,6 +1,5 @@
 'use client'
 
-import { SectionLoader } from '@/components/shared/SectionLoader';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -16,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -296,14 +296,25 @@ export function DataTable<T extends { id: string }>({
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0)}
-                  className="h-32 text-center"
-                >
-                  <SectionLoader message="Loading" size="sm" />
-                </TableCell>
-              </TableRow>
+              Array.from({ length: 8 }).map((_, rowIndex) => (
+                <TableRow key={`skeleton-row-${rowIndex}`}>
+                  {selectable && (
+                    <TableCell>
+                      <Skeleton className="h-4 w-4 rounded-sm" />
+                    </TableCell>
+                  )}
+                  {columns.map((column) => (
+                    <TableCell key={column.key} className={column.className}>
+                      <Skeleton className="h-4 w-full max-w-[140px]" />
+                    </TableCell>
+                  ))}
+                  {rowActions && (
+                    <TableCell>
+                      <Skeleton className="h-8 w-8 rounded-md" />
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
             ) : displayData.length === 0 ? (
               <TableRow>
                 <TableCell

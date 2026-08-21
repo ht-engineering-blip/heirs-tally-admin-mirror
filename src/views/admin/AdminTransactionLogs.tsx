@@ -875,7 +875,11 @@ export default function AdminTransactionLogs() {
                   <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">{stats.total}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-7 w-10 mb-1" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold">{stats.total}</p>
+                  )}
                   <p className="text-xs sm:text-sm text-muted-foreground">
                     Total
                   </p>
@@ -890,9 +894,13 @@ export default function AdminTransactionLogs() {
                   <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.outbound}
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-7 w-10 mb-1" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold">
+                      {stats.outbound}
+                    </p>
+                  )}
                   <p className="text-xs sm:text-sm text-muted-foreground">
                     Outbound
                   </p>
@@ -907,9 +915,13 @@ export default function AdminTransactionLogs() {
                   <ArrowDownLeft className="w-4 h-4 sm:w-5 sm:h-5 text-accent" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.inbound}
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-7 w-10 mb-1" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold">
+                      {stats.inbound}
+                    </p>
+                  )}
                   <p className="text-xs sm:text-sm text-muted-foreground">
                     Inbound
                   </p>
@@ -924,9 +936,13 @@ export default function AdminTransactionLogs() {
                   <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-warning" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.pending}
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-7 w-10 mb-1" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold">
+                      {stats.pending}
+                    </p>
+                  )}
                   <p className="text-xs sm:text-sm text-muted-foreground">
                     Pending
                   </p>
@@ -1532,53 +1548,62 @@ export default function AdminTransactionLogs() {
             </Tabs>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {selectedInvoice &&
-              isFailed(selectedInvoice.status) &&
-              hasJobError(selectedInvoice) && (
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  setShowDetailModal(false);
-                  setShowResendDialog(true);
-                }}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Resend Invoice
-              </Button>
-            )}
-            {selectedInvoice?.type === "outbound" &&
-              isFailed(
-                invoiceDetails?.invoice?.status ??
-                  selectedInvoice?.status ??
-                  "",
-              ) &&
-              (invoiceDetails?.invoice?.lastJobError?.action ??
-                selectedInvoice?.lastJobError?.action) && (
+            {detailLoading ? (
+              <>
+                <Skeleton className="h-9 w-28 rounded-md" />
+                <Skeleton className="h-9 w-20 rounded-md" />
+              </>
+            ) : (
+              <>
+                {selectedInvoice &&
+                  isFailed(selectedInvoice.status) &&
+                  hasJobError(selectedInvoice) && (
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setShowResendDialog(true);
+                    }}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Resend Invoice
+                  </Button>
+                )}
+                {selectedInvoice?.type === "outbound" &&
+                  isFailed(
+                    invoiceDetails?.invoice?.status ??
+                      selectedInvoice?.status ??
+                      "",
+                  ) &&
+                  (invoiceDetails?.invoice?.lastJobError?.action ??
+                    selectedInvoice?.lastJobError?.action) && (
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => {
+                        const action =
+                          invoiceDetails?.invoice?.lastJobError?.action ??
+                          selectedInvoice?.lastJobError?.action ??
+                          "validate";
+                        setShowDetailModal(false);
+                        setRetryStep(action);
+                        setShowRetryDialog(true);
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Retry from Step
+                    </Button>
+                  )}
                 <Button
                   variant="outline"
                   className="w-full sm:w-auto"
-                  onClick={() => {
-                    const action =
-                      invoiceDetails?.invoice?.lastJobError?.action ??
-                      selectedInvoice?.lastJobError?.action ??
-                      "validate";
-                    setShowDetailModal(false);
-                    setRetryStep(action);
-                    setShowRetryDialog(true);
-                  }}
+                  onClick={() => setShowDetailModal(false)}
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Retry from Step
+                  Close
                 </Button>
-              )}
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              onClick={() => setShowDetailModal(false)}
-            >
-              Close
-            </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

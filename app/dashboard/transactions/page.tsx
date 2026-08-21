@@ -897,7 +897,11 @@ export default function TransactionsPage() {
                   <FileText className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{formatStatNumber(stats.total)}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold">{formatStatNumber(stats.total)}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">Total</p>
                 </div>
               </div>
@@ -910,7 +914,11 @@ export default function TransactionsPage() {
                   <ArrowUpRight className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{formatStatNumber(stats.outbound)}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold">{formatStatNumber(stats.outbound)}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">Outbound</p>
                 </div>
               </div>
@@ -923,7 +931,11 @@ export default function TransactionsPage() {
                   <ArrowDownLeft className="w-4 h-4 text-gray-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{formatStatNumber(stats.inbound)}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold">{formatStatNumber(stats.inbound)}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">Inbound</p>
                 </div>
               </div>
@@ -1629,55 +1641,64 @@ export default function TransactionsPage() {
             </Tabs>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {canResend &&
-              selectedInvoice &&
-              isFailed(selectedInvoice.status) &&
-              hasJobError(selectedInvoice) && (
+            {detailLoading ? (
+              <>
+                <Skeleton className="h-9 w-28 rounded-md" />
+                <Skeleton className="h-9 w-20 rounded-md" />
+              </>
+            ) : (
+              <>
+                {canResend &&
+                  selectedInvoice &&
+                  isFailed(selectedInvoice.status) &&
+                  hasJobError(selectedInvoice) && (
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => {
+                        setShowDetailModal(false);
+                        setShowResendDialog(true);
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Resend Invoice
+                    </Button>
+                  )}
+                {canResend &&
+                  selectedInvoice?.type === "outbound" &&
+                  isFailed(
+                    invoiceDetails?.invoice?.status ??
+                      selectedInvoice?.status ??
+                      "",
+                  ) &&
+                  (invoiceDetails?.invoice?.lastJobError?.action ??
+                    selectedInvoice?.lastJobError?.action) && (
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => {
+                        const action =
+                          invoiceDetails?.invoice?.lastJobError?.action ??
+                          selectedInvoice?.lastJobError?.action ??
+                          "validate";
+                        setShowDetailModal(false);
+                        setRetryStep(action);
+                        setShowRetryDialog(true);
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Retry from Step
+                    </Button>
+                  )}
                 <Button
                   variant="outline"
                   className="w-full sm:w-auto"
-                  onClick={() => {
-                    setShowDetailModal(false);
-                    setShowResendDialog(true);
-                  }}
+                  onClick={() => setShowDetailModal(false)}
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Resend Invoice
+                  Close
                 </Button>
-              )}
-            {canResend &&
-              selectedInvoice?.type === "outbound" &&
-              isFailed(
-                invoiceDetails?.invoice?.status ??
-                  selectedInvoice?.status ??
-                  "",
-              ) &&
-              (invoiceDetails?.invoice?.lastJobError?.action ??
-                selectedInvoice?.lastJobError?.action) && (
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  onClick={() => {
-                    const action =
-                      invoiceDetails?.invoice?.lastJobError?.action ??
-                      selectedInvoice?.lastJobError?.action ??
-                      "validate";
-                    setShowDetailModal(false);
-                    setRetryStep(action);
-                    setShowRetryDialog(true);
-                  }}
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Retry from Step
-                </Button>
-              )}
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              onClick={() => setShowDetailModal(false)}
-            >
-              Close
-            </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
