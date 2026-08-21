@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileJson, Save, Loader2, Edit, Settings, Calendar, Clock, ArrowLeft, Server, Plus, Check, ChevronRight, ChevronLeft, Link2, Unlink } from 'lucide-react';
+import { FileJson, Save, Loader2, Edit, Eye, Settings, Calendar, Clock, ArrowLeft, Server, Plus, Check, ChevronRight, ChevronLeft, Link2, Unlink } from 'lucide-react';
 import { getAdminApiClient } from '@/lib/api/client';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
@@ -143,6 +143,7 @@ export default function AdminErpSupport() {
   const [metadataError, setMetadataError] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [rawPayloadJson, setRawPayloadJson] = useState<string>('{}');
   const [payloadError, setPayloadError] = useState<string | null>(null);
@@ -420,6 +421,17 @@ export default function AdminErpSupport() {
     setCustomErpName('');
     setShowConfig(true);
     setIsEditing(true);
+    setIsViewMode(false);
+    setConfigStep('setup');
+  };
+
+  const handleView = (erpType: string) => {
+    setSelectedErp(erpType);
+    setUseCustomErp(false);
+    setCustomErpName('');
+    setShowConfig(true);
+    setIsEditing(true);
+    setIsViewMode(true);
     setConfigStep('setup');
   };
 
@@ -436,6 +448,7 @@ export default function AdminErpSupport() {
     setMetadataError(null);
     setShowConfig(true);
     setIsEditing(false);
+    setIsViewMode(false);
     setConfigStep('setup');
   };
 
@@ -453,6 +466,7 @@ export default function AdminErpSupport() {
     }
     setShowConfig(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setConfigStep('setup');
     setInvoiceError(null);
     setMetadataError(null);
@@ -918,6 +932,139 @@ export default function AdminErpSupport() {
     );
   };
 
+  // Read-only mapping summary shown in view mode — no field pickers, no
+  // remove/clear actions, just the source -> target pairs already saved.
+  const ReadOnlyMappingsList = () => (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Field Mappings ({mappingData.length})</CardTitle>
+        <CardDescription>Source fields mapped to NRS UBL target fields</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {mappingData.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">No field mappings configured.</p>
+        ) : (
+          <ScrollArea className="max-h-[500px]">
+            <div className="space-y-1">
+              {mappingData.map((mapping, idx) => (
+                <div
+                  key={`${mapping.source}-${mapping.target}-${idx}`}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/30 text-sm"
+                >
+                  <code className="text-xs font-mono text-primary flex-1 truncate">{mapping.source}</code>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <code className="text-xs font-mono text-success flex-1 truncate">{mapping.target}</code>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  // Read-only key/type table for a flattened schema (invoice fields or metadata)
+  const FieldTable = ({ fields }: { fields: { key: string; type: string }[] }) => (
+    fields.length === 0 ? (
+      <p className="text-sm text-muted-foreground py-4 text-center">No fields defined.</p>
+    ) : (
+      <ScrollArea className="max-h-[500px]">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-muted-foreground border-b">
+              <th className="pb-2 font-medium">Field</th>
+              <th className="pb-2 font-medium">Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fields.map((f) => (
+              <tr key={f.key} className="border-b border-border/50 last:border-0">
+                <td className="py-2 pr-4">
+                  <code className="text-xs font-mono">{f.key}</code>
+                </td>
+                <td className="py-2">
+                  <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollArea>
+    )
+  );
+
+  // View mode — single-page, read-only detail view (no wizard/stepper)
+  if (showConfig && isViewMode) {
+    let invoiceFields: { key: string; type: string }[] = [];
+    let metadataFields: { key: string; type: string }[] = [];
+    try {
+      invoiceFields = flattenObject(JSON.parse(invoiceJson || '{}'));
+    } catch {
+      // malformed/empty JSON — leave the table empty
+    }
+    try {
+      metadataFields = flattenObject(JSON.parse(metadataJson || '{}'));
+    } catch {
+      // malformed/empty JSON — leave the table empty
+    }
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="page-header">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleCancel}
+              className="rounded-full"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <div>
+              <h1 className="page-title flex items-center gap-3">
+                {formatErpName(effectiveErp)}
+                <StatusBadge status={status} />
+              </h1>
+              <p className="page-subtitle">ERP support configuration</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={handleCancel} variant="outline" className="rounded-full">
+              Back
+            </Button>
+            <Button onClick={() => setIsViewMode(false)} className="rounded-full">
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Invoice Schema Fields</CardTitle>
+              <CardDescription>{invoiceFields.length} fields</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldTable fields={invoiceFields} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Metadata Fields</CardTitle>
+              <CardDescription>{metadataFields.length} fields</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldTable fields={metadataFields} />
+            </CardContent>
+          </Card>
+        </div>
+
+        <ReadOnlyMappingsList />
+      </div>
+    );
+  }
+
   // Configuration mode
   if (showConfig) {
     return (
@@ -1312,6 +1459,10 @@ export default function AdminErpSupport() {
 
   const rowActions = (erp: ErpListItem) => (
     <>
+      <DropdownMenuItem onClick={() => handleView(erp.source_type)}>
+        <Eye className="w-4 h-4 mr-2" />
+        View Details
+      </DropdownMenuItem>
       <DropdownMenuItem onClick={() => handleEdit(erp.source_type)}>
         <Edit className="w-4 h-4 mr-2" />
         Edit Mapping
@@ -1386,6 +1537,7 @@ export default function AdminErpSupport() {
             searchPlaceholder="Search ERP systems by name..."
             filters={erpFilters}
             rowActions={rowActions}
+            onRowClick={(erp) => handleView(erp.source_type)}
             onSearch={setSearchQuery}
             onFilterChange={setFilters}
             onSort={handleSort}
