@@ -93,8 +93,8 @@ export function createTenantApi() {
     getInvoiceMetrics: () =>
       (api as any).v1.workflow.invoices.metrics.get(),
 
-    requestEmailChange: (tenantId: string, newEmail: string) =>
-      (api as any).v1.tenants({ tenantId }).settings.email['request-change'].post({ newEmail }),
+    requestEmailChange: (tenantId: string, newEmail: string, currentPassword?: string) =>
+      (api as any).v1.tenants({ tenantId }).settings.email['request-change'].post({ newEmail, ...(currentPassword && { currentPassword }) }),
 
     verifyEmailChange: (tenantId: string, token: string) =>
       (api as any).v1.tenants({ tenantId }).settings.email.verify.post({ _u: token }),
