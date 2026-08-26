@@ -105,7 +105,7 @@ function VerifyEmailContent() {
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-3">
           <p className="text-xs text-muted-foreground text-center">
-            Verification links expire after 12 hours. Contact your administrator to request a new one.
+            Verification links expire after 12 hours. You can request a new one from your profile.
           </p>
           <Button asChild variant="outline">
             <Link href="/dashboard/profile">Go to Profile</Link>

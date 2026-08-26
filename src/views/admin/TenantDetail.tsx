@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePersistedTab } from '@/hooks/use-persisted-tab';
-import { ArrowLeft, Edit, Calendar, CheckCircle, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw, Webhook, Copy, Loader2, Eye, EyeOff, AlertCircle, Shield, Lock } from 'lucide-react';
+import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw, Webhook, Copy, Loader2, Eye, EyeOff, AlertCircle, Shield, Lock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -114,12 +114,6 @@ export default function TenantDetail() {
   const [firsCredentialsSaving, setFirsCredentialsSaving] = useState(false);
   const [firsCredentialsForm, setFirsCredentialsForm] = useState({ certificate: '', publicKey: '' });
 
-  const [showEmailModal, setShowEmailModal] = useState(false);
-  const [newEmailValue, setNewEmailValue] = useState('');
-  const [emailChangeLoading, setEmailChangeLoading] = useState(false);
-  const [emailChangeSuccess, setEmailChangeSuccess] = useState<string | null>(null);
-  const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
-
   const [formData, setFormData] = useState({
     businessName: '',
     contactEmail: '',
@@ -224,26 +218,6 @@ export default function TenantDetail() {
       fetchKeyConfig();
     }
   }, [tenantId]);
-
-  const handleRequestEmailChange = async () => {
-    if (!tenant || !newEmailValue.trim()) return;
-    setEmailChangeLoading(true);
-    setEmailChangeError(null);
-    try {
-      const response = await (api as any).v1
-        .tenants({ tenantId: tenant.tenantId })
-        .settings.email['request-change'].post({ newEmail: newEmailValue.trim() });
-      if (response.error) {
-        setEmailChangeError((response.error as any)?.value?.error || 'Failed to send verification email.');
-      } else {
-        setEmailChangeSuccess(newEmailValue.trim());
-      }
-    } catch (err: any) {
-      setEmailChangeError(err?.message || 'Failed to send verification email.');
-    } finally {
-      setEmailChangeLoading(false);
-    }
-  };
 
   const handleUpdate = async () => {
     if (!tenant) return;
@@ -538,46 +512,6 @@ export default function TenantDetail() {
                       <p className="font-medium">{tenant.contactPhone}</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <div>
-                    <CardTitle>Email Address</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">Manage the tenant&apos;s contact email</p>
-                  </div>
-                  {!emailChangeSuccess && (
-                    <Button variant="outline" size="sm" onClick={() => setShowEmailModal(true)}>
-                      <Mail className="h-4 w-4 mr-2" />
-                      Change Email
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  {emailChangeSuccess ? (
-                    <div className="flex items-start gap-3 p-4 rounded-lg bg-success/10 border border-success/20">
-                      <CheckCircle className="h-5 w-5 text-success shrink-0 mt-0.5" />
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-success">Verification email sent</p>
-                        <p className="text-sm text-muted-foreground">
-                          A link was sent to <span className="font-medium text-foreground">{emailChangeSuccess}</span>.
-                          The email updates once the tenant clicks the link.
-                        </p>
-                        <Button variant="ghost" size="sm" className="px-0 h-auto text-xs" onClick={() => { setEmailChangeSuccess(null); setNewEmailValue(''); }}>
-                          Send to a different address
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <Mail className="w-5 h-5 text-muted-foreground shrink-0" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Current Email</p>
-                        <p className="font-medium">{tenant.contactEmail}</p>
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
@@ -1064,7 +998,7 @@ export default function TenantDetail() {
                     value={formData.contactEmail}
                     disabled
                   />
-                  <p className="text-xs text-muted-foreground">Use "Change Email" to update the email address.</p>
+                  <p className="text-xs text-muted-foreground">The tenant can change this from their own profile.</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-contactPhone">Contact Phone *</Label>
@@ -1264,62 +1198,6 @@ export default function TenantDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Change Email Modal */}
-      <Dialog open={showEmailModal} onOpenChange={(open) => { setShowEmailModal(open); if (!open) { setEmailChangeSuccess(null); setEmailChangeError(null); setNewEmailValue(''); } }}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Change Email Address</DialogTitle>
-            <DialogDescription>
-              Send a verification link to a new email address for{' '}
-              <span className="font-medium">{tenant?.businessName}</span>.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Current Email</Label>
-              <p className="text-sm font-medium">{tenant?.contactEmail}</p>
-            </div>
-            {emailChangeSuccess ? (
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-success/10 border border-success/20">
-                <CheckCircle className="h-5 w-5 text-success shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-success">Verification email sent</p>
-                  <p className="text-sm text-muted-foreground">
-                    A verification link has been sent to{' '}
-                    <span className="font-medium text-foreground">{emailChangeSuccess}</span>.
-                    The email will update once the tenant clicks the link.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label>New Email Address</Label>
-                <Input
-                  type="email"
-                  placeholder="new-email@company.com"
-                  value={newEmailValue}
-                  onChange={(e) => { setNewEmailValue(e.target.value); setEmailChangeError(null); }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleRequestEmailChange()}
-                />
-                {emailChangeError && (
-                  <p className="text-xs text-destructive">{emailChangeError}</p>
-                )}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEmailModal(false)}>
-              {emailChangeSuccess ? 'Close' : 'Cancel'}
-            </Button>
-            {!emailChangeSuccess && (
-              <Button onClick={handleRequestEmailChange} disabled={emailChangeLoading || !newEmailValue.trim()}>
-                {emailChangeLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Send Verification
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
