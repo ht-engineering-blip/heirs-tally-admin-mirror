@@ -53,6 +53,8 @@ export default function ProfilePage() {
   // Email change state
   const [isChangingEmail, setIsChangingEmail] = useState(false)
   const [newEmail, setNewEmail] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [isRequestingEmailChange, setIsRequestingEmailChange] = useState(false)
   const [emailChangeSuccess, setEmailChangeSuccess] = useState<string | null>(null)
   const [emailChangeError, setEmailChangeError] = useState<string | null>(null)
@@ -98,18 +100,21 @@ export default function ProfilePage() {
   }
 
   const handleRequestEmailChange = async () => {
-    if (!tenantId || !newEmail.trim()) return
+    if (!tenantId || !newEmail.trim() || !currentPassword.trim()) return
+    if (newEmail.trim().toLowerCase() === tenant?.contactEmail?.toLowerCase()) return
     setEmailChangeError(null)
     setIsRequestingEmailChange(true)
     try {
       const api = createTenantApi()
-      const response = await api.requestEmailChange(tenantId, newEmail.trim())
+      const response = await api.requestEmailChange(tenantId, newEmail.trim(), currentPassword.trim())
       if (response.error) {
         setEmailChangeError((response.error as any)?.value?.error || 'Failed to request email change')
         return
       }
       setEmailChangeSuccess(newEmail.trim())
       setNewEmail('')
+      setCurrentPassword('')
+      setShowCurrentPassword(false)
     } catch (err: any) {
       setEmailChangeError(err?.message || 'An unexpected error occurred')
     } finally {
@@ -304,20 +309,43 @@ export default function ProfilePage() {
                     placeholder="new-email@company.com"
                     value={newEmail}
                     onChange={(e) => { setNewEmail(e.target.value); setEmailChangeError(null) }}
-                    onKeyDown={(e) => e.key === 'Enter' && handleRequestEmailChange()}
                   />
-                  {emailChangeError && (
-                    <p className="text-xs text-destructive">{emailChangeError}</p>
+                  {newEmail.trim().toLowerCase() === tenant?.contactEmail?.toLowerCase() && newEmail.trim() && (
+                    <p className="text-xs text-destructive">New email must be different from your current email.</p>
                   )}
-                  <p className="text-xs text-muted-foreground">
-                    A verification link will be sent to the new address. The change only applies after you click that link.
-                  </p>
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Current Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      placeholder="Enter your current password"
+                      value={currentPassword}
+                      onChange={(e) => { setCurrentPassword(e.target.value); setEmailChangeError(null) }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleRequestEmailChange()}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                {emailChangeError && (
+                  <p className="text-xs text-destructive">{emailChangeError}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  A verification link will be sent to the new address. The change only applies after you click that link.
+                </p>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
                     onClick={handleRequestEmailChange}
-                    disabled={isRequestingEmailChange || !newEmail.trim()}
+                    disabled={isRequestingEmailChange || !newEmail.trim() || !currentPassword.trim() || newEmail.trim().toLowerCase() === tenant?.contactEmail?.toLowerCase()}
                   >
                     {isRequestingEmailChange && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Send Verification
@@ -325,7 +353,7 @@ export default function ProfilePage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => { setIsChangingEmail(false); setNewEmail(''); setEmailChangeError(null) }}
+                    onClick={() => { setIsChangingEmail(false); setNewEmail(''); setCurrentPassword(''); setShowCurrentPassword(false); setEmailChangeError(null) }}
                   >
                     Cancel
                   </Button>

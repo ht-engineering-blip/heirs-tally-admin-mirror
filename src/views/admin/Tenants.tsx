@@ -110,7 +110,7 @@ export default function Tenants() {
   // Stats cards reflect ALL tenants platform-wide, independent of the table's
   // current page/filter/search — fetched separately so they don't get skewed
   // by whatever the table happens to be showing.
-  const [stats, setStats] = useState({ total: 0, active: 0, suspended: 0, inactive: 0 });
+  const [stats, setStats] = useState({ total: 0, active: 0, invited: 0, suspended: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
 
   const [resendingTenantId, setResendingTenantId] = useState<string | null>(null);
@@ -213,21 +213,14 @@ export default function Tenants() {
   const fetchStats = async () => {
     setStatsLoading(true);
     try {
-      const response = await api.v1.tenants.get({
-        query: { limit: 1000, onboarding: true } as any,
-      });
+      const response = await (api as any).v1.tenants.analytics.get();
       if (!response.error && response.data?.data) {
-        const all = response.data.data as any[];
+        const d = response.data.data;
         setStats({
-          total: all.length,
-          active: all.filter(
-            (t) =>
-              t.status === "active" ||
-              t.status === "onboarding" ||
-              t.onboarding?.status === "active",
-          ).length,
-          suspended: all.filter((t) => t.status === "suspended").length,
-          inactive: all.filter((t) => t.status === "inactive").length,
+          total: d.total ?? 0,
+          active: d.active ?? 0,
+          invited: d.invited ?? 0,
+          suspended: d.suspended ?? 0,
         });
       }
     } catch {
@@ -758,16 +751,16 @@ export default function Tenants() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-destructive" />
+                <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-info" />
                 </div>
                 <div>
                   {statsLoading ? (
                     <Skeleton className="h-8 w-12 mb-1" />
                   ) : (
-                    <p className="text-2xl font-bold">{stats.inactive}</p>
+                    <p className="text-2xl font-bold text-info">{stats.invited}</p>
                   )}
-                  <p className="text-sm text-muted-foreground">Inactive</p>
+                  <p className="text-sm text-muted-foreground">Invited</p>
                 </div>
               </div>
             </CardContent>
@@ -805,11 +798,6 @@ export default function Tenants() {
           onSort={handleSort}
           onRowClick={(tenant) => router.push(`/admin/tenants/${tenant.tenantId}`)}
           emptyMessage="No tenants found"
-          rowClassName={(tenant) =>
-            tenant.status === "inactive" || tenant.status === "suspended"
-              ? "opacity-50 grayscale-[30%]"
-              : ""
-          }
         />
       </div>
 
