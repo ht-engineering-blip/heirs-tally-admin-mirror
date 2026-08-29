@@ -78,6 +78,13 @@ const sandboxNavItem: NavItem = {
   permission: 'sandbox:test',
 }
 
+const auditNavItem: NavItem = {
+  title: 'Audit Logs',
+  href: '/admin/audit',
+  icon: Shield,
+  permission: 'audit:read',
+}
+
 interface AdminSidebarProps {
   isOpen?: boolean
   onClose?: () => void
@@ -156,6 +163,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
   const filteredSystemNavItems = filterNavItems(systemNavItems)
   const filteredTenantNavItems = filterNavItems(tenantNavItems)
   const showSandbox = hasPermission('sandbox:test')
+  const showAudit = hasPermission('audit:read')
 
   const sidebarWidth = isMobile
     ? 'w-[260px]'
@@ -346,6 +354,27 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                       </div>
                     )
                   })}
+                </>
+              )}
+
+              {/* Audit */}
+              {showAudit && (
+                <>
+                  <Separator className="my-4" />
+                  {(!isCollapsed || isMobile) && (
+                    <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Audit
+                    </p>
+                  )}
+                  <NavLink
+                    href={auditNavItem.href}
+                    icon={auditNavItem.icon}
+                    label={auditNavItem.title}
+                    isActive={isRouteActive(auditNavItem.href)}
+                    isCollapsed={isCollapsed && !isMobile}
+                    isMobile={isMobile}
+                    onClick={handleNavClick}
+                  />
                 </>
               )}
 

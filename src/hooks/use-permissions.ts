@@ -28,6 +28,7 @@ export type Permission =
   | 'profile:update'
   | 'transactions:read'
   | 'transactions:resend'
+  | 'audit:read'
 
 const SUPER_ADMIN_PERMISSIONS: Permission[] = [
   'system:configure',
@@ -55,6 +56,7 @@ const SUPER_ADMIN_PERMISSIONS: Permission[] = [
   'profile:update',
   'transactions:read',
   'transactions:resend',
+  'audit:read',
 ]
 
 const BUSINESS_ADMIN_PERMISSIONS: Permission[] = [
