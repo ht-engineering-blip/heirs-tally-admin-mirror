@@ -21,7 +21,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Column, DataTable } from '@/components/shared'
+import { Column, DataTable, JsonBlock, KeyValueTable } from '@/components/shared'
 import { Loader2, ShieldCheck, ShieldAlert, ArrowLeft } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -543,7 +543,7 @@ export default function AdminAudit() {
         open={showDetailDialog}
         onOpenChange={(open) => { setShowDetailDialog(open); if (!open) { setSelectedLog(null); setResourceTrail(null) } }}
       >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>{resourceTrail ? 'Resource Audit Trail' : 'Audit Log Details'}</DialogTitle>
             {selectedLog && !resourceTrail && (
@@ -614,17 +614,13 @@ export default function AdminAudit() {
 
               {selectedLog.changes && (selectedLog.changes.before || selectedLog.changes.after) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 min-w-0">
                     <Label className="text-xs text-muted-foreground">Before</Label>
-                    <pre className="text-xs bg-muted/50 rounded-lg p-3 overflow-auto max-h-[200px]">
-                      {JSON.stringify(selectedLog.changes.before ?? null, null, 2)}
-                    </pre>
+                    <JsonBlock data={selectedLog.changes.before} className="max-h-[200px]" />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 min-w-0">
                     <Label className="text-xs text-muted-foreground">After</Label>
-                    <pre className="text-xs bg-muted/50 rounded-lg p-3 overflow-auto max-h-[200px]">
-                      {JSON.stringify(selectedLog.changes.after ?? null, null, 2)}
-                    </pre>
+                    <JsonBlock data={selectedLog.changes.after} className="max-h-[200px]" />
                   </div>
                 </div>
               )}
@@ -637,11 +633,9 @@ export default function AdminAudit() {
               )}
 
               {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0">
                   <Label className="text-xs text-muted-foreground">Metadata</Label>
-                  <pre className="text-xs bg-muted/50 rounded-lg p-3 overflow-auto max-h-[200px]">
-                    {JSON.stringify(selectedLog.metadata, null, 2)}
-                  </pre>
+                  <KeyValueTable data={selectedLog.metadata} className="max-h-[200px] overflow-y-auto" />
                 </div>
               )}
 
