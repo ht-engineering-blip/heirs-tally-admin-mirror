@@ -15,6 +15,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { useSession } from '@/hooks/use-session'
+import { useTenant } from '@/hooks/use-tenant'
 import { ThemeSwitcher } from '@/components/shared/ThemeSwitcher'
 
 interface HeaderProps {
@@ -27,6 +28,21 @@ interface HeaderProps {
 
 export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse, logoutCallbackUrl = '/auth/login' }: HeaderProps) {
   const { user } = useSession()
+  // NextAuth's JWT session only captures name/email once, at login — it never
+  // refreshes after a profile edit or email change. useTenant() fetches /me
+  // live, so prefer that for display and only fall back to the session
+  // (e.g. for admins, whose useTenant() query is disabled entirely).
+  const { tenantData } = useTenant()
+  const liveData = tenantData as Record<string, any> | undefined
+  const displayName =
+    (liveData && 'businessName' in liveData && liveData.businessName) ||
+    (liveData && 'firstName' in liveData && 'lastName' in liveData && `${liveData.firstName} ${liveData.lastName}`) ||
+    user?.name ||
+    'Admin'
+  const displayEmail =
+    (liveData && 'contactEmail' in liveData && liveData.contactEmail) ||
+    (liveData && 'email' in liveData && liveData.email) ||
+    user?.email
 
   return (
     <header className="sticky top-0 z-30 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-card">
@@ -80,7 +96,7 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse,
                 <Avatar className="h-10 w-10">
                   <AvatarImage src="" alt="User" />
                   <AvatarFallback className="bg-primary text-primary-foreground">
-                    {user?.name?.charAt(0).toUpperCase() || 'A'}
+                    {displayName?.charAt(0).toUpperCase() || 'A'}
                   </AvatarFallback>
                 </Avatar>
                 <span className="sr-only">User menu</span>
@@ -89,9 +105,9 @@ export function Header({ isMobile = false, onMenuClick, isCollapsed, onCollapse,
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{user?.name || 'Admin'}</p>
+                  <p className="text-sm font-medium leading-none">{displayName}</p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    {user?.email || user?.role?.replace('_', ' ').toLowerCase() || 'Admin'}
+                    {displayEmail || user?.role?.replace('_', ' ').toLowerCase() || 'Admin'}
                   </p>
                 </div>
               </DropdownMenuLabel>

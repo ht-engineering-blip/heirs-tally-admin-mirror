@@ -5,6 +5,9 @@ import {
   DataTable,
   EventMappingEditor,
   InvoiceIdKeyEditor,
+  JsonBlock,
+  KeyValueTable,
+  stringifyJson,
   StatusBadge,
   type EventMapping,
 } from "@/components/shared";
@@ -1998,9 +2001,7 @@ export default function WebhookSettingsPage() {
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  navigator.clipboard.writeText(
-                    JSON.stringify(viewingJson?.data, null, 2),
-                  );
+                  navigator.clipboard.writeText(stringifyJson(viewingJson?.data));
                   toast.success("Copied to clipboard");
                 }}
               >
@@ -2010,9 +2011,11 @@ export default function WebhookSettingsPage() {
             </div>
           </DialogHeader>
           <ScrollArea className="h-[calc(85vh-8rem)] mt-2">
-            <pre className="text-xs font-mono bg-muted p-4 rounded-lg whitespace-pre-wrap break-all">
-              {JSON.stringify(viewingJson?.data, null, 2)}
-            </pre>
+            {viewingJson?.title === "Metadata" ? (
+              <KeyValueTable data={viewingJson?.data} />
+            ) : (
+              <JsonBlock data={viewingJson?.data} className="max-h-none" />
+            )}
           </ScrollArea>
         </DialogContent>
       </Dialog>
@@ -2022,7 +2025,7 @@ export default function WebhookSettingsPage() {
         open={!!selectedEvent}
         onOpenChange={() => setSelectedEvent(null)}
       >
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>Webhook Event Details</DialogTitle>
             <DialogDescription>
@@ -2116,13 +2119,11 @@ export default function WebhookSettingsPage() {
               )}
 
               {selectedEvent.payload && (
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <p className="text-xs font-medium text-muted-foreground">
                     Payload
                   </p>
-                  <pre className="text-xs font-mono bg-muted p-3 rounded-lg overflow-auto max-h-[200px]">
-                    {JSON.stringify(selectedEvent.payload, null, 2)}
-                  </pre>
+                  <JsonBlock data={selectedEvent.payload} className="max-h-[200px]" />
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"

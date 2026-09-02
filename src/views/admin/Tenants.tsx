@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -40,9 +41,9 @@ import {
 } from "@/components/ui/select";
 import { formatErpName, useSupportedErps } from "@/hooks/use-supported-erps";
 import { getAdminApiClient } from "@/lib/api/client";
-import { Building2, Edit, Eye, Mail, Plus, Power, Trash2 } from "lucide-react";
+import { Building2, Edit, Eye, Loader2, Mail, Plus, Power, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 interface Tenant {
@@ -104,6 +105,13 @@ export default function Tenants() {
     key: string;
     order: "asc" | "desc";
   } | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Stats cards reflect ALL tenants platform-wide, independent of the table's
+  // current page/filter/search — fetched separately so they don't get skewed
+  // by whatever the table happens to be showing.
+  const [stats, setStats] = useState({ total: 0, active: 0, invited: 0, suspended: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const [resendingTenantId, setResendingTenantId] = useState<string | null>(null);
 
@@ -140,43 +148,55 @@ export default function Tenants() {
     rejectionReason: "",
   });
 
+  const extractId = (v: any): string | undefined => {
+    if (!v) return undefined;
+    if (typeof v === "string") return v;
+    if (typeof v === "object" && v.$oid) return String(v.$oid);
+    return undefined;
+  };
+
+  const mapTenant = (t: any): Tenant => ({
+    id: extractId(t.id) ?? extractId(t._id) ?? String(t.tenantId ?? ""),
+    tenantId: String(t.tenantId ?? extractId(t.id) ?? extractId(t._id) ?? ""),
+    businessName: t.businessName,
+    tin: t.tin,
+    businessRegistrationNumber: t.businessRegistrationNumber,
+    contactEmail: t.contactEmail,
+    contactPhone: t.contactPhone,
+    erpSystem: t.config?.erpSystem || t.erpSystem || "",
+    status: t.status || "inactive",
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+    config: t.config,
+    onboarding: t.onboarding,
+  });
+
   const fetchTenants = async () => {
     setIsLoading(true);
     try {
       const response = await api.v1.tenants.get({
-        query: { limit: 1000 },
+        query: {
+          page,
+          limit: pageSize,
+          onboarding: true,
+          ...(filters.status && filters.status !== "all"
+            ? { status: filters.status as any }
+            : {}),
+          ...(searchQuery ? { search: searchQuery } : {}),
+          sortBy: columnSort?.key ?? "createdAt",
+          sortOrder: columnSort?.order ?? "desc",
+        } as any,
       });
-
 
       if (response.error) {
         const errorMessage =
           (response.error as any)?.value?.error || "Failed to fetch tenants";
         toast.error(errorMessage);
       } else if (response.data?.data) {
-        const tenantData = response.data.data as any[];
-        const extractId = (v: any): string | undefined => {
-          if (!v) return undefined;
-          if (typeof v === "string") return v;
-          if (typeof v === "object" && v.$oid) return String(v.$oid);
-          return undefined;
-        };
-        const mappedTenants: Tenant[] = tenantData.map((t: any) => ({
-          id: extractId(t.id) ?? extractId(t._id) ?? String(t.tenantId ?? ""),
-          tenantId: String(t.tenantId ?? extractId(t.id) ?? extractId(t._id) ?? ""),
-          businessName: t.businessName,
-          tin: t.tin,
-          businessRegistrationNumber: t.businessRegistrationNumber,
-          contactEmail: t.contactEmail,
-          contactPhone: t.contactPhone,
-          erpSystem: t.config?.erpSystem || t.erpSystem || "",
-          status: t.status || "inactive",
-          createdAt: t.createdAt,
-          updatedAt: t.updatedAt,
-          config: t.config,
-          onboarding: t.onboarding,
-        }));
+        const mappedTenants = (response.data.data as any[]).map(mapTenant);
         setTenants(mappedTenants);
-        setTotal(mappedTenants.length);
+        const pagination = (response.data as any)?.pagination;
+        setTotal(pagination?.total ?? mappedTenants.length);
       }
     } catch (error: any) {
       toast.error(error?.message || "Failed to load tenants");
@@ -185,8 +205,37 @@ export default function Tenants() {
     }
   };
 
+  // Platform-wide counts for the stat cards — a separate, unfiltered,
+  // unpaginated fetch so the cards don't fluctuate with the table's own
+  // page/filter/search state. TODO: swap for a dedicated stats/summary
+  // endpoint once the backend adds one, instead of pulling up to 1000
+  // tenants just to count them client-side.
+  const fetchStats = async () => {
+    setStatsLoading(true);
+    try {
+      const response = await (api as any).v1.tenants.analytics.get();
+      if (!response.error && response.data?.data) {
+        const d = response.data.data;
+        setStats({
+          total: d.total ?? 0,
+          active: d.active ?? 0,
+          invited: d.invited ?? 0,
+          suspended: d.suspended ?? 0,
+        });
+      }
+    } catch {
+      // Stats are supplementary — a failed fetch here shouldn't block the table.
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchTenants();
+  }, [page, pageSize, filters.status, searchQuery, columnSort]);
+
+  useEffect(() => {
+    fetchStats();
   }, []);
 
   const handleCreate = async () => {
@@ -241,6 +290,7 @@ export default function Tenants() {
         setShowCreateModal(false);
         resetForm();
         fetchTenants();
+        fetchStats();
       }
     } catch (error: any) {
       toast.error(error?.message || "Failed to create tenant");
@@ -258,7 +308,6 @@ export default function Tenants() {
         .tenants({ tenantId: selectedTenant.tenantId })
         .patch({
           businessName: formData.businessName,
-          contactEmail: formData.contactEmail,
           contactPhone: formData.contactPhone,
           erpSystem: formData.erpSystem as any,
         });
@@ -298,6 +347,7 @@ export default function Tenants() {
         setShowDeleteDialog(false);
         setSelectedTenant(null);
         fetchTenants();
+        fetchStats();
       }
     } catch (error: any) {
       toast.error(error?.message || "Failed to delete tenant");
@@ -324,6 +374,7 @@ export default function Tenants() {
         setShowActivateDialog(false);
         setSelectedTenant(null);
         fetchTenants();
+        fetchStats();
       }
     } catch (error: any) {
       toast.error(error?.message || "Failed to activate tenant");
@@ -350,6 +401,7 @@ export default function Tenants() {
         setShowSuspendDialog(false);
         setSelectedTenant(null);
         fetchTenants();
+        fetchStats();
       }
     } catch (error: any) {
       toast.error(error?.message || "Failed to suspend tenant");
@@ -406,6 +458,7 @@ export default function Tenants() {
         setSelectedTenant(null);
         resetOnboardingForm();
         fetchTenants();
+        fetchStats();
       }
     } catch (error: any) {
       toast.error(error?.message || "Failed to update onboarding status");
@@ -462,66 +515,6 @@ export default function Tenants() {
   const handleSort = (key: string, order: "asc" | "desc") => {
     setColumnSort({ key, order });
   };
-
-  const statusWeight = (t: Tenant) =>
-    t.status === "active" || t.status === "onboarding"
-      ? 0
-      : t.status === "suspended"
-        ? 1
-        : 2;
-
-  const displayTenants = useMemo(() => {
-    let list = [...tenants];
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(
-        (t) =>
-          t.businessName?.toLowerCase().includes(q) ||
-          t.tin?.toLowerCase().includes(q) ||
-          t.contactEmail?.toLowerCase().includes(q),
-      );
-    }
-
-    if (filters.status && filters.status !== "all") {
-      list = list.filter(
-        (t) =>
-          (t.status === "onboarding" ? "active" : t.status) === filters.status,
-      );
-    }
-
-    return list.sort((a, b) => {
-      // Always sort by status group first
-      const weightDiff = statusWeight(a) - statusWeight(b);
-      if (weightDiff !== 0) return weightDiff;
-
-      // Within the same status group, apply column sort if active
-      if (columnSort) {
-        const { key, order } = columnSort;
-        let aVal: any = a[key as keyof Tenant];
-        let bVal: any = b[key as keyof Tenant];
-
-        if (key === "createdAt" || key === "updatedAt") {
-          aVal = new Date(aVal || 0).getTime();
-          bVal = new Date(bVal || 0).getTime();
-        } else if (typeof aVal === "string") {
-          aVal = aVal.toLowerCase();
-          bVal = (bVal as string).toLowerCase();
-        }
-
-        if (aVal < bVal) return order === "asc" ? -1 : 1;
-        if (aVal > bVal) return order === "asc" ? 1 : -1;
-        return 0;
-      }
-
-      // Default within-group sort: most recent first
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-  }, [tenants, searchQuery, filters, columnSort]);
-
-  const paginatedTenants = useMemo(() => {
-    return displayTenants.slice((page - 1) * pageSize, page * pageSize);
-  }, [displayTenants, page, pageSize]);
 
   const getPlanBadge = (plan: string) => {
     const colors: Record<string, string> = {
@@ -678,19 +671,6 @@ export default function Tenants() {
     </>
   );
 
-  const stats = {
-    total: tenants.length,
-    active: tenants.filter(
-      (t) =>
-        t.status === "active" ||
-        t.status === "onboarding" ||
-        t.onboarding?.status === "active",
-    ).length,
-    suspended: tenants.filter((t) => t.status === "suspended").length,
-    inactive: tenants.filter((t) => t.status === "inactive").length,
-  };
-
-
   return (
     <>
       <div className="space-y-6 animate-fade-in">
@@ -720,7 +700,11 @@ export default function Tenants() {
                   <Building2 className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.total}</p>
+                  {statsLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold">{stats.total}</p>
+                  )}
                   <p className="text-sm text-muted-foreground">Total Tenants</p>
                 </div>
               </div>
@@ -733,9 +717,13 @@ export default function Tenants() {
                   <Building2 className="w-5 h-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-success">
-                    {stats.active}
-                  </p>
+                  {statsLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-success">
+                      {stats.active}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">Active</p>
                 </div>
               </div>
@@ -748,9 +736,13 @@ export default function Tenants() {
                   <Building2 className="w-5 h-5 text-warning" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-warning">
-                    {stats.suspended}
-                  </p>
+                  {statsLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-warning">
+                      {stats.suspended}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">Suspended</p>
                 </div>
               </div>
@@ -759,12 +751,16 @@ export default function Tenants() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-destructive" />
+                <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-info" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.inactive}</p>
-                  <p className="text-sm text-muted-foreground">Inactive</p>
+                  {statsLoading ? (
+                    <Skeleton className="h-8 w-12 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-info">{stats.invited}</p>
+                  )}
+                  <p className="text-sm text-muted-foreground">Invited</p>
                 </div>
               </div>
             </CardContent>
@@ -773,7 +769,7 @@ export default function Tenants() {
 
         {/* Data Table */}
         <DataTable
-          data={paginatedTenants}
+          data={tenants}
           columns={columns}
           searchPlaceholder="Search tenants by name, TIN, or email..."
           filters={tenantFilters}
@@ -782,15 +778,18 @@ export default function Tenants() {
           isLoading={isLoading}
           currentPage={page}
           pageSize={pageSize}
-          totalItems={displayTenants.length}
+          totalItems={total}
           onPageChange={(p) => setPage(p)}
           onPageSizeChange={(size) => {
             setPageSize(size);
             setPage(1);
           }}
           onSearch={(q) => {
-            setSearchQuery(q);
-            setPage(1);
+            if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+            searchDebounceRef.current = setTimeout(() => {
+              setSearchQuery(q);
+              setPage(1);
+            }, 400);
           }}
           onFilterChange={(f) => {
             setFilters(f);
@@ -799,11 +798,6 @@ export default function Tenants() {
           onSort={handleSort}
           onRowClick={(tenant) => router.push(`/admin/tenants/${tenant.tenantId}`)}
           emptyMessage="No tenants found"
-          rowClassName={(tenant) =>
-            tenant.status === "inactive" || tenant.status === "suspended"
-              ? "opacity-50 grayscale-[30%]"
-              : ""
-          }
         />
       </div>
 
@@ -1021,14 +1015,12 @@ export default function Tenants() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-contactEmail">Email *</Label>
+                <Label htmlFor="edit-contactEmail">Email</Label>
                 <Input
                   id="edit-contactEmail"
                   type="email"
                   value={formData.contactEmail}
-                  onChange={(e) =>
-                    setFormData({ ...formData, contactEmail: e.target.value })
-                  }
+                  disabled
                   placeholder="contact@business.com"
                 />
               </div>

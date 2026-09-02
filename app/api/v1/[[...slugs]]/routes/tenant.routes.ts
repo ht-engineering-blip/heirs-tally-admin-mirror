@@ -85,7 +85,8 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
       try {
         data = responseText ? JSON.parse(responseText) : {}
       } catch {
-        data = { error: responseText || 'Unknown error' }
+        console.error('Non-JSON response from upstream:', responseText.slice(0, 500))
+        data = { error: 'The server is currently unreachable. Please try again later.' }
       }
 
       return new Response(JSON.stringify(data), {

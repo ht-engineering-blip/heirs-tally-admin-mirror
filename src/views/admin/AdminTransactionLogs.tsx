@@ -39,6 +39,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -53,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
 
+  AlertCircle,
   ArrowDownLeft,
   ArrowUpRight,
   CheckCircle,
@@ -90,6 +92,7 @@ const OUTBOUND_STATUS_OPTIONS = [
   { value: "TRANSMITTED", label: "Transmitted" },
   { value: "DELIVERED", label: "Delivered" },
   { value: "FAILED", label: "Failed" },
+  { value: "TRANSMISSION_FAILED", label: "Transmission Failed" },
   { value: "PAID", label: "Paid" },
   { value: "REJECTED", label: "Rejected" },
   { value: "CANCELED", label: "Canceled" },
@@ -112,6 +115,7 @@ const ALL_STATUS_OPTIONS = [
   { value: "TRANSMITTED", label: "Transmitted" },
   { value: "DELIVERED", label: "Delivered" },
   { value: "FAILED", label: "Failed" },
+  { value: "TRANSMISSION_FAILED", label: "Transmission Failed" },
   { value: "ACKNOWLEDGED", label: "Acknowledged" },
   { value: "DOWNLOADED", label: "Downloaded" },
   { value: "SYNCED_TO_ERP", label: "Synced to ERP" },
@@ -161,6 +165,7 @@ export default function AdminTransactionLogs() {
   const [retrying, setRetrying] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [invoiceDetails, setInvoiceDetails] = useState<any>(null);
   const [eventRoutes, setEventRoutes] = useState<any[]>([]);
   const [resending, setResending] = useState(false);
@@ -281,6 +286,8 @@ export default function AdminTransactionLogs() {
 
   const fetchInvoiceDetails = async (invoice: Invoice) => {
     setDetailLoading(true);
+    setDetailError(null);
+    setInvoiceDetails(null);
     try {
       const api = getAdminApiClient();
       if (invoice.type === "outbound") {
@@ -288,13 +295,11 @@ export default function AdminTransactionLogs() {
           .outbound({ irn: invoice.irn })
           .get();
         if (response.error) {
-          toast.error(
-            (response.error as any)?.value?.error ||
-              "Failed to fetch invoice details",
+          setDetailError(
+            (response.error as any)?.value?.error || "Failed to fetch invoice details",
           );
         } else if (response.data?.data) {
           const data = response.data.data;
-          setInvoiceDetails(data);
 
           // Fetch current event routing config to compare against webhook event types
           let fetchedRoutes: any[] = [];
@@ -312,7 +317,6 @@ export default function AdminTransactionLogs() {
             }
           }
           setEventRoutes(fetchedRoutes);
-
           setInvoices((prev) =>
             prev.map((inv) => {
               if (inv.irn === invoice.irn) {
@@ -334,7 +338,7 @@ export default function AdminTransactionLogs() {
               return inv;
             }),
           );
-          setShowDetailModal(true);
+          setInvoiceDetails(data);
         }
       } else {
         setEventRoutes([]);
@@ -342,17 +346,15 @@ export default function AdminTransactionLogs() {
           .inbound({ irn: invoice.irn })
           .get();
         if (response.error) {
-          toast.error(
-            (response.error as any)?.value?.error ||
-              "Failed to fetch invoice details",
+          setDetailError(
+            (response.error as any)?.value?.error || "Failed to fetch invoice details",
           );
         } else if (response.data?.data) {
           setInvoiceDetails(response.data.data);
-          setShowDetailModal(true);
         }
       }
     } catch (error: any) {
-      toast.error(error?.message || "Failed to fetch invoice details");
+      setDetailError(error?.message || "Failed to fetch invoice details");
     } finally {
       setDetailLoading(false);
     }
@@ -360,6 +362,9 @@ export default function AdminTransactionLogs() {
 
   const handleViewDetails = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
+    setInvoiceDetails(null);
+    setDetailError(null);
+    setShowDetailModal(true);
     fetchInvoiceDetails(invoice);
   };
 
@@ -528,7 +533,7 @@ export default function AdminTransactionLogs() {
 
   const isFailed = (status: string) => {
     const s = (status || "").toLowerCase();
-    return s === "failed" || s === "rejected";
+    return s === "failed" || s === "rejected" || s === "transmission_failed";
   };
 
   const hasJobError = (inv: Invoice) => {
@@ -872,7 +877,11 @@ export default function AdminTransactionLogs() {
                   <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">{stats.total}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-7 w-10 mb-1" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold">{stats.total}</p>
+                  )}
                   <p className="text-xs sm:text-sm text-muted-foreground">
                     Total
                   </p>
@@ -887,9 +896,13 @@ export default function AdminTransactionLogs() {
                   <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.outbound}
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-7 w-10 mb-1" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold">
+                      {stats.outbound}
+                    </p>
+                  )}
                   <p className="text-xs sm:text-sm text-muted-foreground">
                     Outbound
                   </p>
@@ -904,9 +917,13 @@ export default function AdminTransactionLogs() {
                   <ArrowDownLeft className="w-4 h-4 sm:w-5 sm:h-5 text-accent" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.inbound}
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-7 w-10 mb-1" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold">
+                      {stats.inbound}
+                    </p>
+                  )}
                   <p className="text-xs sm:text-sm text-muted-foreground">
                     Inbound
                   </p>
@@ -921,9 +938,13 @@ export default function AdminTransactionLogs() {
                   <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-warning" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {stats.pending}
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-7 w-10 mb-1" />
+                  ) : (
+                    <p className="text-xl sm:text-2xl font-bold">
+                      {stats.pending}
+                    </p>
+                  )}
                   <p className="text-xs sm:text-sm text-muted-foreground">
                     Pending
                   </p>
@@ -958,6 +979,7 @@ export default function AdminTransactionLogs() {
           searchPlaceholder="Search by invoice number, IRN, counterparty..."
           filters={transactionFilters}
           rowActions={rowActions}
+          onRowClick={handleViewDetails}
           isLoading={isLoading}
           currentPage={page}
           totalItems={total}
@@ -996,11 +1018,35 @@ export default function AdminTransactionLogs() {
             </DialogDescription>
           </DialogHeader>
           {detailLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+            <div className="space-y-4 py-2">
+              <div className="flex gap-2">
+                <Skeleton className="h-8 w-24 rounded-md" />
+                <Skeleton className="h-8 w-20 rounded-md" />
+                <Skeleton className="h-8 w-24 rounded-md" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 pt-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-4 w-40" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : detailError ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+              <AlertCircle className="w-8 h-8 text-destructive" />
+              <div>
+                <p className="text-sm font-medium text-destructive">Failed to load invoice details</p>
+                <p className="text-xs text-muted-foreground mt-1">{detailError}</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => selectedInvoice && fetchInvoiceDetails(selectedInvoice)}>
+                <RefreshCw className="w-3 h-3 mr-2" />
+                Retry
+              </Button>
             </div>
           ) : invoiceDetails ? (
-            <Tabs defaultValue="overview" className="w-full">
+            <Tabs defaultValue="overview" className="w-full animate-fade-in">
               <TabsList className="w-full flex overflow-x-auto">
                 <TabsTrigger value="overview" className="text-xs sm:text-sm">
                   Overview
@@ -1505,53 +1551,62 @@ export default function AdminTransactionLogs() {
             </Tabs>
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {selectedInvoice &&
-              isFailed(selectedInvoice.status) &&
-              hasJobError(selectedInvoice) && (
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  setShowDetailModal(false);
-                  setShowResendDialog(true);
-                }}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Resend Invoice
-              </Button>
-            )}
-            {selectedInvoice?.type === "outbound" &&
-              isFailed(
-                invoiceDetails?.invoice?.status ??
-                  selectedInvoice?.status ??
-                  "",
-              ) &&
-              (invoiceDetails?.invoice?.lastJobError?.action ??
-                selectedInvoice?.lastJobError?.action) && (
+            {detailLoading ? (
+              <>
+                <Skeleton className="h-9 w-28 rounded-md" />
+                <Skeleton className="h-9 w-20 rounded-md" />
+              </>
+            ) : (
+              <>
+                {selectedInvoice &&
+                  isFailed(selectedInvoice.status) &&
+                  hasJobError(selectedInvoice) && (
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setShowResendDialog(true);
+                    }}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Resend Invoice
+                  </Button>
+                )}
+                {selectedInvoice?.type === "outbound" &&
+                  isFailed(
+                    invoiceDetails?.invoice?.status ??
+                      selectedInvoice?.status ??
+                      "",
+                  ) &&
+                  (invoiceDetails?.invoice?.lastJobError?.action ??
+                    selectedInvoice?.lastJobError?.action) && (
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => {
+                        const action =
+                          invoiceDetails?.invoice?.lastJobError?.action ??
+                          selectedInvoice?.lastJobError?.action ??
+                          "validate";
+                        setShowDetailModal(false);
+                        setRetryStep(action);
+                        setShowRetryDialog(true);
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Retry from Step
+                    </Button>
+                  )}
                 <Button
                   variant="outline"
                   className="w-full sm:w-auto"
-                  onClick={() => {
-                    const action =
-                      invoiceDetails?.invoice?.lastJobError?.action ??
-                      selectedInvoice?.lastJobError?.action ??
-                      "validate";
-                    setShowDetailModal(false);
-                    setRetryStep(action);
-                    setShowRetryDialog(true);
-                  }}
+                  onClick={() => setShowDetailModal(false)}
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Retry from Step
+                  Close
                 </Button>
-              )}
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              onClick={() => setShowDetailModal(false)}
-            >
-              Close
-            </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

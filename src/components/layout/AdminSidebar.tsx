@@ -71,11 +71,37 @@ const tenantNavItems: NavItem[] = [
   },
 ]
 
+// Static path segments that live directly under /admin/tenants/ as siblings
+// of the tenant-detail dynamic route ([tenantId]).
+const TENANT_STATIC_SEGMENTS = ['all', 'erp-sync-config', 'webhook-config', 'api-keys', 'transactions']
+
+// Whether `path` belongs to `childHref` for sidebar highlighting purposes.
+// Handles the ordinary case (exact match or nested route) plus one special
+// case: the tenant detail page (/admin/tenants/:tenantId) is reached from
+// "All Tenants" but isn't nested under its URL (/admin/tenants/all/...) —
+// it's a sibling dynamic segment — so it wouldn't match a plain prefix check.
+function matchesChildRoute(childHref: string, path: string | null): boolean {
+  if (!path) return false
+  if (path === childHref || path.startsWith(childHref + '/')) return true
+  if (childHref === '/admin/tenants/all') {
+    const match = path.match(/^\/admin\/tenants\/([^/]+)/)
+    if (match && !TENANT_STATIC_SEGMENTS.includes(match[1])) return true
+  }
+  return false
+}
+
 const sandboxNavItem: NavItem = {
   title: 'Sandbox',
   href: '/admin/sandbox',
   icon: TestTube,
   permission: 'sandbox:test',
+}
+
+const auditNavItem: NavItem = {
+  title: 'Audit Logs',
+  href: '/admin/audit',
+  icon: Shield,
+  permission: 'audit:read',
 }
 
 interface AdminSidebarProps {
@@ -105,11 +131,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
         // Check if pathname starts with parent href (for nested routes)
         const isParentPath = pathname?.startsWith(item.href + '/')
         // Check if any child route is active
-        const hasActiveChild = item.children.some((child) => {
-          if (child.href === pathname) return true
-          if (pathname?.startsWith(child.href + '/')) return true
-          return false
-        })
+        const hasActiveChild = item.children.some((child) => matchesChildRoute(child.href, pathname))
 
         // Expand if parent is clicked (exact match) or has active child or is in parent path
         if (isParentExactMatch || hasActiveChild || isParentPath) {
@@ -156,6 +178,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
   const filteredSystemNavItems = filterNavItems(systemNavItems)
   const filteredTenantNavItems = filterNavItems(tenantNavItems)
   const showSandbox = hasPermission('sandbox:test')
+  const showAudit = hasPermission('audit:read')
 
   const sidebarWidth = isMobile
     ? 'w-[260px]'
@@ -177,13 +200,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
   // Helper function to check if a parent item has an active child
   const hasActiveChild = (item: NavItem): boolean => {
     if (!item.children) return false
-    return item.children.some((child) => {
-      // Check exact match
-      if (pathname === child.href) return true
-      // Handle dynamic routes like /admin/tenants/[tenantId]
-      if (pathname?.startsWith(child.href + '/')) return true
-      return false
-    })
+    return item.children.some((child) => matchesChildRoute(child.href, pathname))
   }
 
   // Helper function to check if parent should be highlighted (but not as active)
@@ -194,11 +211,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
   // Helper function to check if a route is active (including nested routes)
   const isRouteActive = (href: string, isChild: boolean = false): boolean => {
     if (isChild) {
-      // For child routes, check exact match or if pathname starts with href
-      if (pathname === href) return true
-      // Handle dynamic routes like /admin/tenants/[tenantId]
-      if (pathname?.startsWith(href + '/')) return true
-      return false
+      return matchesChildRoute(href, pathname)
     } else {
       // For parent routes, check exact match
       return pathname === href
@@ -346,6 +359,27 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                       </div>
                     )
                   })}
+                </>
+              )}
+
+              {/* Audit */}
+              {showAudit && (
+                <>
+                  <Separator className="my-4" />
+                  {(!isCollapsed || isMobile) && (
+                    <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Audit
+                    </p>
+                  )}
+                  <NavLink
+                    href={auditNavItem.href}
+                    icon={auditNavItem.icon}
+                    label={auditNavItem.title}
+                    isActive={isRouteActive(auditNavItem.href)}
+                    isCollapsed={isCollapsed && !isMobile}
+                    isMobile={isMobile}
+                    onClick={handleNavClick}
+                  />
                 </>
               )}
 

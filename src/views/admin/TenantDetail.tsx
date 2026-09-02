@@ -224,24 +224,20 @@ export default function TenantDetail() {
 
     setSaving(true);
     try {
-      const response = await api.v1.tenants[':tenantId'].patch({
-        params: { tenantId: tenant.tenantId },
-        body: {
-          businessName: formData.businessName,
-          contactEmail: formData.contactEmail,
-          contactPhone: formData.contactPhone,
-          erpSystem: formData.erpSystem as any,
-          webhookUrl: formData.webhookUrl || undefined,
-          webhookEnabled: formData.webhookEnabled,
-          features: {
-            autoFix: formData.autoFix,
-            maxRetries: formData.maxRetries,
-            qrCodeGeneration: formData.qrCodeGeneration,
-          },
-          limits: {
-            monthlyInvoiceLimit: formData.monthlyInvoiceLimit,
-            apiRateLimit: formData.apiRateLimit,
-          },
+      const response = await api.v1.tenants({ tenantId: tenant.tenantId }).patch({
+        businessName: formData.businessName,
+        contactPhone: formData.contactPhone,
+        erpSystem: formData.erpSystem as any,
+        webhookUrl: formData.webhookUrl || undefined,
+        webhookEnabled: formData.webhookEnabled,
+        features: {
+          autoFix: formData.autoFix,
+          maxRetries: formData.maxRetries,
+          qrCodeGeneration: formData.qrCodeGeneration,
+        },
+        limits: {
+          monthlyInvoiceLimit: formData.monthlyInvoiceLimit,
+          apiRateLimit: formData.apiRateLimit,
         },
       });
 
@@ -995,13 +991,14 @@ export default function TenantDetail() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-contactEmail">Contact Email *</Label>
+                  <Label htmlFor="edit-contactEmail">Contact Email</Label>
                   <Input
                     id="edit-contactEmail"
                     type="email"
                     value={formData.contactEmail}
-                    onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                    disabled
                   />
+                  <p className="text-xs text-muted-foreground">The tenant can change this from their own profile.</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-contactPhone">Contact Phone *</Label>
@@ -1200,6 +1197,7 @@ export default function TenantDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </>
   );
 }

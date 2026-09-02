@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface KpiCardProps {
   title: string;
@@ -12,6 +13,7 @@ interface KpiCardProps {
   };
   subtitle?: string;
   variant?: 'default' | 'primary' | 'success' | 'warning';
+  isLoading?: boolean;
 }
 
 function formatStatNumber(n: string | number): string {
@@ -28,6 +30,7 @@ export function KpiCard({
   trend,
   subtitle,
   variant = 'default',
+  isLoading = false,
 }: KpiCardProps) {
   const variantStyles = {
     default: 'bg-card',
@@ -60,15 +63,19 @@ export function KpiCard({
           >
             {title}
           </p>
-          <p
-            className={cn(
-              'kpi-value',
-              variant !== 'default' && variant !== 'warning' && 'text-inherit'
-            )}
-          >
-            {formatStatNumber(value)}
-          </p>
-          {trend && (
+          {isLoading ? (
+            <Skeleton className="h-8 w-16" />
+          ) : (
+            <p
+              className={cn(
+                'kpi-value',
+                variant !== 'default' && variant !== 'warning' && 'text-inherit'
+              )}
+            >
+              {formatStatNumber(value)}
+            </p>
+          )}
+          {trend && !isLoading && (
             <div
               className={cn(
                 'flex items-center gap-1 text-sm font-medium',
@@ -84,15 +91,19 @@ export function KpiCard({
               <span>{trend.isPositive ? '+' : ''}{trend.value}%</span>
             </div>
           )}
-          {subtitle && (
-            <p
-              className={cn(
-                'text-sm text-muted-foreground',
-                variant !== 'default' && variant !== 'warning' && 'text-inherit opacity-70'
-              )}
-            >
-              {subtitle}
-            </p>
+          {isLoading ? (
+            <Skeleton className="h-4 w-24" />
+          ) : (
+            subtitle && (
+              <p
+                className={cn(
+                  'text-sm text-muted-foreground',
+                  variant !== 'default' && variant !== 'warning' && 'text-inherit opacity-70'
+                )}
+              >
+                {subtitle}
+              </p>
+            )
           )}
         </div>
         <div

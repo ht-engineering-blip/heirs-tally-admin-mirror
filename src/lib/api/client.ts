@@ -115,8 +115,17 @@ export function createTenantWebhookListener(webhookURL: string) {
   return treaty<typeof app>(`${webhookURL}`, sharedConfig)
 }
 
+// Admin auth uses a static server-side ADMIN_API_KEY (attached in the /api/v1/admin
+// proxy), not a rotating tenant access token — so the refresh-and-signOut logic in
+// fetchWithRefresh doesn't apply here. A 401 on this client should just surface as a
+// normal error response for the caller to handle, not force-sign-out the admin.
+const adminConfig = {
+  fetch: { credentials: 'include' as const },
+  headers: [{ 'Content-Type': 'application/json' }],
+}
+
 export function getAdminApiClient() {
-  return treaty<typeof app>(`${API_URL}/admin`, sharedConfig)
+  return treaty<typeof app>(`${API_URL}/admin`, adminConfig)
 }
 
 // Direct fetch helper for non-Eden routes — same refresh-and-retry logic.

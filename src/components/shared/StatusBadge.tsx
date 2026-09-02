@@ -16,6 +16,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   validated: { label: 'Validated', className: 'bg-info/10 text-info' },
   invited: { label: 'Invited', className: 'bg-info/10 text-info' },
   failed: { label: 'Failed', className: 'status-error' },
+  transmission_failed: { label: 'Transmission Failed', className: 'status-error' },
   cancelled: { label: 'Cancelled', className: 'status-inactive' },
   locked: { label: 'Locked', className: 'status-error' },
   revoked: { label: 'Revoked', className: 'status-error' },

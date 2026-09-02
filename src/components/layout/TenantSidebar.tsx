@@ -55,10 +55,20 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
   const pathname = usePathname()
   const isMobile = useIsMobile()
   const { user, memberRole } = useSession()
-  const { isOnboardingComplete } = useTenant()
+  const { isOnboardingComplete, tenantData } = useTenant()
   const { hasPermission } = usePermissions()
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const handleNavClick = isMobile ? onClose : undefined
+
+  // NextAuth's session only captures name once, at login — prefer the live
+  // /me data (same source Header.tsx and the Profile page use) so this stays
+  // in sync after a business name / team member profile edit.
+  const liveData = tenantData as Record<string, any> | undefined
+  const displayName =
+    (liveData && 'businessName' in liveData && liveData.businessName) ||
+    (liveData && 'firstName' in liveData && 'lastName' in liveData && `${liveData.firstName} ${liveData.lastName}`) ||
+    user?.name ||
+    'User'
 
   console.log("user: ", user);
   console.log("memberRole: ", memberRole);
@@ -340,13 +350,13 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
             <Avatar className="w-9 h-9">
               <AvatarImage src="" />
               <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                {user?.name?.charAt(0).toUpperCase() || 'U'}
+                {displayName?.charAt(0).toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
             {(!isCollapsed || isMobile) && (
               <div className="flex-1 min-w-0 animate-fade-in">
                 <p className="text-sm font-medium text-foreground truncate">
-                  {user?.name || 'User'}
+                  {displayName}
                 </p>
                 <p className="text-xs text-muted-foreground truncate capitalize">
                   {memberRole || (user?.role === 'BUSINESS_ADMIN' ? 'Business Admin' : 'Team Member')}
