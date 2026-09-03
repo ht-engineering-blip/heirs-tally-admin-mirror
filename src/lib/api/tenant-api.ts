@@ -45,8 +45,14 @@ export function createTenantApi() {
     getOnboarding: (tenantId: string) =>
       api.v1.tenants({ tenantId }).onboarding.get(),
 
-    generateWebhook: (tenantId: string, invoiceIdKey?: string) =>
-      api.v1.tenants({ tenantId }).webhook.generate.post({ ...(invoiceIdKey ? { invoiceIdKey } : {}) }),
+    generateWebhook: (tenantId: string, options?: { lifespan?: string; invoiceIdKey?: string }) =>
+      (api as any).v1.tenants({ tenantId }).webhook.generate.post({
+        ...(options?.lifespan ? { lifespan: options.lifespan } : {}),
+        ...(options?.invoiceIdKey ? { invoiceIdKey: options.invoiceIdKey } : {}),
+      }),
+
+    getWebhookConfig: (tenantId: string) =>
+      (api as any).v1.tenants({ tenantId }).webhook.config.get(),
 
     updateInvoiceIdKey: (tenantId: string, invoiceIdKey: string) =>
       api.v1.tenants({ tenantId })['invoice-id-key'].put({ invoiceIdKey }),

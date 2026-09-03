@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Eye, Edit, Trash2, Power, Building2, Webhook, CheckCircle2, XCircle, Copy, Loader2, EyeOff, RefreshCw, AlertCircle } from 'lucide-react';
-import { DataTable, Column, FilterOption, StatusBadge, EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
+import { DataTable, Column, FilterOption, StatusBadge, WebhookExpiryBadge, EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,13 @@ import { createTenantApi } from '@/lib/api/tenant-api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Dialog,
@@ -47,6 +54,27 @@ interface WebhookConfigEntry {
   createdAt: string;
   updatedAt?: string;
 }
+
+interface WebhookStatus {
+  configured: boolean;
+  webhookUrl: string | null;
+  webhookPath: string | null;
+  webhookEnabled: boolean;
+  invoiceIdKey: string | null;
+  lifespan: string | null;
+  expiresAt: string | null;
+  isExpired: boolean;
+  hasSecret: boolean;
+  remainingDays: number | null;
+}
+
+const LIFESPAN_OPTIONS = [
+  { value: '30_DAYS', label: '30 Days' },
+  { value: '90_DAYS', label: '90 Days' },
+  { value: '180_DAYS', label: '180 Days' },
+  { value: '1_YEAR', label: '1 Year' },
+  { value: 'NO_EXPIRATION', label: 'No Expiration' },
+];
 
 // ===== Filters =====
 
@@ -123,6 +151,9 @@ export default function AdminWebhookConfig() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedWebhook, setGeneratedWebhook] = useState<{ webhookUrl: string; webhookSecret: string } | null>(null);
   const [secretVisible, setSecretVisible] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<WebhookStatus | null>(null);
+  const [webhookStatusLoading, setWebhookStatusLoading] = useState(false);
+  const [selectedLifespan, setSelectedLifespan] = useState('NO_EXPIRATION');
 
   // Edit form state
   const [editMappings, setEditMappings] = useState<EventMapping[]>([]);
@@ -329,11 +360,31 @@ export default function AdminWebhookConfig() {
     toast.success(`${label} copied to clipboard`);
   };
 
+  const fetchWebhookStatus = async (tenantId: string) => {
+    setWebhookStatusLoading(true);
+    try {
+      const tenantApi = createTenantApi();
+      const response = await tenantApi.getWebhookConfig(tenantId);
+      if (!response.error && response.data?.data) {
+        const status = response.data.data as WebhookStatus;
+        setWebhookStatus(status);
+        setSelectedLifespan(status.lifespan || 'NO_EXPIRATION');
+      }
+    } catch {
+      // Status is supplementary — the modal still shows selectedConfig.webhookUrl either way.
+    } finally {
+      setWebhookStatusLoading(false);
+    }
+  };
+
   const openGenerateModal = (config: WebhookConfigEntry) => {
     setSelectedConfig(config);
     setGeneratedWebhook(null);
     setSecretVisible(false);
+    setWebhookStatus(null);
+    setSelectedLifespan('NO_EXPIRATION');
     setShowGenerateModal(true);
+    fetchWebhookStatus(config.tenantId);
   };
 
   const handleGenerateWebhook = async () => {
@@ -341,7 +392,7 @@ export default function AdminWebhookConfig() {
     setIsGenerating(true);
     try {
       const tenantApi = createTenantApi();
-      const response = await tenantApi.generateWebhook(selectedConfig.tenantId);
+      const response = await tenantApi.generateWebhook(selectedConfig.tenantId, { lifespan: selectedLifespan });
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to generate webhook URL');
       } else {
@@ -355,6 +406,7 @@ export default function AdminWebhookConfig() {
           setShowRegenerateDialog(false);
           toast.success("Webhook generated. Copy the secret now — it won't be shown again.");
           fetchConfigs();
+          fetchWebhookStatus(selectedConfig.tenantId);
         }
       }
     } catch (error: any) {
@@ -930,8 +982,25 @@ export default function AdminWebhookConfig() {
             {/* Existing URL (no fresh generation yet) */}
             {selectedConfig?.webhookUrl && !generatedWebhook && (
               <div className="space-y-3">
+                {webhookStatus?.isExpired && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      Webhook URL and secret expired. Inbound webhooks are rejected. Please regenerate.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Current Webhook URL</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Current Webhook URL</Label>
+                    {!webhookStatusLoading && webhookStatus && (
+                      <WebhookExpiryBadge
+                        isExpired={webhookStatus.isExpired}
+                        expiresAt={webhookStatus.expiresAt}
+                        remainingDays={webhookStatus.remainingDays}
+                      />
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <Input value={selectedConfig.webhookUrl} readOnly className="font-mono text-xs" />
                     <Button variant="outline" size="icon" onClick={() => copyToClipboard(selectedConfig.webhookUrl!, 'Webhook URL')}>
@@ -982,7 +1051,24 @@ export default function AdminWebhookConfig() {
             )}
 
             {/* Regenerate / Generate action */}
-            <div className="space-y-2 pt-1 border-t">
+            <div className="space-y-3 pt-1 border-t">
+              {!generatedWebhook && (
+                <div className="space-y-1.5 pt-2">
+                  <Label className="text-xs">Lifespan</Label>
+                  <Select value={selectedLifespan} onValueChange={setSelectedLifespan}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LIFESPAN_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {selectedConfig?.webhookUrl ? (
                 <>
                   <AlertDialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
