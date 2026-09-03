@@ -7,7 +7,7 @@ import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { StatusBadge, InvoiceIdKeyEditor } from '@/components/shared';
+import { StatusBadge, InvoiceIdKeyEditor, WebhookExpiryBadge } from '@/components/shared';
 import { toast } from 'sonner';
 import { getAdminApiClient } from '@/lib/api/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,17 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -82,6 +71,27 @@ interface Tenant {
   };
 }
 
+interface WebhookStatus {
+  configured: boolean;
+  webhookUrl: string | null;
+  webhookPath: string | null;
+  webhookEnabled: boolean;
+  invoiceIdKey: string | null;
+  lifespan: string | null;
+  expiresAt: string | null;
+  isExpired: boolean;
+  hasSecret: boolean;
+  remainingDays: number | null;
+}
+
+const LIFESPAN_OPTIONS = [
+  { value: '30_DAYS', label: '30 Days' },
+  { value: '90_DAYS', label: '90 Days' },
+  { value: '180_DAYS', label: '180 Days' },
+  { value: '1_YEAR', label: '1 Year' },
+  { value: 'NO_EXPIRATION', label: 'No Expiration' },
+];
+
 export default function TenantDetail() {
   const params = useParams();
   const router = useRouter();
@@ -104,6 +114,10 @@ export default function TenantDetail() {
     webhookSecret: string;
   } | null>(null);
   const [secretVisible, setSecretVisible] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<WebhookStatus | null>(null);
+  const [webhookStatusLoading, setWebhookStatusLoading] = useState(true);
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [selectedLifespan, setSelectedLifespan] = useState('NO_EXPIRATION');
   const [keyConfig, setKeyConfig] = useState({
     invoiceIdKey: '',
     creditNoteIdKey: '',
@@ -212,10 +226,27 @@ export default function TenantDetail() {
     }
   };
 
+  const fetchWebhookStatus = async () => {
+    if (!tenantId) return;
+    setWebhookStatusLoading(true);
+    try {
+      const tenantApi = createTenantApi();
+      const response = await tenantApi.getWebhookConfig(tenantId);
+      if (!response.error && response.data?.data) {
+        setWebhookStatus(response.data.data as WebhookStatus);
+      }
+    } catch {
+      // Status is supplementary — the card still shows tenant.config.webhookUrl either way.
+    } finally {
+      setWebhookStatusLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (tenantId) {
       fetchTenant();
       fetchKeyConfig();
+      fetchWebhookStatus();
     }
   }, [tenantId]);
 
@@ -292,7 +323,7 @@ export default function TenantDetail() {
     setIsGenerating(true);
     try {
       const tenantApi = createTenantApi();
-      const response = await tenantApi.generateWebhook(tenant.tenantId);
+      const response = await tenantApi.generateWebhook(tenant.tenantId, { lifespan: selectedLifespan });
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to generate webhook URL');
       } else {
@@ -303,8 +334,10 @@ export default function TenantDetail() {
             webhookSecret: data.webhookSecret,
           });
           setSecretVisible(true);
+          setShowGenerateDialog(false);
           toast.success("Webhook generated. Copy your secret now — it won't be shown again.");
           fetchTenant();
+          fetchWebhookStatus();
         }
       }
     } catch (error: any) {
@@ -560,8 +593,25 @@ export default function TenantDetail() {
                   {/* Existing webhook URL */}
                   {tenant.config?.webhookUrl && !generatedWebhook && (
                     <div className="space-y-3">
+                      {webhookStatus?.isExpired && (
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription className="text-xs">
+                            Webhook URL and secret expired. Inbound webhooks are rejected. Please regenerate.
+                          </AlertDescription>
+                        </Alert>
+                      )}
                       <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Current Webhook URL</Label>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-muted-foreground">Current Webhook URL</Label>
+                          {!webhookStatusLoading && webhookStatus && (
+                            <WebhookExpiryBadge
+                              isExpired={webhookStatus.isExpired}
+                              expiresAt={webhookStatus.expiresAt}
+                              remainingDays={webhookStatus.remainingDays}
+                            />
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                           <Input value={tenant.config.webhookUrl} readOnly className="font-mono text-xs" />
                           <Button variant="outline" size="icon" onClick={() => copyToClipboard(tenant.config!.webhookUrl!, 'Webhook URL')}>
@@ -622,39 +672,18 @@ export default function TenantDetail() {
                   <div className="space-y-2 pt-2 border-t">
                     {tenant.config?.webhookUrl ? (
                       <>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm" disabled={isGenerating}>
-                              <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
-                              Regenerate URL &amp; Secret
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Regenerate Webhook?</AlertDialogTitle>
-                              <AlertDialogDescription asChild>
-                                <div className="text-sm text-muted-foreground space-y-2">
-                                  <p>This action is <strong>irreversible</strong> and will:</p>
-                                  <ul className="list-disc list-inside space-y-1 text-sm">
-                                    <li>Generate a new webhook URL and secret for <strong>{tenant.businessName}</strong></li>
-                                    <li>Immediately invalidate the existing webhook URL and secret</li>
-                                    <li>Disconnect any currently connected ERP or external system</li>
-                                  </ul>
-                                  <p>You will need to share the new webhook URL and secret with the tenant so they can update their connected systems.</p>
-                                </div>
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={handleGenerateWebhook}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Yes, Regenerate
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={isGenerating}
+                          onClick={() => {
+                            setSelectedLifespan(webhookStatus?.lifespan || 'NO_EXPIRATION');
+                            setShowGenerateDialog(true);
+                          }}
+                        >
+                          <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
+                          Regenerate URL &amp; Secret
+                        </Button>
                         <Alert variant="destructive" className="mt-2">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription className="text-xs space-y-1">
@@ -664,12 +693,16 @@ export default function TenantDetail() {
                         </Alert>
                       </>
                     ) : (
-                      <Button onClick={handleGenerateWebhook} disabled={isGenerating} className="w-full sm:w-auto">
-                        {isGenerating ? (
-                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating...</>
-                        ) : (
-                          <><Webhook className="mr-2 h-4 w-4" />Generate Webhook URL</>
-                        )}
+                      <Button
+                        onClick={() => {
+                          setSelectedLifespan('NO_EXPIRATION');
+                          setShowGenerateDialog(true);
+                        }}
+                        disabled={isGenerating}
+                        className="w-full sm:w-auto"
+                      >
+                        <Webhook className="mr-2 h-4 w-4" />
+                        Generate Webhook URL
                       </Button>
                     )}
                   </div>
@@ -1193,6 +1226,61 @@ export default function TenantDetail() {
               disabled={saving || (onboardingData.status === 'rejected' && !onboardingData.rejectionReason)}
             >
               {saving ? 'Updating...' : 'Update Status'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate/Regenerate Webhook Dialog */}
+      <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{tenant?.config?.webhookUrl ? 'Regenerate Webhook' : 'Generate Webhook'}</DialogTitle>
+            <DialogDescription>
+              Choose how long the new URL and secret should remain valid.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Lifespan</Label>
+              <Select value={selectedLifespan} onValueChange={setSelectedLifespan}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LIFESPAN_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {tenant?.config?.webhookUrl && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs space-y-1">
+                  <p>
+                    This action is <strong>irreversible</strong> and will invalidate the existing
+                    webhook URL and secret, and disconnect any currently connected ERP or external
+                    system.
+                  </p>
+                  <p>Share the new credentials with the tenant so they can update their connected systems.</p>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGenerateDialog(false)} disabled={isGenerating}>
+              Cancel
+            </Button>
+            <Button
+              variant={tenant?.config?.webhookUrl ? 'destructive' : 'default'}
+              onClick={handleGenerateWebhook}
+              disabled={isGenerating}
+            >
+              {isGenerating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {tenant?.config?.webhookUrl ? 'Yes, Regenerate' : 'Generate'}
             </Button>
           </DialogFooter>
         </DialogContent>
