@@ -167,6 +167,7 @@ export default function AdminErpSupport() {
       key: 'status',
       label: 'Status',
       options: [
+        { value: 'all', label: 'All Statuses' },
         { value: SchemaStatus.ACTIVE, label: 'Active' },
         { value: SchemaStatus.DRAFT, label: 'Draft' },
         { value: SchemaStatus.DEPRECATED, label: 'Deprecated' },
