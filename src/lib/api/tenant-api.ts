@@ -45,10 +45,17 @@ export function createTenantApi() {
     getOnboarding: (tenantId: string) =>
       api.v1.tenants({ tenantId }).onboarding.get(),
 
-    generateWebhook: (tenantId: string, options?: { lifespan?: string; invoiceIdKey?: string }) =>
+    generateWebhook: (tenantId: string, options?: {
+      lifespan?: string;
+      invoiceIdKey?: string;
+      webhookAuthMode?: string;
+      defaultEventType?: string;
+    }) =>
       (api as any).v1.tenants({ tenantId }).webhook.generate.post({
         ...(options?.lifespan ? { lifespan: options.lifespan } : {}),
         ...(options?.invoiceIdKey ? { invoiceIdKey: options.invoiceIdKey } : {}),
+        ...(options?.webhookAuthMode ? { webhookAuthMode: options.webhookAuthMode } : {}),
+        ...(options?.defaultEventType ? { defaultEventType: options.defaultEventType } : {}),
       }),
 
     getWebhookConfig: (tenantId: string) =>
@@ -74,8 +81,11 @@ export function createTenantApi() {
     }) =>
       (api as any).v1.invoicing({ irn }).status.patch(data),
 
-    testWebhook: (tenantId: string, testPayload?: Record<string, unknown>) =>
-      api.v1.tenants({ tenantId }).webhook.test.post({ testPayload: testPayload || {} }),
+    testWebhook: (tenantId: string, testPayload?: Record<string, unknown>, authStrategy?: string) =>
+      (api as any).v1.tenants({ tenantId }).webhook.test.post({
+        testPayload: testPayload || {},
+        ...(authStrategy ? { authStrategy } : {}),
+      }),
 
     completeOnboading: (tenantId: string, activationPayload: Record<string, any>) =>
       api.v1.tenants({ tenantId }).onboarding.patch(activationPayload || {}),
