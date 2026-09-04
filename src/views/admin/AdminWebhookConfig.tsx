@@ -61,6 +61,7 @@ interface WebhookStatus {
   webhookPath: string | null;
   webhookEnabled: boolean;
   invoiceIdKey: string | null;
+  webhookAuthMode: 'auto' | 'hmac' | 'static_secret' | 'secret_url';
   lifespan: string | null;
   expiresAt: string | null;
   isExpired: boolean;
@@ -74,6 +75,13 @@ const LIFESPAN_OPTIONS = [
   { value: '180_DAYS', label: '180 Days' },
   { value: '1_YEAR', label: '1 Year' },
   { value: 'NO_EXPIRATION', label: 'No Expiration' },
+];
+
+const AUTH_MODE_OPTIONS = [
+  { value: 'auto', label: 'Auto (Recommended)' },
+  { value: 'hmac', label: 'HMAC Signature' },
+  { value: 'static_secret', label: 'Legacy Static Secret' },
+  { value: 'secret_url', label: 'Secret URL' },
 ];
 
 // ===== Filters =====
@@ -154,6 +162,7 @@ export default function AdminWebhookConfig() {
   const [webhookStatus, setWebhookStatus] = useState<WebhookStatus | null>(null);
   const [webhookStatusLoading, setWebhookStatusLoading] = useState(false);
   const [selectedLifespan, setSelectedLifespan] = useState('NO_EXPIRATION');
+  const [selectedAuthMode, setSelectedAuthMode] = useState('auto');
 
   // Edit form state
   const [editMappings, setEditMappings] = useState<EventMapping[]>([]);
@@ -369,6 +378,7 @@ export default function AdminWebhookConfig() {
         const status = response.data.data as WebhookStatus;
         setWebhookStatus(status);
         setSelectedLifespan(status.lifespan || 'NO_EXPIRATION');
+        setSelectedAuthMode(status.webhookAuthMode || 'auto');
       }
     } catch {
       // Status is supplementary — the modal still shows selectedConfig.webhookUrl either way.
@@ -383,6 +393,7 @@ export default function AdminWebhookConfig() {
     setSecretVisible(false);
     setWebhookStatus(null);
     setSelectedLifespan('NO_EXPIRATION');
+    setSelectedAuthMode('auto');
     setShowGenerateModal(true);
     fetchWebhookStatus(config.tenantId);
   };
@@ -392,7 +403,10 @@ export default function AdminWebhookConfig() {
     setIsGenerating(true);
     try {
       const tenantApi = createTenantApi();
-      const response = await tenantApi.generateWebhook(selectedConfig.tenantId, { lifespan: selectedLifespan });
+      const response = await tenantApi.generateWebhook(selectedConfig.tenantId, {
+        lifespan: selectedLifespan,
+        webhookAuthMode: selectedAuthMode,
+      });
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to generate webhook URL');
       } else {
@@ -1053,20 +1067,37 @@ export default function AdminWebhookConfig() {
             {/* Regenerate / Generate action */}
             <div className="space-y-3 pt-1 border-t">
               {!generatedWebhook && (
-                <div className="space-y-1.5 pt-2">
-                  <Label className="text-xs">Lifespan</Label>
-                  <Select value={selectedLifespan} onValueChange={setSelectedLifespan}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LIFESPAN_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-3 pt-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Authentication Mode</Label>
+                    <Select value={selectedAuthMode} onValueChange={setSelectedAuthMode}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AUTH_MODE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Lifespan</Label>
+                    <Select value={selectedLifespan} onValueChange={setSelectedLifespan}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LIFESPAN_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               )}
               {selectedConfig?.webhookUrl ? (

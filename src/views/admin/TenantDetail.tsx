@@ -77,6 +77,7 @@ interface WebhookStatus {
   webhookPath: string | null;
   webhookEnabled: boolean;
   invoiceIdKey: string | null;
+  webhookAuthMode: 'auto' | 'hmac' | 'static_secret' | 'secret_url';
   lifespan: string | null;
   expiresAt: string | null;
   isExpired: boolean;
@@ -90,6 +91,13 @@ const LIFESPAN_OPTIONS = [
   { value: '180_DAYS', label: '180 Days' },
   { value: '1_YEAR', label: '1 Year' },
   { value: 'NO_EXPIRATION', label: 'No Expiration' },
+];
+
+const AUTH_MODE_OPTIONS = [
+  { value: 'auto', label: 'Auto (Recommended)' },
+  { value: 'hmac', label: 'HMAC Signature' },
+  { value: 'static_secret', label: 'Legacy Static Secret' },
+  { value: 'secret_url', label: 'Secret URL' },
 ];
 
 export default function TenantDetail() {
@@ -118,6 +126,7 @@ export default function TenantDetail() {
   const [webhookStatusLoading, setWebhookStatusLoading] = useState(true);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [selectedLifespan, setSelectedLifespan] = useState('NO_EXPIRATION');
+  const [selectedAuthMode, setSelectedAuthMode] = useState('auto');
   const [keyConfig, setKeyConfig] = useState({
     invoiceIdKey: '',
     creditNoteIdKey: '',
@@ -323,7 +332,10 @@ export default function TenantDetail() {
     setIsGenerating(true);
     try {
       const tenantApi = createTenantApi();
-      const response = await tenantApi.generateWebhook(tenant.tenantId, { lifespan: selectedLifespan });
+      const response = await tenantApi.generateWebhook(tenant.tenantId, {
+        lifespan: selectedLifespan,
+        webhookAuthMode: selectedAuthMode,
+      });
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to generate webhook URL');
       } else {
@@ -678,6 +690,7 @@ export default function TenantDetail() {
                           disabled={isGenerating}
                           onClick={() => {
                             setSelectedLifespan(webhookStatus?.lifespan || 'NO_EXPIRATION');
+                            setSelectedAuthMode(webhookStatus?.webhookAuthMode || 'auto');
                             setShowGenerateDialog(true);
                           }}
                         >
@@ -696,6 +709,7 @@ export default function TenantDetail() {
                       <Button
                         onClick={() => {
                           setSelectedLifespan('NO_EXPIRATION');
+                          setSelectedAuthMode('auto');
                           setShowGenerateDialog(true);
                         }}
                         disabled={isGenerating}
@@ -1237,10 +1251,28 @@ export default function TenantDetail() {
           <DialogHeader>
             <DialogTitle>{tenant?.config?.webhookUrl ? 'Regenerate Webhook' : 'Generate Webhook'}</DialogTitle>
             <DialogDescription>
-              Choose how long the new URL and secret should remain valid.
+              Choose how the webhook should authenticate requests and how long the URL/secret should remain valid.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Authentication Mode</Label>
+              <Select value={selectedAuthMode} onValueChange={setSelectedAuthMode}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AUTH_MODE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                &quot;Auto&quot; accepts both modern HMAC signatures and legacy static secrets.
+              </p>
+            </div>
             <div className="space-y-1.5">
               <Label>Lifespan</Label>
               <Select value={selectedLifespan} onValueChange={setSelectedLifespan}>
