@@ -31,18 +31,41 @@ export interface MappingTemplate {
   array_mappings: ArrayMapping[];
 }
 
+// A single dictionary-style entry from an NrsSchema's `fields` list. Array
+// item fields are inlined here too, addressed via `[*]` path notation
+// (e.g. "invoice_line[*].hsn_code") rather than a separate list.
+export interface NrsSchemaField {
+  field_id: string;
+  field_path: string;
+  data_type: string;
+  format?: string;
+  validation_rules?: string;
+  description?: string;
+  example_value?: any;
+  is_required: boolean;
+  is_array?: boolean;
+  enum_values?: any[];
+  mapping_hints?: any[];
+}
+
 export interface NrsSchema {
   version: string;
   name: string;
-  required_fields: string[];
-  required_item_fields: string[];
+  description?: string;
+  isLatest?: boolean;
+  fields: NrsSchemaField[];
 }
 
+// Mirrors the backend's DeterministicTransformResult (transform.routes.ts,
+// mapping-spec.types.ts) — returned flat on data.data from POST /mapping/test.
 export interface MappingTestResult {
-  valid: boolean;
-  transformed_invoice: Record<string, any>;
-  validation_errors: string[];
-  execution_time_ms: number;
+  success: boolean;
+  data?: Record<string, any>;
+  errors?: string[];
+  appliedRulesCount: number;
+  healedFields: string[];
+  missingRequiredFields?: string[];
+  executionTimeMs: number;
 }
 
 export interface MappingSaveResult {

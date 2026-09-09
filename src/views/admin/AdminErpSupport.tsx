@@ -43,9 +43,17 @@ import type {
   ArrayMapping,
   MappingTemplate,
   NrsSchema,
+  NrsSchemaField,
   MappingTestResult,
   TransformType,
 } from '@/types/mapping';
+
+// The backend's `is_required` flag on NRS schema fields is currently
+// unreliable (observed false even on fields whose validation_rules says
+// "required"), so treat either signal as authoritative.
+function isFieldRequired(f: Pick<NrsSchemaField, 'is_required' | 'validation_rules'>): boolean {
+  return !!f.is_required || /required/i.test(f.validation_rules || '');
+}
 
 interface ErpSupport {
   _id?: string;
@@ -717,21 +725,31 @@ export default function AdminErpSupport() {
   // handled by the array mappings sub-section instead)
   const topSourceFields = useMemo(() => erpSourceFields.filter((f) => !f.key.includes('[*]')), [erpSourceFields]);
 
+  // Top-level target fields: every schema field whose path isn't inside an
+  // array item (those live under the array's own target-path scope instead).
   const topTargetFields = useMemo(() => {
-    const required = (selectedSchema?.required_fields || []).map((f) => ({ key: f, required: true }));
-    const extras = extraTargets
-      .filter((f) => !(selectedSchema?.required_fields || []).includes(f))
-      .map((f) => ({ key: f, required: false }));
-    return [...required, ...extras];
+    const schemaFields = (selectedSchema?.fields || []).filter((f) => !f.field_path.includes('[*]'));
+    const known = schemaFields.map((f) => ({ key: f.field_path, type: f.data_type, required: isFieldRequired(f) }));
+    const knownKeys = new Set(known.map((k) => k.key));
+    const extras = extraTargets.filter((f) => !knownKeys.has(f)).map((f) => ({ key: f, required: false }));
+    return [...known, ...extras];
   }, [selectedSchema, extraTargets]);
 
-  const itemTargetFields = useMemo(() => {
-    const required = (selectedSchema?.required_item_fields || []).map((f) => ({ key: f, required: true }));
-    const extras = extraItemTargets
-      .filter((f) => !(selectedSchema?.required_item_fields || []).includes(f))
-      .map((f) => ({ key: f, required: false }));
-    return [...required, ...extras];
-  }, [selectedSchema, extraItemTargets]);
+  // Item target fields are scoped per array mapping — the schema encodes
+  // them as "<targetArrayPath>[*].<field>", so relativize to just <field>.
+  const getItemTargetFields = (targetArrayPath: string): PickerField[] => {
+    if (!selectedSchema || !targetArrayPath) return [];
+    const prefix = `${targetArrayPath}[*].`;
+    const schemaFields = (selectedSchema.fields || []).filter((f) => f.field_path.startsWith(prefix));
+    const known = schemaFields.map((f) => ({
+      key: f.field_path.slice(prefix.length),
+      type: f.data_type,
+      required: isFieldRequired(f),
+    }));
+    const knownKeys = new Set(known.map((k) => k.key));
+    const extras = extraItemTargets.filter((f) => !knownKeys.has(f)).map((f) => ({ key: f, required: false }));
+    return [...known, ...extras];
+  };
 
   const arraySourcePaths = useMemo(() => findArrayPaths(parsedSampleInvoice), [parsedSampleInvoice]);
 
@@ -779,7 +797,8 @@ export default function AdminErpSupport() {
     (source: string, target: string) => {
       setMappingData((prev) => {
         if (prev.some((m) => m.source === source && m.target === target)) return prev;
-        const required = !!selectedSchema?.required_fields?.includes(target);
+        const schemaField = (selectedSchema?.fields || []).find((f) => f.field_path === target);
+        const required = schemaField ? isFieldRequired(schemaField) : false;
         return [...prev, { source, target, required }];
       });
     },
@@ -822,7 +841,9 @@ export default function AdminErpSupport() {
       prev.map((am, i) => {
         if (i !== arrIdx) return am;
         if (am.item_mappings.some((m) => m.source === source && m.target === target)) return am;
-        const required = !!selectedSchema?.required_item_fields?.includes(target);
+        const fullPath = `${am.target_array_path}[*].${target}`;
+        const schemaField = (selectedSchema?.fields || []).find((f) => f.field_path === fullPath);
+        const required = schemaField ? isFieldRequired(schemaField) : false;
         return { ...am, item_mappings: [...am.item_mappings, { source, target, required }] };
       })
     );
@@ -867,18 +888,33 @@ export default function AdminErpSupport() {
         toast.error((response.error as any)?.value?.error || 'Failed to generate mapping template');
         return;
       }
-      const template: MappingTemplate = response.data?.data ?? response.data;
+      // POST /mapping/generate is a synchronous design-time draft — the full
+      // template comes back inline in the response body as data.template
+      // (not data itself), and is never persisted until Save & Activate.
+      const template: MappingTemplate = response.data?.data?.template;
       const nextFieldMappings = template?.field_mappings || [];
       const nextArrayMappings = template?.array_mappings || [];
       setMappingData(nextFieldMappings);
       setArrayMappings(nextArrayMappings);
 
-      const reqFields = new Set(selectedSchema?.required_fields || []);
+      const reqFields = new Set(
+        (selectedSchema?.fields || []).filter((f) => !f.field_path.includes('[*]') && isFieldRequired(f)).map((f) => f.field_path)
+      );
       setExtraTargets(Array.from(new Set(nextFieldMappings.map((m) => m.target).filter((t) => !reqFields.has(t)))));
-      const reqItemFields = new Set(selectedSchema?.required_item_fields || []);
+
+      const reqItemFieldsByArray = new Set(
+        nextArrayMappings.flatMap((am) => {
+          const prefix = `${am.target_array_path}[*].`;
+          return (selectedSchema?.fields || [])
+            .filter((f) => f.field_path.startsWith(prefix) && isFieldRequired(f))
+            .map((f) => f.field_path.slice(prefix.length));
+        })
+      );
       setExtraItemTargets(
         Array.from(
-          new Set(nextArrayMappings.flatMap((am) => am.item_mappings.map((m) => m.target)).filter((t) => !reqItemFields.has(t)))
+          new Set(
+            nextArrayMappings.flatMap((am) => am.item_mappings.map((m) => m.target)).filter((t) => !reqItemFieldsByArray.has(t))
+          )
         )
       );
 
@@ -975,8 +1011,19 @@ export default function AdminErpSupport() {
 
       if (mapResponse.error) {
         const errorValue = (mapResponse.error as any)?.value;
-        const errors = errorValue?.validation_errors;
-        if (Array.isArray(errors) && errors.length > 0) {
+        // As of transform.routes.ts:165, the gatekeeper's rejection reason
+        // (error.errors from AppError) is never actually passed through to
+        // ResponseBuilder.error — a backend bug (fix pending: pass
+        // error.errors instead of error.details/error.data), so today a
+        // rejected save only ever carries a single `error` string, no
+        // per-field array. Once fixed, the array will land on
+        // `details: [{ message }, ...]` — checked here so this starts
+        // working the moment that ships, with no frontend change needed.
+        const rawDetails = errorValue?.details;
+        const errors: string[] = Array.isArray(rawDetails)
+          ? rawDetails.map((d: any) => (typeof d === 'string' ? d : d?.message)).filter(Boolean)
+          : [];
+        if (errors.length > 0) {
           setSaveErrors(errors);
           toast.error('Mapping failed validation — see errors below');
         } else {
@@ -1406,7 +1453,7 @@ export default function AdminErpSupport() {
               <CardDescription>Expand a mapping to configure transform, fallback sources, or a default value</CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="max-h-[320px]">
+              <ScrollArea className="h-[320px]">
                 <div className="space-y-1">
                   {mappingData.map((m, idx) => (
                     <MappingRow
@@ -1501,7 +1548,7 @@ export default function AdminErpSupport() {
                         <CardContent className="space-y-4">
                           <ConnectMapper
                             sourceFields={itemSourceFields}
-                            targetFields={itemTargetFields}
+                            targetFields={getItemTargetFields(am.target_array_path)}
                             mappings={am.item_mappings}
                             onConnect={(source, target) => addItemMapping(arrIdx, source, target)}
                             onRemoveBySource={(source) => removeItemMappingBySource(arrIdx, source)}
@@ -1554,23 +1601,46 @@ export default function AdminErpSupport() {
           {testResult && (
             <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-4">
-                <span className={cn('status-badge', testResult.valid ? 'status-active' : 'status-error')}>
-                  {testResult.valid ? (
+                <span className={cn('status-badge', testResult.success ? 'status-active' : 'status-error')}>
+                  {testResult.success ? (
                     <CheckCircle2 className="w-3.5 h-3.5 mr-1 inline" />
                   ) : (
                     <XCircle className="w-3.5 h-3.5 mr-1 inline" />
                   )}
-                  {testResult.valid ? 'Valid' : 'Invalid'}
+                  {testResult.success ? 'Valid' : 'Invalid'}
                 </span>
-                <span className="text-sm text-muted-foreground">Executed in {testResult.execution_time_ms}ms</span>
+                <span className="text-sm text-muted-foreground">Executed in {testResult.executionTimeMs}ms</span>
+                <span className="text-sm text-muted-foreground">{testResult.appliedRulesCount} rules applied</span>
               </div>
 
-              {!testResult.valid && testResult.validation_errors?.length > 0 && (
+              {testResult.healedFields && testResult.healedFields.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="text-xs text-muted-foreground mr-1">Auto-healed:</span>
+                  {testResult.healedFields.map((field, idx) => (
+                    <Badge key={`${field}-${idx}`} variant="secondary" className="text-[10px]">{field}</Badge>
+                  ))}
+                </div>
+              )}
+
+              {testResult.missingRequiredFields && testResult.missingRequiredFields.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertTitle>Missing Required Fields</AlertTitle>
+                  <AlertDescription>
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                      {testResult.missingRequiredFields.map((field, idx) => (
+                        <li key={idx} className="text-sm">{field}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {!testResult.success && testResult.errors && testResult.errors.length > 0 && (
                 <Alert variant="destructive">
                   <AlertTitle>Validation Errors</AlertTitle>
                   <AlertDescription>
                     <ul className="list-disc pl-5 mt-2 space-y-1">
-                      {testResult.validation_errors.map((err, idx) => (
+                      {testResult.errors.map((err, idx) => (
                         <li key={idx} className="text-sm">{err}</li>
                       ))}
                     </ul>
@@ -1599,7 +1669,7 @@ export default function AdminErpSupport() {
                       height="100%"
                       defaultLanguage="json"
                       language="json"
-                      value={JSON.stringify(testResult.transformed_invoice, null, 2)}
+                      value={JSON.stringify(testResult.data, null, 2)}
                       theme="vs-dark"
                       options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, wordWrap: 'on', automaticLayout: true, scrollBeyondLastLine: false }}
                     />
@@ -2016,8 +2086,8 @@ export default function AdminErpSupport() {
                   )}
                   {selectedSchema && (
                     <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
-                      <span>{selectedSchema.required_fields?.length || 0} required fields</span>
-                      <span>{selectedSchema.required_item_fields?.length || 0} required item fields</span>
+                      <span>{selectedSchema.fields?.filter((f) => !f.field_path.includes('[*]') && isFieldRequired(f)).length || 0} required fields</span>
+                      <span>{selectedSchema.fields?.filter((f) => f.field_path.includes('[*]') && isFieldRequired(f)).length || 0} required item fields</span>
                     </div>
                   )}
                 </CardContent>
