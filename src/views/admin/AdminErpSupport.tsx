@@ -1782,24 +1782,32 @@ export default function AdminErpSupport() {
           {mappingData.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">No field mappings configured.</p>
           ) : (
-            <ScrollArea className="max-h-[500px]">
-              <div className="space-y-1">
-                {mappingData.map((mapping, idx) => (
-                  <div
-                    key={`${mapping.source}-${mapping.target}-${idx}`}
-                    className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/30 text-sm"
-                  >
-                    <code className="text-xs font-mono text-primary flex-1 truncate">{mapping.source}</code>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <code className="text-xs font-mono text-success flex-1 truncate">{mapping.target}</code>
-                    {mapping.required && (
-                      <Badge className="bg-destructive/10 text-destructive text-[10px] shrink-0">Required</Badge>
-                    )}
-                    {mapping.transform && <Badge variant="outline" className="text-[10px] shrink-0">{mapping.transform}</Badge>}
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
+            // A fixed height is required for Radix ScrollArea to actually
+            // clip/scroll (max-height alone doesn't, since its Viewport's
+            // height:100% can't resolve against an auto-height parent) —
+            // but only wrap in one once there's enough rows to need it, so
+            // short lists don't get stuck with empty space below them.
+            (() => {
+              const rows = (
+                <div className="space-y-1">
+                  {mappingData.map((mapping, idx) => (
+                    <div
+                      key={`${mapping.source}-${mapping.target}-${idx}`}
+                      className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/30 text-sm"
+                    >
+                      <code className="text-xs font-mono text-primary flex-1 truncate">{mapping.source}</code>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <code className="text-xs font-mono text-success flex-1 truncate">{mapping.target}</code>
+                      {mapping.required && (
+                        <Badge className="bg-destructive/10 text-destructive text-[10px] shrink-0">Required</Badge>
+                      )}
+                      {mapping.transform && <Badge variant="outline" className="text-[10px] shrink-0">{mapping.transform}</Badge>}
+                    </div>
+                  ))}
+                </div>
+              );
+              return mappingData.length > 10 ? <ScrollArea className="h-[500px]">{rows}</ScrollArea> : rows;
+            })()
           )}
         </CardContent>
       </Card>
@@ -1835,34 +1843,36 @@ export default function AdminErpSupport() {
   );
 
   // Read-only key/type table for a flattened schema (invoice fields or metadata)
-  const FieldTable = ({ fields }: { fields: { key: string; type: string }[] }) => (
-    fields.length === 0 ? (
-      <p className="text-sm text-muted-foreground py-4 text-center">No fields defined.</p>
-    ) : (
-      <ScrollArea className="max-h-[500px]">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-muted-foreground border-b">
-              <th className="pb-2 font-medium">Field</th>
-              <th className="pb-2 font-medium">Type</th>
+  const FieldTable = ({ fields }: { fields: { key: string; type: string }[] }) => {
+    if (fields.length === 0) {
+      return <p className="text-sm text-muted-foreground py-4 text-center">No fields defined.</p>;
+    }
+    const table = (
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-muted-foreground border-b">
+            <th className="pb-2 font-medium">Field</th>
+            <th className="pb-2 font-medium">Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {fields.map((f) => (
+            <tr key={f.key} className="border-b border-border/50 last:border-0">
+              <td className="py-2 pr-4">
+                <code className="text-xs font-mono">{f.key}</code>
+              </td>
+              <td className="py-2">
+                <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {fields.map((f) => (
-              <tr key={f.key} className="border-b border-border/50 last:border-0">
-                <td className="py-2 pr-4">
-                  <code className="text-xs font-mono">{f.key}</code>
-                </td>
-                <td className="py-2">
-                  <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </ScrollArea>
-    )
-  );
+          ))}
+        </tbody>
+      </table>
+    );
+    // See the mapping-rows note above — fixed height is required for the
+    // scroll area to actually clip, only applied once it's actually needed.
+    return fields.length > 12 ? <ScrollArea className="h-[500px]">{table}</ScrollArea> : table;
+  };
 
   // View mode — single-page, read-only detail view (no wizard/stepper)
   if (showConfig && isViewMode) {
