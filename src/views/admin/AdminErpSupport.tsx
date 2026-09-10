@@ -55,6 +55,80 @@ function isFieldRequired(f: Pick<NrsSchemaField, 'is_required' | 'validation_rul
   return !!f.is_required || /required/i.test(f.validation_rules || '');
 }
 
+interface ValidationIssue {
+  field?: string;
+  message: string;
+}
+
+// The mapping.test/mapping.save endpoints can fail with two structurally
+// different `details` shapes: Elysia's own request-body schema validation
+// (before any business logic runs) sends
+// `{ on, message, fields: Record<fieldPath, message> }`, while the mapping
+// engine's own gatekeeper (once its backend bug — see handleSave — is
+// fixed) sends `[{ message }, ...]`. Handle both.
+function parseApiValidationErrors(errorValue: any): ValidationIssue[] {
+  const fields = errorValue?.details?.fields;
+  if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
+    return Object.entries(fields).map(([field, message]) => ({ field, message: String(message) }));
+  }
+  if (Array.isArray(errorValue?.details)) {
+    return errorValue.details
+      .map((d: any) => (typeof d === 'string' ? { message: d } : d?.message ? { field: d.field, message: d.message } : null))
+      .filter(Boolean);
+  }
+  return [];
+}
+
+// Two-column Field/Issue table for structured validation failures (a rejected
+// request body, or the mapping gatekeeper's per-field errors).
+function ValidationIssuesTable({ issues }: { issues: ValidationIssue[] }) {
+  return (
+    <div className="border rounded-md overflow-hidden mt-2">
+      <div className="max-h-[280px] overflow-y-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-muted">
+            <tr className="text-left text-xs text-muted-foreground">
+              <th className="px-3 py-2 font-medium w-2/5">Field</th>
+              <th className="px-3 py-2 font-medium">Issue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {issues.map((issue, idx) => (
+              <tr key={idx} className="border-t border-border/50">
+                <td className="px-3 py-2 align-top">
+                  {issue.field ? (
+                    <code className="text-xs font-mono break-all">{issue.field}</code>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 align-top text-muted-foreground">{issue.message}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Single-column bordered list for plain message strings (no field data to
+// split out) — e.g. the deterministic transform's own errors/missing fields.
+function IssuesList({ items }: { items: string[] }) {
+  return (
+    <div className="border rounded-md overflow-hidden mt-2">
+      <div className="max-h-[240px] overflow-y-auto divide-y divide-border/50">
+        {items.map((item, idx) => (
+          <div key={idx} className="px-3 py-2 text-sm flex items-start gap-2">
+            <span className="text-muted-foreground shrink-0">•</span>
+            <span>{item}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface ErpSupport {
   _id?: string;
   schema_id: string;
@@ -522,7 +596,8 @@ export default function AdminErpSupport() {
   const [expandedArrayIdx, setExpandedArrayIdx] = useState<number | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<MappingTestResult | null>(null);
-  const [saveErrors, setSaveErrors] = useState<string[] | null>(null);
+  const [testRequestErrors, setTestRequestErrors] = useState<ValidationIssue[] | null>(null);
+  const [saveErrors, setSaveErrors] = useState<ValidationIssue[] | null>(null);
   const [mappingCanvasRef, setMappingCanvasRef] = useState<any>(null);
   const invoiceEditorRef = useRef<any>(null);
   const metadataEditorRef = useRef<any>(null);
@@ -669,6 +744,7 @@ export default function AdminErpSupport() {
           setMappingMode(restoredMappings.length > 0 ? 'manual' : null);
         }
         setTestResult(null);
+        setTestRequestErrors(null);
         setSaveErrors(null);
       }
     } catch (error: any) {
@@ -930,6 +1006,7 @@ export default function AdminErpSupport() {
     if (!parsedSampleInvoice) return;
     setTesting(true);
     setTestResult(null);
+    setTestRequestErrors(null);
     try {
       const template: MappingTemplate = {
         erp_source: effectiveErp,
@@ -942,7 +1019,14 @@ export default function AdminErpSupport() {
         template,
       });
       if (response.error) {
-        toast.error((response.error as any)?.value?.error || 'Mapping test failed');
+        const errorValue = (response.error as any)?.value;
+        const errors = parseApiValidationErrors(errorValue);
+        if (errors.length > 0) {
+          setTestRequestErrors(errors);
+          toast.error(errorValue?.details?.message || errorValue?.error || 'Mapping test failed');
+        } else {
+          toast.error(errorValue?.error || 'Mapping test failed');
+        }
         return;
       }
       const result: MappingTestResult = response.data?.data ?? response.data;
@@ -1011,21 +1095,19 @@ export default function AdminErpSupport() {
 
       if (mapResponse.error) {
         const errorValue = (mapResponse.error as any)?.value;
-        // As of transform.routes.ts:165, the gatekeeper's rejection reason
-        // (error.errors from AppError) is never actually passed through to
-        // ResponseBuilder.error — a backend bug (fix pending: pass
-        // error.errors instead of error.details/error.data), so today a
-        // rejected save only ever carries a single `error` string, no
-        // per-field array. Once fixed, the array will land on
-        // `details: [{ message }, ...]` — checked here so this starts
+        // Two distinct rejection sources share this same 400 path: Elysia's
+        // own request-schema validation (details.fields, checked by
+        // parseApiValidationErrors) fires before any business logic runs;
+        // the mapping engine's own gatekeeper is *meant* to send
+        // details: [{ message }, ...] on a semantically-invalid-but-well-
+        // formed template, but as of transform.routes.ts:165 that path is
+        // currently broken backend-side (error.errors never reaches
+        // ResponseBuilder.error) — this still checks for it so it starts
         // working the moment that ships, with no frontend change needed.
-        const rawDetails = errorValue?.details;
-        const errors: string[] = Array.isArray(rawDetails)
-          ? rawDetails.map((d: any) => (typeof d === 'string' ? d : d?.message)).filter(Boolean)
-          : [];
+        const errors = parseApiValidationErrors(errorValue);
         if (errors.length > 0) {
           setSaveErrors(errors);
-          toast.error('Mapping failed validation — see errors below');
+          toast.error(errorValue?.details?.message || 'Mapping failed validation — see errors below');
         } else {
           toast.error(errorValue?.error || 'Failed to save mapping template');
         }
@@ -1104,6 +1186,7 @@ export default function AdminErpSupport() {
     setExtraTargets([]);
     setExtraItemTargets([]);
     setTestResult(null);
+    setTestRequestErrors(null);
     setSaveErrors(null);
     setStatus(SchemaStatus.DRAFT);
     setInvoiceError(null);
@@ -1135,6 +1218,7 @@ export default function AdminErpSupport() {
     setUseCustomErp(false);
     setCustomErpName('');
     setTestResult(null);
+    setTestRequestErrors(null);
     setSaveErrors(null);
     setExtraTargets([]);
     setExtraItemTargets([]);
@@ -1357,13 +1441,9 @@ export default function AdminErpSupport() {
       <div className="space-y-6" ref={mappingContainerRef}>
         {saveErrors && saveErrors.length > 0 && (
           <Alert variant="destructive">
-            <AlertTitle>Save Blocked — Validation Errors</AlertTitle>
+            <AlertTitle>Save Blocked — Validation Errors ({saveErrors.length})</AlertTitle>
             <AlertDescription>
-              <ul className="list-disc pl-5 mt-2 space-y-1">
-                {saveErrors.map((err, idx) => (
-                  <li key={idx} className="text-sm">{err}</li>
-                ))}
-              </ul>
+              <ValidationIssuesTable issues={saveErrors} />
             </AlertDescription>
           </Alert>
         )}
@@ -1598,6 +1678,19 @@ export default function AdminErpSupport() {
               </Button>
             </div>
           </CardHeader>
+          {testRequestErrors && testRequestErrors.length > 0 && (
+            <CardContent>
+              <Alert variant="destructive">
+                <AlertTitle>Request Rejected — Invalid Mapping Data ({testRequestErrors.length})</AlertTitle>
+                <AlertDescription>
+                  <p className="text-sm mb-1">
+                    The mapping couldn't even be tested — some fields aren't shaped correctly. Check for mappings with a missing/empty source or target.
+                  </p>
+                  <ValidationIssuesTable issues={testRequestErrors} />
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          )}
           {testResult && (
             <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-4">
@@ -1624,26 +1717,18 @@ export default function AdminErpSupport() {
 
               {testResult.missingRequiredFields && testResult.missingRequiredFields.length > 0 && (
                 <Alert variant="destructive">
-                  <AlertTitle>Missing Required Fields</AlertTitle>
+                  <AlertTitle>Missing Required Fields ({testResult.missingRequiredFields.length})</AlertTitle>
                   <AlertDescription>
-                    <ul className="list-disc pl-5 mt-2 space-y-1">
-                      {testResult.missingRequiredFields.map((field, idx) => (
-                        <li key={idx} className="text-sm">{field}</li>
-                      ))}
-                    </ul>
+                    <IssuesList items={testResult.missingRequiredFields} />
                   </AlertDescription>
                 </Alert>
               )}
 
               {!testResult.success && testResult.errors && testResult.errors.length > 0 && (
                 <Alert variant="destructive">
-                  <AlertTitle>Validation Errors</AlertTitle>
+                  <AlertTitle>Validation Errors ({testResult.errors.length})</AlertTitle>
                   <AlertDescription>
-                    <ul className="list-disc pl-5 mt-2 space-y-1">
-                      {testResult.errors.map((err, idx) => (
-                        <li key={idx} className="text-sm">{err}</li>
-                      ))}
-                    </ul>
+                    <IssuesList items={testResult.errors} />
                   </AlertDescription>
                 </Alert>
               )}
