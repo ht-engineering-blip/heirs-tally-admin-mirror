@@ -32,7 +32,6 @@ import {
 } from '@/components/ui/select';
 import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 import { SectionLoader } from '@/components/shared/SectionLoader';
-import { createTenantApi } from '@/lib/api/tenant-api';
 
 const CREDIT_NOTE_EVENT_TYPE = 'erp.creditnote.issued';
 
@@ -239,8 +238,10 @@ export default function TenantDetail() {
     if (!tenantId) return;
     setWebhookStatusLoading(true);
     try {
-      const tenantApi = createTenantApi();
-      const response = await tenantApi.getWebhookConfig(tenantId);
+      // Admin viewers have no tenant login session (no bearer token), so this
+      // must go through the admin client — the backend route accepts
+      // x-admin-key on this same path just as well as a tenant bearer token.
+      const response = await (api as any).v1.tenants({ tenantId }).webhook.config.get();
       if (!response.error && response.data?.data) {
         setWebhookStatus(response.data.data as WebhookStatus);
       }
@@ -331,8 +332,7 @@ export default function TenantDetail() {
     if (!tenant) return;
     setIsGenerating(true);
     try {
-      const tenantApi = createTenantApi();
-      const response = await tenantApi.generateWebhook(tenant.tenantId, {
+      const response = await (api as any).v1.tenants({ tenantId: tenant.tenantId }).webhook.generate.post({
         lifespan: selectedLifespan,
         webhookAuthMode: selectedAuthMode,
       });

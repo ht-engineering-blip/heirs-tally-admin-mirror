@@ -11,7 +11,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { getAdminApiClient } from '@/lib/api/client';
-import { createTenantApi } from '@/lib/api/tenant-api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -372,8 +371,10 @@ export default function AdminWebhookConfig() {
   const fetchWebhookStatus = async (tenantId: string) => {
     setWebhookStatusLoading(true);
     try {
-      const tenantApi = createTenantApi();
-      const response = await tenantApi.getWebhookConfig(tenantId);
+      // Admin viewers have no tenant login session (no bearer token), so this
+      // must go through the admin client — the backend route accepts
+      // x-admin-key on this same path just as well as a tenant bearer token.
+      const response = await (api as any).v1.tenants({ tenantId }).webhook.config.get();
       if (!response.error && response.data?.data) {
         const status = response.data.data as WebhookStatus;
         setWebhookStatus(status);
@@ -402,8 +403,7 @@ export default function AdminWebhookConfig() {
     if (!selectedConfig) return;
     setIsGenerating(true);
     try {
-      const tenantApi = createTenantApi();
-      const response = await tenantApi.generateWebhook(selectedConfig.tenantId, {
+      const response = await (api as any).v1.tenants({ tenantId: selectedConfig.tenantId }).webhook.generate.post({
         lifespan: selectedLifespan,
         webhookAuthMode: selectedAuthMode,
       });
