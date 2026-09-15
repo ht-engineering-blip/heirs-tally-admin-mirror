@@ -19,6 +19,63 @@ interface ExtractionResult {
   };
 }
 
+/**
+ * Escapes raw control characters (unescaped newlines, tabs, etc.) found
+ * inside JSON string literals. Real-world pasted payloads sometimes contain
+ * these — e.g. a copy-pasted multi-line address/note field whose newline
+ * was never escaped to `\n` — which JSON.parse rejects outright per the
+ * JSON spec ("Bad control character in string literal"). This repairs them
+ * in place, respecting string boundaries and existing escape sequences, so
+ * the payload becomes parseable instead of throwing.
+ */
+function escapeControlCharsInStrings(json: string): string {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < json.length; i++) {
+    const ch = json[i];
+    const code = json.charCodeAt(i);
+
+    if (inString) {
+      if (escaped) {
+        result += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        result += ch;
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+        result += ch;
+        continue;
+      }
+      if (code < 0x20) {
+        switch (ch) {
+          case '\n': result += '\\n'; break;
+          case '\r': result += '\\r'; break;
+          case '\t': result += '\\t'; break;
+          case '\b': result += '\\b'; break;
+          case '\f': result += '\\f'; break;
+          default: result += '\\u' + code.toString(16).padStart(4, '0');
+        }
+        continue;
+      }
+      result += ch;
+    } else {
+      if (ch === '"') {
+        inString = true;
+      }
+      result += ch;
+    }
+  }
+
+  return result;
+}
+
 class JsonWithCommentsExtractor {
   private readonly categoryMap: Record<string, string> = {
     // Field name patterns to categories
@@ -37,8 +94,32 @@ class JsonWithCommentsExtractor {
    * Extract clean JSON and metadata from JSON with comments
    */
   extract(jsonWithComments: string): ExtractionResult {
+    const sanitized = escapeControlCharsInStrings(jsonWithComments);
+
+    // Fast path: most real-world payloads (e.g. a pasted invoice) have no
+    // comments at all. Parse them directly rather than running every
+    // payload through the line-based comment stripper below, which can't
+    // distinguish a `//` inside a string (e.g. a URL) from a real comment.
+    try {
+      const invoice = JSON.parse(sanitized);
+      return {
+        invoice,
+        metadata: {
+          field_documentation: {},
+          schema_info: {
+            version: '1.0',
+            generated_at: new Date().toISOString(),
+          },
+        },
+      };
+    } catch {
+      // Not plain JSON — may genuinely contain // or /* */ comments (a
+      // hand-authored schema definition). Fall through to the comment-aware
+      // parser below.
+    }
+
     // Parse line by line to capture comments
-    const lines = jsonWithComments.split('\n');
+    const lines = sanitized.split('\n');
     const cleanLines: string[] = [];
     const fieldComments = new Map<string, string>();
     let currentPath: string[] = [];

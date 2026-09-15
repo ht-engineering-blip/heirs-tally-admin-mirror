@@ -9,20 +9,10 @@ import {
   KeyValueTable,
   stringifyJson,
   StatusBadge,
+  WebhookExpiryBadge,
   type EventMapping,
 } from "@/components/shared";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,12 +26,20 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -69,6 +67,7 @@ import {
   Server,
   Settings2,
   StopCircle,
+  Terminal,
   Trash2,
   Unlink,
   Webhook,
@@ -98,10 +97,72 @@ interface WebhookConfig {
   webhookEnabled: boolean;
 }
 
+interface IntegrationExampleEntry {
+  description: string;
+  headers?: Record<string, string>;
+  url?: string;
+  curlExample: string;
+}
+
+interface IntegrationExamples {
+  modernHmac: IntegrationExampleEntry;
+  legacyStaticHeader: IntegrationExampleEntry;
+  legacyBearerAuth: IntegrationExampleEntry;
+  legacyQueryParam: IntegrationExampleEntry;
+  legacyXmlTally: IntegrationExampleEntry;
+}
+
+interface WebhookStatus {
+  configured: boolean;
+  webhookUrl: string | null;
+  webhookPath: string | null;
+  webhookEnabled: boolean;
+  invoiceIdKey: string | null;
+  webhookAuthMode: "auto" | "hmac" | "static_secret" | "secret_url";
+  defaultEventType: string;
+  lifespan: string | null;
+  expiresAt: string | null;
+  isExpired: boolean;
+  hasSecret: boolean;
+  remainingDays: number | null;
+  integrationExamples: IntegrationExamples;
+}
+
+const LIFESPAN_OPTIONS = [
+  { value: "30_DAYS", label: "30 Days" },
+  { value: "90_DAYS", label: "90 Days" },
+  { value: "180_DAYS", label: "180 Days" },
+  { value: "1_YEAR", label: "1 Year" },
+  { value: "NO_EXPIRATION", label: "No Expiration" },
+];
+
+const AUTH_MODE_OPTIONS = [
+  { value: "auto", label: "Auto (Recommended)" },
+  { value: "hmac", label: "HMAC Signature" },
+  { value: "static_secret", label: "Legacy Static Secret" },
+  { value: "secret_url", label: "Secret URL" },
+];
+
+const TEST_AUTH_STRATEGY_OPTIONS = [
+  { value: "hmac", label: "HMAC Signature" },
+  { value: "static_secret", label: "Static Secret Header" },
+  { value: "bearer", label: "Bearer Token" },
+  { value: "query", label: "Query Parameter" },
+  { value: "body", label: "Body Field" },
+  { value: "secret_url", label: "Secret URL" },
+];
+
 interface TestResult {
   webhookUrl: string;
-  testResult: any;
+  testResult: {
+    success: boolean;
+    statusCode: number;
+    responseTime: number;
+    response?: any;
+    error?: string | null;
+  };
   payload: Record<string, unknown>;
+  authStrategy?: string;
 }
 
 interface MappingRule {
@@ -256,12 +317,20 @@ export default function WebhookSettingsPage() {
   });
   const [keyConfigLoading, setKeyConfigLoading] = useState(true);
 
+  // Webhook expiration/lifespan status
+  const [webhookStatus, setWebhookStatus] = useState<WebhookStatus | null>(null);
+  const [webhookStatusLoading, setWebhookStatusLoading] = useState(true);
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [selectedLifespan, setSelectedLifespan] = useState("NO_EXPIRATION");
+  const [selectedAuthMode, setSelectedAuthMode] = useState("auto");
+
   // Test state
   const [testMode, setTestMode] = useState<"manual" | "listen">("manual");
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testPassed, setTestPassed] = useState(false);
   const [customPayload, setCustomPayload] = useState("");
+  const [testAuthStrategy, setTestAuthStrategy] = useState("hmac");
 
   // Event mapping state
   const [eventMappings, setEventMappings] = useState<EventMapping[]>([]);
@@ -403,6 +472,30 @@ export default function WebhookSettingsPage() {
     }
   }, [tenantData, fetchEventRouting, fetchKeyConfig]);
 
+  // Live webhook status (lifespan/expiry) — tenantData above only has the URL
+  // fields already baked into the tenant record, not expiry info, so this is
+  // a dedicated fetch rather than something derivable from useTenant().
+  const fetchWebhookStatus = useCallback(async () => {
+    if (!tenantId) return;
+    setWebhookStatusLoading(true);
+    try {
+      const api = createTenantApi();
+      const response = await api.getWebhookConfig(tenantId);
+      if (!response.error && response.data?.data) {
+        setWebhookStatus(response.data.data as WebhookStatus);
+      }
+    } catch {
+      // Status is supplementary — the URL/enabled fields still render from
+      // tenantData above even if this fetch fails.
+    } finally {
+      setWebhookStatusLoading(false);
+    }
+  }, [tenantId]);
+
+  useEffect(() => {
+    fetchWebhookStatus();
+  }, [fetchWebhookStatus]);
+
   // Fetch NRS dictionary for mapping target fields
   const fetchFirsDictionary = useCallback(async () => {
     setFirsLoading(true);
@@ -505,7 +598,10 @@ export default function WebhookSettingsPage() {
     setIsGenerating(true);
     try {
       const api = createTenantApi();
-      const response = await api.generateWebhook(tenantId);
+      const response = await api.generateWebhook(tenantId, {
+        lifespan: selectedLifespan,
+        webhookAuthMode: selectedAuthMode,
+      });
       if (response.error) {
         toast.error(
           (response.error as any)?.value?.error ||
@@ -523,10 +619,12 @@ export default function WebhookSettingsPage() {
             webhookEnabled: true,
           });
           setWebhookEnabled(true);
+          setShowGenerateDialog(false);
           toast.success(
             "Webhook generated successfully. Copy your secret now — it won't be shown again.",
           );
           refetch();
+          fetchWebhookStatus();
         }
       }
     } catch (error: any) {
@@ -574,10 +672,15 @@ export default function WebhookSettingsPage() {
         }
       }
 
-      const response = await api.testWebhook(tenantId, payload);
+      const response = await api.testWebhook(tenantId, payload, testAuthStrategy);
       if (response.error) {
+        const errMessage = (response.error as any)?.value?.error || "Webhook test failed";
+        const isExpiredError =
+          (response.error as any)?.status === 400 && /expired/i.test(errMessage);
         toast.error(
-          (response.error as any)?.value?.error || "Webhook test failed",
+          isExpiredError
+            ? "Your webhook credentials have expired. Regenerate them to continue testing."
+            : errMessage,
         );
         setIsTesting(false);
         return;
@@ -591,7 +694,7 @@ export default function WebhookSettingsPage() {
 
         // Set received payload for mapping
         const receivedData =
-          data.payload || data.testResult?.data || (payload ? payload : null);
+          data.payload || data.testResult?.response || (payload ? payload : null);
         if (receivedData) {
           setReceivedPayload(receivedData);
         }
@@ -1018,7 +1121,7 @@ export default function WebhookSettingsPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="contents">
@@ -1032,6 +1135,20 @@ export default function WebhookSettingsPage() {
                 </span>
               </TooltipTrigger>
               <TooltipContent className="sm:hidden">Configuration</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="contents">
+                <TabsTrigger
+                  value="integration-examples"
+                  className="text-xs sm:text-sm px-2 sm:px-3"
+                >
+                  <Terminal className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Integration Examples</span>
+                </TabsTrigger>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="sm:hidden">Integration Examples</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1132,10 +1249,27 @@ export default function WebhookSettingsPage() {
               <CardContent>
                 {webhookConfig ? (
                   <div className="space-y-4">
+                    {webhookStatus?.isExpired && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          Webhook URL and secret expired. Inbound webhooks are rejected. Please regenerate.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">
-                        Webhook URL
-                      </Label>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">
+                          Webhook URL
+                        </Label>
+                        {!webhookStatusLoading && webhookStatus && (
+                          <WebhookExpiryBadge
+                            isExpired={webhookStatus.isExpired}
+                            expiresAt={webhookStatus.expiresAt}
+                            remainingDays={webhookStatus.remainingDays}
+                          />
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         <Input
                           value={webhookConfig.webhookUrl}
@@ -1244,63 +1378,21 @@ export default function WebhookSettingsPage() {
                       </AlertDescription>
                     </Alert>
                     {canUpdate && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={isGenerating}
-                          >
-                            <RefreshCw
-                              className={`w-4 h-4 mr-2 ${isGenerating ? "animate-spin" : ""}`}
-                            />
-                            Regenerate URL & Secret
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              Regenerate Webhook?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription asChild>
-                              <div className="text-sm text-muted-foreground space-y-2">
-                                <p>
-                                  This action is <strong>irreversible</strong>{" "}
-                                  and will:
-                                </p>
-                                <ul className="list-disc list-inside space-y-1 text-sm">
-                                  <li>
-                                    Invalidate the current webhook URL and
-                                    secret
-                                  </li>
-                                  <li>
-                                    Revoke all existing event routing
-                                    configurations
-                                  </li>
-                                  <li>
-                                    Break any external systems using the current
-                                    credentials
-                                  </li>
-                                </ul>
-                                <p>
-                                  You will need to update all connected ERPs and
-                                  external systems with the new webhook URL and
-                                  secret.
-                                </p>
-                              </div>
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={handleGenerate}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Yes, Regenerate
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={isGenerating}
+                        onClick={() => {
+                          setSelectedLifespan(webhookStatus?.lifespan || "NO_EXPIRATION");
+                          setSelectedAuthMode(webhookStatus?.webhookAuthMode || "auto");
+                          setShowGenerateDialog(true);
+                        }}
+                      >
+                        <RefreshCw
+                          className={`w-4 h-4 mr-2 ${isGenerating ? "animate-spin" : ""}`}
+                        />
+                        Regenerate URL & Secret
+                      </Button>
                     )}
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
@@ -1328,18 +1420,16 @@ export default function WebhookSettingsPage() {
                       external systems.
                     </p>
                     {canUpdate && (
-                      <Button onClick={handleGenerate} disabled={isGenerating}>
-                        {isGenerating ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <Webhook className="mr-2 h-4 w-4" />
-                            Generate Webhook URL
-                          </>
-                        )}
+                      <Button
+                        onClick={() => {
+                          setSelectedLifespan("NO_EXPIRATION");
+                          setSelectedAuthMode("auto");
+                          setShowGenerateDialog(true);
+                        }}
+                        disabled={isGenerating}
+                      >
+                        <Webhook className="mr-2 h-4 w-4" />
+                        Generate Webhook URL
                       </Button>
                     )}
                   </div>
@@ -1387,6 +1477,90 @@ export default function WebhookSettingsPage() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ===== TAB: Integration Examples ===== */}
+          <TabsContent value="integration-examples" className="space-y-6 mt-6">
+            {webhookStatusLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !webhookStatus?.integrationExamples ? (
+              <div className="text-center py-8">
+                <Terminal className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">No Examples Available</h3>
+                <p className="text-sm text-muted-foreground">
+                  Generate a webhook URL in the Configuration tab to see integration examples.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {(
+                  [
+                    ["modernHmac", "Modern HMAC Signature"],
+                    ["legacyStaticHeader", "Legacy Static Secret Header"],
+                    ["legacyBearerAuth", "Legacy Bearer Token"],
+                    ["legacyQueryParam", "Legacy Query Parameter"],
+                    ["legacyXmlTally", "Legacy Tally / XML Payload"],
+                  ] as [keyof IntegrationExamples, string][]
+                ).map(([key, title]) => {
+                  const example = webhookStatus.integrationExamples[key];
+                  if (!example) return null;
+                  return (
+                    <Card key={key}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">{title}</CardTitle>
+                        <CardDescription>{example.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {example.headers && Object.keys(example.headers).length > 0 && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">Headers</Label>
+                            <div className="rounded-lg border overflow-hidden">
+                              <table className="w-full text-xs">
+                                <tbody>
+                                  {Object.entries(example.headers).map(([headerKey, headerValue], i) => (
+                                    <tr key={headerKey} className={i > 0 ? "border-t" : undefined}>
+                                      <td className="p-2 font-mono font-medium text-muted-foreground bg-muted/30 w-1/3 break-all">
+                                        {headerKey}
+                                      </td>
+                                      <td className="p-2 font-mono break-all">{headerValue}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                        {example.url && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">URL</Label>
+                            <p className="text-xs font-mono bg-muted p-2 rounded break-all">{example.url}</p>
+                          </div>
+                        )}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">cURL Example</Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto p-1 text-xs"
+                              onClick={() => copyToClipboard(example.curlExample, `${title} cURL example`)}
+                            >
+                              <Copy className="w-3 h-3 mr-1" />
+                              Copy
+                            </Button>
+                          </div>
+                          <pre className="text-xs font-mono bg-muted p-3 rounded-lg whitespace-pre-wrap break-all overflow-x-auto">
+                            {example.curlExample}
+                          </pre>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </TabsContent>
 
           {/* ===== TAB 2: Invoice Keys ===== */}
@@ -1676,14 +1850,32 @@ export default function WebhookSettingsPage() {
                     </p>
                   </div>
 
+                  <div className="space-y-1.5 max-w-xs">
+                    <Label className="text-xs text-muted-foreground">
+                      Auth Strategy to Simulate
+                    </Label>
+                    <Select value={testAuthStrategy} onValueChange={setTestAuthStrategy}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TEST_AUTH_STRATEGY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="flex gap-2">
-                    {/*      <Button onClick={handleTest} disabled={isTesting || !webhookConfig}>
+                    <Button onClick={handleTest} disabled={isTesting || !webhookConfig}>
                       {isTesting ? (
                         <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</>
                       ) : (
                         <><Zap className="mr-2 h-4 w-4" />{testResult ? 'Retry Test' : 'Send Test Payload'}</>
                       )}
-                    </Button> */}
+                    </Button>
                     <Button
                       onClick={handlePastePayload}
                       variant="outline"
@@ -1725,12 +1917,28 @@ export default function WebhookSettingsPage() {
                         </div>
                       )}
                       {testResult.testResult && (
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          {testResult.testResult.statusCode !== undefined && (
+                            <span>Status: <span className="font-mono text-foreground">{testResult.testResult.statusCode}</span></span>
+                          )}
+                          {testResult.testResult.responseTime !== undefined && (
+                            <span>Response time: <span className="font-mono text-foreground">{testResult.testResult.responseTime}ms</span></span>
+                          )}
+                          {testResult.authStrategy && (
+                            <span>Simulated via: <span className="font-mono text-foreground">{testResult.authStrategy}</span></span>
+                          )}
+                        </div>
+                      )}
+                      {testResult.testResult?.error && (
+                        <p className="text-xs text-destructive">{testResult.testResult.error}</p>
+                      )}
+                      {testResult.testResult?.response !== undefined && (
                         <div className="space-y-1">
                           <span className="text-xs text-muted-foreground">
-                            Response:
+                            Response body:
                           </span>
                           <pre className="text-xs font-mono bg-muted p-2 rounded overflow-x-auto max-h-[200px]">
-                            {JSON.stringify(testResult.testResult, null, 2)}
+                            {JSON.stringify(testResult.testResult.response, null, 2)}
                           </pre>
                         </div>
                       )}
@@ -1990,6 +2198,81 @@ export default function WebhookSettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Generate/Regenerate Webhook Dialog */}
+      <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{webhookConfig ? "Regenerate Webhook" : "Generate Webhook"}</DialogTitle>
+            <DialogDescription>
+              Choose how the webhook should authenticate requests and how long the URL/secret should remain valid.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Authentication Mode</Label>
+              <Select value={selectedAuthMode} onValueChange={setSelectedAuthMode}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AUTH_MODE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                &quot;Auto&quot; accepts both modern HMAC signatures and legacy static secrets —
+                use this unless you need to restrict to one method. See the Integration Examples
+                tab for connection snippets matching each mode.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Lifespan</Label>
+              <Select value={selectedLifespan} onValueChange={setSelectedLifespan}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LIFESPAN_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {webhookConfig && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs space-y-1">
+                  <p>
+                    This action is <strong>irreversible</strong> and will invalidate the current
+                    webhook URL and secret, revoke all existing event routing configurations, and
+                    break any external systems using the current credentials.
+                  </p>
+                  <p>Update all connected ERPs and external systems with the new credentials after regenerating.</p>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGenerateDialog(false)} disabled={isGenerating}>
+              Cancel
+            </Button>
+            <Button
+              variant={webhookConfig ? "destructive" : "default"}
+              onClick={handleGenerate}
+              disabled={isGenerating}
+            >
+              {isGenerating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {webhookConfig ? "Yes, Regenerate" : "Generate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* JSON Viewer Dialog */}
       <Dialog open={!!viewingJson} onOpenChange={() => setViewingJson(null)}>

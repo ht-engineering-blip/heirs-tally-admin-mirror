@@ -1,6 +1,7 @@
 export { DataTable, type Column, type FilterOption } from './DataTable';
 export { JsonBlock, KeyValueTable, stringifyJson } from './JsonBlock';
 export { StatusBadge } from './StatusBadge';
+export { WebhookExpiryBadge } from './WebhookExpiryBadge';
 export { Logo } from './Logo';
 export { ErpSelect } from './ErpSelect';
 export { EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping } from './EventMappingEditor';

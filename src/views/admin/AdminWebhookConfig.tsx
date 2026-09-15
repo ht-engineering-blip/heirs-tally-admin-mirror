@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Eye, Edit, Trash2, Power, Building2, Webhook, CheckCircle2, XCircle, Copy, Loader2, EyeOff, RefreshCw, AlertCircle } from 'lucide-react';
-import { DataTable, Column, FilterOption, StatusBadge, EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
+import { DataTable, Column, FilterOption, StatusBadge, WebhookExpiryBadge, EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -11,10 +11,16 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { getAdminApiClient } from '@/lib/api/client';
-import { createTenantApi } from '@/lib/api/tenant-api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Dialog,
@@ -47,6 +53,35 @@ interface WebhookConfigEntry {
   createdAt: string;
   updatedAt?: string;
 }
+
+interface WebhookStatus {
+  configured: boolean;
+  webhookUrl: string | null;
+  webhookPath: string | null;
+  webhookEnabled: boolean;
+  invoiceIdKey: string | null;
+  webhookAuthMode: 'auto' | 'hmac' | 'static_secret' | 'secret_url';
+  lifespan: string | null;
+  expiresAt: string | null;
+  isExpired: boolean;
+  hasSecret: boolean;
+  remainingDays: number | null;
+}
+
+const LIFESPAN_OPTIONS = [
+  { value: '30_DAYS', label: '30 Days' },
+  { value: '90_DAYS', label: '90 Days' },
+  { value: '180_DAYS', label: '180 Days' },
+  { value: '1_YEAR', label: '1 Year' },
+  { value: 'NO_EXPIRATION', label: 'No Expiration' },
+];
+
+const AUTH_MODE_OPTIONS = [
+  { value: 'auto', label: 'Auto (Recommended)' },
+  { value: 'hmac', label: 'HMAC Signature' },
+  { value: 'static_secret', label: 'Legacy Static Secret' },
+  { value: 'secret_url', label: 'Secret URL' },
+];
 
 // ===== Filters =====
 
@@ -123,6 +158,10 @@ export default function AdminWebhookConfig() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedWebhook, setGeneratedWebhook] = useState<{ webhookUrl: string; webhookSecret: string } | null>(null);
   const [secretVisible, setSecretVisible] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<WebhookStatus | null>(null);
+  const [webhookStatusLoading, setWebhookStatusLoading] = useState(false);
+  const [selectedLifespan, setSelectedLifespan] = useState('NO_EXPIRATION');
+  const [selectedAuthMode, setSelectedAuthMode] = useState('auto');
 
   // Edit form state
   const [editMappings, setEditMappings] = useState<EventMapping[]>([]);
@@ -329,19 +368,45 @@ export default function AdminWebhookConfig() {
     toast.success(`${label} copied to clipboard`);
   };
 
+  const fetchWebhookStatus = async (tenantId: string) => {
+    setWebhookStatusLoading(true);
+    try {
+      // Admin viewers have no tenant login session (no bearer token), so this
+      // must go through the admin client — the backend route accepts
+      // x-admin-key on this same path just as well as a tenant bearer token.
+      const response = await (api as any).v1.tenants({ tenantId }).webhook.config.get();
+      if (!response.error && response.data?.data) {
+        const status = response.data.data as WebhookStatus;
+        setWebhookStatus(status);
+        setSelectedLifespan(status.lifespan || 'NO_EXPIRATION');
+        setSelectedAuthMode(status.webhookAuthMode || 'auto');
+      }
+    } catch {
+      // Status is supplementary — the modal still shows selectedConfig.webhookUrl either way.
+    } finally {
+      setWebhookStatusLoading(false);
+    }
+  };
+
   const openGenerateModal = (config: WebhookConfigEntry) => {
     setSelectedConfig(config);
     setGeneratedWebhook(null);
     setSecretVisible(false);
+    setWebhookStatus(null);
+    setSelectedLifespan('NO_EXPIRATION');
+    setSelectedAuthMode('auto');
     setShowGenerateModal(true);
+    fetchWebhookStatus(config.tenantId);
   };
 
   const handleGenerateWebhook = async () => {
     if (!selectedConfig) return;
     setIsGenerating(true);
     try {
-      const tenantApi = createTenantApi();
-      const response = await tenantApi.generateWebhook(selectedConfig.tenantId);
+      const response = await (api as any).v1.tenants({ tenantId: selectedConfig.tenantId }).webhook.generate.post({
+        lifespan: selectedLifespan,
+        webhookAuthMode: selectedAuthMode,
+      });
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to generate webhook URL');
       } else {
@@ -355,6 +420,7 @@ export default function AdminWebhookConfig() {
           setShowRegenerateDialog(false);
           toast.success("Webhook generated. Copy the secret now — it won't be shown again.");
           fetchConfigs();
+          fetchWebhookStatus(selectedConfig.tenantId);
         }
       }
     } catch (error: any) {
@@ -930,8 +996,25 @@ export default function AdminWebhookConfig() {
             {/* Existing URL (no fresh generation yet) */}
             {selectedConfig?.webhookUrl && !generatedWebhook && (
               <div className="space-y-3">
+                {webhookStatus?.isExpired && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      Webhook URL and secret expired. Inbound webhooks are rejected. Please regenerate.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Current Webhook URL</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Current Webhook URL</Label>
+                    {!webhookStatusLoading && webhookStatus && (
+                      <WebhookExpiryBadge
+                        isExpired={webhookStatus.isExpired}
+                        expiresAt={webhookStatus.expiresAt}
+                        remainingDays={webhookStatus.remainingDays}
+                      />
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <Input value={selectedConfig.webhookUrl} readOnly className="font-mono text-xs" />
                     <Button variant="outline" size="icon" onClick={() => copyToClipboard(selectedConfig.webhookUrl!, 'Webhook URL')}>
@@ -982,7 +1065,41 @@ export default function AdminWebhookConfig() {
             )}
 
             {/* Regenerate / Generate action */}
-            <div className="space-y-2 pt-1 border-t">
+            <div className="space-y-3 pt-1 border-t">
+              {!generatedWebhook && (
+                <div className="space-y-3 pt-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Authentication Mode</Label>
+                    <Select value={selectedAuthMode} onValueChange={setSelectedAuthMode}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AUTH_MODE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Lifespan</Label>
+                    <Select value={selectedLifespan} onValueChange={setSelectedLifespan}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LIFESPAN_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
               {selectedConfig?.webhookUrl ? (
                 <>
                   <AlertDialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>

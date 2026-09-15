@@ -3,7 +3,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileJson, Save, Loader2, Edit, Eye, Settings, Calendar, Clock, ArrowLeft, Server, Plus, Check, ChevronRight, ChevronLeft, Link2, Unlink } from 'lucide-react';
+import {
+  FileJson, Save, Loader2, Edit, Eye, Settings, Calendar, Clock, ArrowLeft, Server, Plus, Check,
+  ChevronRight, ChevronLeft, Link2, Unlink, Sparkles, PenLine, PlayCircle, CheckCircle2, XCircle,
+  ChevronDown, X, RefreshCw,
+} from 'lucide-react';
 import { getAdminApiClient } from '@/lib/api/client';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
@@ -27,11 +31,103 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { extractJsonWithMetadata } from '@/lib/schema/firs-extractor';
 import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
 import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import type {
+  FieldMapping,
+  ArrayMapping,
+  MappingTemplate,
+  NrsSchema,
+  NrsSchemaField,
+  MappingTestResult,
+  TransformType,
+} from '@/types/mapping';
+
+// The backend's `is_required` flag on NRS schema fields is currently
+// unreliable (observed false even on fields whose validation_rules says
+// "required"), so treat either signal as authoritative.
+function isFieldRequired(f: Pick<NrsSchemaField, 'is_required' | 'validation_rules'>): boolean {
+  return !!f.is_required || /required/i.test(f.validation_rules || '');
+}
+
+interface ValidationIssue {
+  field?: string;
+  message: string;
+}
+
+// The mapping.test/mapping.save endpoints can fail with two structurally
+// different `details` shapes: Elysia's own request-body schema validation
+// (before any business logic runs) sends
+// `{ on, message, fields: Record<fieldPath, message> }`, while the mapping
+// engine's own gatekeeper (once its backend bug — see handleSave — is
+// fixed) sends `[{ message }, ...]`. Handle both.
+function parseApiValidationErrors(errorValue: any): ValidationIssue[] {
+  const fields = errorValue?.details?.fields;
+  if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
+    return Object.entries(fields).map(([field, message]) => ({ field, message: String(message) }));
+  }
+  if (Array.isArray(errorValue?.details)) {
+    return errorValue.details
+      .map((d: any) => (typeof d === 'string' ? { message: d } : d?.message ? { field: d.field, message: d.message } : null))
+      .filter(Boolean);
+  }
+  return [];
+}
+
+// Two-column Field/Issue table for structured validation failures (a rejected
+// request body, or the mapping gatekeeper's per-field errors).
+function ValidationIssuesTable({ issues }: { issues: ValidationIssue[] }) {
+  return (
+    <div className="border rounded-md overflow-hidden mt-2">
+      <div className="max-h-[280px] overflow-y-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-muted">
+            <tr className="text-left text-xs text-muted-foreground">
+              <th className="px-3 py-2 font-medium w-2/5">Field</th>
+              <th className="px-3 py-2 font-medium">Issue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {issues.map((issue, idx) => (
+              <tr key={idx} className="border-t border-border/50">
+                <td className="px-3 py-2 align-top">
+                  {issue.field ? (
+                    <code className="text-xs font-mono break-all">{issue.field}</code>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 align-top text-muted-foreground">{issue.message}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Single-column bordered list for plain message strings (no field data to
+// split out) — e.g. the deterministic transform's own errors/missing fields.
+function IssuesList({ items }: { items: string[] }) {
+  return (
+    <div className="border rounded-md overflow-hidden mt-2">
+      <div className="max-h-[240px] overflow-y-auto divide-y divide-border/50">
+        {items.map((item, idx) => (
+          <div key={idx} className="px-3 py-2 text-sm flex items-start gap-2">
+            <span className="text-muted-foreground shrink-0">•</span>
+            <span>{item}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface ErpSupport {
   _id?: string;
@@ -56,23 +152,43 @@ interface ErpListItem {
   last_updated: Date;
 }
 
-interface FirsDictionaryField {
-  field_id: string;
-  field_path: string;
-  data_type: string;
-  format: string;
-  validation_rules: string;
-  description: string;
-  example_value: any;
-  is_required: boolean;
-  is_array: boolean;
-  enum_values: any[];
-  mapping_hints: any[];
+interface PickerField {
+  key: string;
+  type?: string;
+  required?: boolean;
 }
 
-interface MappingRule {
-  source: string;
-  target: string;
+const TRANSFORM_OPTIONS: { value: TransformType | 'none'; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'toDate', label: 'To Date' },
+  { value: 'toTime', label: 'To Time' },
+  { value: 'toNumber', label: 'To Number' },
+  { value: 'toString', label: 'To String' },
+  { value: 'trim', label: 'Trim' },
+  { value: 'uppercase', label: 'Uppercase' },
+  { value: 'lowercase', label: 'Lowercase' },
+  { value: 'sanitizePhone', label: 'Sanitize Phone' },
+  { value: 'sanitizeHsn', label: 'Sanitize HSN' },
+];
+
+/** List dot-notation paths of every array-valued field in an object */
+function findArrayPaths(obj: any, prefix = ''): string[] {
+  const paths: string[] = [];
+  if (!obj || typeof obj !== 'object') return paths;
+  for (const [k, v] of Object.entries(obj)) {
+    const fullKey = prefix ? `${prefix}.${k}` : k;
+    if (Array.isArray(v)) {
+      paths.push(fullKey);
+    } else if (v && typeof v === 'object') {
+      paths.push(...findArrayPaths(v, fullKey));
+    }
+  }
+  return paths;
+}
+
+function resolvePath(obj: any, path: string): any {
+  if (!obj || !path) return undefined;
+  return path.split('.').reduce((acc: any, seg) => (acc == null ? undefined : acc[seg]), obj);
 }
 
 /**
@@ -89,7 +205,7 @@ export enum SchemaStatus {
 const CONFIG_STEPS = [
   { id: 'setup', label: 'Setup', description: 'ERP type & status' },
   { id: 'schema', label: 'Schema', description: 'Invoice & metadata' },
-  { id: 'mapping', label: 'Field Mapping', description: 'Map to NRS UBL' },
+  { id: 'mapping', label: 'Field Mapping', description: 'Map to NRS schema' },
 ] as const;
 
 type ConfigStep = typeof CONFIG_STEPS[number]['id'];
@@ -126,6 +242,321 @@ function flattenObject(obj: any, prefix = ''): { key: string; type: string }[] {
   return result;
 }
 
+// Reusable click-to-connect source/target picker — used for both the
+// top-level field mapper and each array mapping's nested item mapper.
+function ConnectMapper({
+  sourceFields,
+  targetFields,
+  mappings,
+  onConnect,
+  onRemoveBySource,
+  onRemoveByTarget,
+  sourceLabel,
+  targetLabel,
+  onAddCustomTarget,
+}: {
+  sourceFields: PickerField[];
+  targetFields: PickerField[];
+  mappings: FieldMapping[];
+  onConnect: (source: string, target: string) => void;
+  onRemoveBySource: (source: string) => void;
+  onRemoveByTarget: (target: string) => void;
+  sourceLabel: string;
+  targetLabel: string;
+  onAddCustomTarget?: (path: string) => void;
+}) {
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
+  const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
+  const [sourceSearch, setSourceSearch] = useState('');
+  const [targetSearch, setTargetSearch] = useState('');
+  const [customTarget, setCustomTarget] = useState('');
+
+  const filteredSource = useMemo(() => {
+    if (!sourceSearch) return sourceFields;
+    const q = sourceSearch.toLowerCase();
+    return sourceFields.filter((f) => f.key.toLowerCase().includes(q));
+  }, [sourceSearch, sourceFields]);
+
+  const filteredTarget = useMemo(() => {
+    if (!targetSearch) return targetFields;
+    const q = targetSearch.toLowerCase();
+    return targetFields.filter((f) => f.key.toLowerCase().includes(q));
+  }, [targetSearch, targetFields]);
+
+  const getForSource = (key: string) => mappings.filter((m) => m.source === key);
+  const getForTarget = (key: string) => mappings.filter((m) => m.target === key);
+
+  useEffect(() => {
+    if (selectedSource && selectedTarget) {
+      onConnect(selectedSource, selectedTarget);
+      setSelectedSource(null);
+      setSelectedTarget(null);
+    }
+  }, [selectedSource, selectedTarget]);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Server className="w-4 h-4" />
+            {sourceLabel}
+          </CardTitle>
+          <Input
+            placeholder="Search..."
+            value={sourceSearch}
+            onChange={(e) => setSourceSearch(e.target.value)}
+            className="mt-2 h-8"
+          />
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="h-[320px]">
+            <div className="space-y-0.5 p-3">
+              {filteredSource.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-6">No fields available</p>
+              )}
+              {filteredSource.map((field) => {
+                const mapped = getForSource(field.key);
+                const isMapped = mapped.length > 0;
+                const isSelected = selectedSource === field.key;
+                return (
+                  <div
+                    key={field.key}
+                    className={cn(
+                      'flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors text-sm group',
+                      isSelected && 'bg-primary/10 border border-primary/30',
+                      isMapped && !isSelected && 'bg-success/5 border border-success/20',
+                      !isMapped && !isSelected && 'hover:bg-muted/50 border border-transparent'
+                    )}
+                    onClick={() => setSelectedSource(isSelected ? null : field.key)}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <code className="text-xs font-mono truncate">{field.key}</code>
+                      {field.type && <Badge variant="outline" className="text-[10px] shrink-0">{field.type}</Badge>}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isMapped && <Badge variant="secondary" className="text-[10px]">{mapped.length}</Badge>}
+                      {isMapped && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveBySource(field.key);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/10 rounded"
+                          title="Remove mapping"
+                        >
+                          <Unlink className="w-3 h-3 text-destructive" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileJson className="w-4 h-4" />
+            {targetLabel}
+          </CardTitle>
+          <Input
+            placeholder="Search..."
+            value={targetSearch}
+            onChange={(e) => setTargetSearch(e.target.value)}
+            className="mt-2 h-8"
+          />
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="h-[320px]">
+            <div className="space-y-0.5 p-3">
+              {filteredTarget.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-6">No fields available</p>
+              )}
+              {filteredTarget.map((field) => {
+                const mapped = getForTarget(field.key);
+                const isMapped = mapped.length > 0;
+                const isSelected = selectedTarget === field.key;
+                return (
+                  <div
+                    key={field.key}
+                    className={cn(
+                      'flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors text-sm group',
+                      isSelected && 'bg-primary/10 border border-primary/30',
+                      isMapped && !isSelected && 'bg-success/5 border border-success/20',
+                      !isMapped && !isSelected && 'hover:bg-muted/50 border border-transparent'
+                    )}
+                    onClick={() => setSelectedTarget(isSelected ? null : field.key)}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <code className="text-xs font-mono truncate">{field.key}</code>
+                      {field.required && (
+                        <Badge className="bg-destructive/10 text-destructive text-[10px] shrink-0">Required</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isMapped && <Badge variant="secondary" className="text-[10px]">{mapped.length}</Badge>}
+                      {isMapped && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveByTarget(field.key);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/10 rounded"
+                          title="Remove mapping"
+                        >
+                          <Unlink className="w-3 h-3 text-destructive" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </CardContent>
+        {onAddCustomTarget && (
+          <div className="flex items-center gap-2 p-3 border-t">
+            <Input
+              placeholder="Add custom target path..."
+              value={customTarget}
+              onChange={(e) => setCustomTarget(e.target.value)}
+              className="h-8 text-xs"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 shrink-0"
+              disabled={!customTarget.trim()}
+              onClick={() => {
+                onAddCustomTarget(customTarget.trim());
+                setCustomTarget('');
+              }}
+            >
+              <Plus className="w-3 h-3" />
+            </Button>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// Expandable row for one field mapping — reveals transform, fallback
+// sources, and default value controls, reused for both top-level and
+// per-array item mappings.
+function MappingRow({
+  mapping,
+  onRemove,
+  onChange,
+}: {
+  mapping: FieldMapping;
+  onRemove: () => void;
+  onChange: (patch: Partial<FieldMapping>) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [newFallback, setNewFallback] = useState('');
+
+  return (
+    <div className="rounded-md bg-muted/30">
+      <div className="flex items-center gap-2 px-3 py-2 text-sm group">
+        <button onClick={() => setExpanded((e) => !e)} className="p-0.5 hover:bg-muted rounded shrink-0">
+          <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', expanded && 'rotate-180')} />
+        </button>
+        <code className="text-xs font-mono text-primary flex-1 truncate">{mapping.source}</code>
+        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        <code className="text-xs font-mono text-success flex-1 truncate">{mapping.target}</code>
+        {mapping.required && (
+          <Badge className="bg-destructive/10 text-destructive text-[10px] shrink-0">Required</Badge>
+        )}
+        {mapping.transform && <Badge variant="outline" className="text-[10px] shrink-0">{mapping.transform}</Badge>}
+        <button
+          onClick={onRemove}
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded shrink-0"
+          title="Remove mapping"
+        >
+          <Unlink className="w-3 h-3 text-destructive" />
+        </button>
+      </div>
+      {expanded && (
+        <div className="px-3 pb-3 pt-1 space-y-3 border-t border-border/50">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Transform</Label>
+              <Select
+                value={mapping.transform || 'none'}
+                onValueChange={(v) => onChange({ transform: v === 'none' ? undefined : (v as TransformType) })}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRANSFORM_OPTIONS.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Default Value</Label>
+              <Input
+                className="h-8 text-xs"
+                placeholder="Used when source is empty"
+                value={mapping.default_value !== undefined && mapping.default_value !== null ? String(mapping.default_value) : ''}
+                onChange={(e) => onChange({ default_value: e.target.value || undefined })}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Fallback Sources</Label>
+            {(mapping.fallback_sources || []).length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {(mapping.fallback_sources || []).map((fb, i) => (
+                  <Badge key={`${fb}-${i}`} variant="secondary" className="text-[10px] gap-1">
+                    <code>{fb}</code>
+                    <button
+                      onClick={() =>
+                        onChange({ fallback_sources: (mapping.fallback_sources || []).filter((_, idx) => idx !== i) })
+                      }
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Input
+                className="h-8 text-xs"
+                placeholder="Add fallback source path..."
+                value={newFallback}
+                onChange={(e) => setNewFallback(e.target.value)}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0"
+                disabled={!newFallback.trim()}
+                onClick={() => {
+                  onChange({ fallback_sources: [...(mapping.fallback_sources || []), newFallback.trim()] });
+                  setNewFallback('');
+                }}
+              >
+                <Plus className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminErpSupport() {
   const api = getAdminApiClient();
   const pathname = usePathname();
@@ -150,9 +581,23 @@ export default function AdminErpSupport() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [configStep, setConfigStep] = useState<ConfigStep>('setup');
-  const [firsFields, setFirsFields] = useState<FirsDictionaryField[]>([]);
-  const [firsLoading, setFirsLoading] = useState(false);
-  const [mappingData, setMappingData] = useState<MappingRule[]>([]);
+  const [mappingData, setMappingData] = useState<FieldMapping[]>([]);
+  const [arrayMappings, setArrayMappings] = useState<ArrayMapping[]>([]);
+  const [nrsSchemas, setNrsSchemas] = useState<NrsSchema[]>([]);
+  const [nrsLoading, setNrsLoading] = useState(false);
+  const [nrsError, setNrsError] = useState<string | null>(null);
+  const [selectedNrsVersion, setSelectedNrsVersion] = useState('');
+  const [mappingMode, setMappingMode] = useState<'ai' | 'manual' | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [extraTargets, setExtraTargets] = useState<string[]>([]);
+  const [extraItemTargets, setExtraItemTargets] = useState<string[]>([]);
+  const [newArraySource, setNewArraySource] = useState('');
+  const [newArrayTarget, setNewArrayTarget] = useState('');
+  const [expandedArrayIdx, setExpandedArrayIdx] = useState<number | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<MappingTestResult | null>(null);
+  const [testRequestErrors, setTestRequestErrors] = useState<ValidationIssue[] | null>(null);
+  const [saveErrors, setSaveErrors] = useState<ValidationIssue[] | null>(null);
   const [mappingCanvasRef, setMappingCanvasRef] = useState<any>(null);
   const invoiceEditorRef = useRef<any>(null);
   const metadataEditorRef = useRef<any>(null);
@@ -167,6 +612,7 @@ export default function AdminErpSupport() {
       key: 'status',
       label: 'Status',
       options: [
+        { value: 'all', label: 'All Statuses' },
         { value: SchemaStatus.ACTIVE, label: 'Active' },
         { value: SchemaStatus.DRAFT, label: 'Draft' },
         { value: SchemaStatus.DEPRECATED, label: 'Deprecated' },
@@ -197,26 +643,35 @@ export default function AdminErpSupport() {
     }
   };
 
-  const fetchFirsDictionary = async () => {
-    setFirsLoading(true);
+  const fetchNrsSchemas = async () => {
+    setNrsLoading(true);
+    setNrsError(null);
     try {
-      const response = await api.v1.admin.config['firs-dictionary'].get();
+      const response = await (api as any).v1.workflow.transform['nrs-schemas'].get();
       if (response.error) {
-        const errorValue = (response.error as any)?.value;
-        if (errorValue?.statusCode === 404 || errorValue?.error?.includes('not found')) {
-          setFirsFields([]);
+        setNrsError((response.error as any)?.value?.error || 'Failed to load NRS schemas');
+        setNrsSchemas([]);
+      } else {
+        const data = response.data?.data ?? response.data ?? [];
+        // Backend may return either an array of schemas or a version-keyed
+        // map (e.g. { "1.0": {...} }) — handle both, backfilling `version`
+        // from the map key when the entry itself doesn't carry one.
+        let schemas: NrsSchema[] = [];
+        if (Array.isArray(data)) {
+          schemas = data;
+        } else if (data && typeof data === 'object') {
+          schemas = Object.entries(data).map(([key, value]: [string, any]) => ({
+            ...value,
+            version: value?.version || key,
+          }));
         }
-      } else if (response.data && 'data' in response.data && response.data.data) {
-        const data = response.data.data as any;
-        if (data.fields && Array.isArray(data.fields)) {
-          setFirsFields(data.fields);
-        }
+        setNrsSchemas(schemas);
       }
-    } catch {
-      // Silently fail - NRS dictionary may not exist yet
-      setFirsFields([]);
+    } catch (error: any) {
+      setNrsError(error?.message || 'Failed to load NRS schemas');
+      setNrsSchemas([]);
     } finally {
-      setFirsLoading(false);
+      setNrsLoading(false);
     }
   };
 
@@ -232,6 +687,9 @@ export default function AdminErpSupport() {
           setInvoiceJson('{}');
           setMetadataJson('{}');
           setMappingData([]);
+          setArrayMappings([]);
+          setSelectedNrsVersion('');
+          setMappingMode(null);
         } else {
           toast.error(errorValue?.error || 'Failed to fetch ERP support');
           setCurrentErp(null);
@@ -255,14 +713,23 @@ export default function AdminErpSupport() {
           } else {
             setStatus(SchemaStatus.ACTIVE);
           }
-          // Restore mapping rules from metadata
-          if (data.metadata.mapping_rules && Array.isArray(data.metadata.mapping_rules)) {
-            setMappingData(data.metadata.mapping_rules);
+          // Restore mapping rules from metadata — prefer the new richer shape,
+          // falling back to the legacy flat {source,target}[] for ERPs configured
+          // before the mapping engine existed (a valid degenerate FieldMapping[]).
+          let restoredMappings: FieldMapping[] = [];
+          if (data.metadata.field_mappings && Array.isArray(data.metadata.field_mappings)) {
+            restoredMappings = data.metadata.field_mappings;
+          } else if (data.metadata.mapping_rules && Array.isArray(data.metadata.mapping_rules)) {
+            restoredMappings = data.metadata.mapping_rules;
           } else if (data.mapping_rules && Array.isArray(data.mapping_rules)) {
-            setMappingData(data.mapping_rules);
-          } else {
-            setMappingData([]);
+            restoredMappings = data.mapping_rules;
           }
+          setMappingData(restoredMappings);
+          setArrayMappings(
+            data.metadata.array_mappings && Array.isArray(data.metadata.array_mappings) ? data.metadata.array_mappings : []
+          );
+          setSelectedNrsVersion(data.metadata.nrs_schema_version || '');
+          setMappingMode(restoredMappings.length > 0 ? 'manual' : null);
         } else {
           setMetadataJson('{}');
           if (data.status) {
@@ -270,12 +737,15 @@ export default function AdminErpSupport() {
           } else {
             setStatus(SchemaStatus.ACTIVE);
           }
-          if (data.mapping_rules && Array.isArray(data.mapping_rules)) {
-            setMappingData(data.mapping_rules);
-          } else {
-            setMappingData([]);
-          }
+          const restoredMappings: FieldMapping[] = data.mapping_rules && Array.isArray(data.mapping_rules) ? data.mapping_rules : [];
+          setMappingData(restoredMappings);
+          setArrayMappings([]);
+          setSelectedNrsVersion('');
+          setMappingMode(restoredMappings.length > 0 ? 'manual' : null);
         }
+        setTestResult(null);
+        setTestRequestErrors(null);
+        setSaveErrors(null);
       }
     } catch (error: any) {
       toast.error(error?.message || 'Failed to fetch ERP support');
@@ -288,7 +758,7 @@ export default function AdminErpSupport() {
   useEffect(() => {
     if (pathname) {
       fetchErpList();
-      fetchFirsDictionary();
+      fetchNrsSchemas();
     }
   }, [pathname]);
 
@@ -310,15 +780,60 @@ export default function AdminErpSupport() {
     }
   }, [invoiceJson]);
 
-  // Derive NRS target fields from the dictionary
-  const firsTargetFields = useMemo(() => {
-    return firsFields.map((f) => ({
-      key: f.field_path || f.field_id,
+  // Raw (unflattened) sample invoice — the payload shape needed by the
+  // mapping engine's generate/test/save endpoints. Mirrors erpSourceFields'
+  // own source_invoice_sample fallback so both stay in sync.
+  const parsedSampleInvoice = useMemo(() => {
+    try {
+      const parsedMetaData = JSON.parse(metadataJson);
+      return parsedMetaData && parsedMetaData?.source_invoice_sample ? parsedMetaData.source_invoice_sample : JSON.parse(invoiceJson);
+    } catch {
+      return null;
+    }
+  }, [invoiceJson, metadataJson]);
+
+  const selectedSchema = useMemo(
+    () => nrsSchemas.find((s) => s.version === selectedNrsVersion) || null,
+    [nrsSchemas, selectedNrsVersion]
+  );
+
+  // Top-level mapper source fields (drop [*] array-item entries — those are
+  // handled by the array mappings sub-section instead)
+  const topSourceFields = useMemo(() => erpSourceFields.filter((f) => !f.key.includes('[*]')), [erpSourceFields]);
+
+  // Top-level target fields: every schema field whose path isn't inside an
+  // array item (those live under the array's own target-path scope instead).
+  const topTargetFields = useMemo(() => {
+    const schemaFields = (selectedSchema?.fields || []).filter((f) => !f.field_path.includes('[*]'));
+    const known = schemaFields.map((f) => ({ key: f.field_path, type: f.data_type, required: isFieldRequired(f) }));
+    const knownKeys = new Set(known.map((k) => k.key));
+    const extras = extraTargets.filter((f) => !knownKeys.has(f)).map((f) => ({ key: f, required: false }));
+    return [...known, ...extras];
+  }, [selectedSchema, extraTargets]);
+
+  // Item target fields are scoped per array mapping — the schema encodes
+  // them as "<targetArrayPath>[*].<field>", so relativize to just <field>.
+  const getItemTargetFields = (targetArrayPath: string): PickerField[] => {
+    if (!selectedSchema || !targetArrayPath) return [];
+    const prefix = `${targetArrayPath}[*].`;
+    const schemaFields = (selectedSchema.fields || []).filter((f) => f.field_path.startsWith(prefix));
+    const known = schemaFields.map((f) => ({
+      key: f.field_path.slice(prefix.length),
       type: f.data_type,
-      required: f.is_required,
-      description: f.description,
+      required: isFieldRequired(f),
     }));
-  }, [firsFields]);
+    const knownKeys = new Set(known.map((k) => k.key));
+    const extras = extraItemTargets.filter((f) => !knownKeys.has(f)).map((f) => ({ key: f, required: false }));
+    return [...known, ...extras];
+  };
+
+  const arraySourcePaths = useMemo(() => findArrayPaths(parsedSampleInvoice), [parsedSampleInvoice]);
+
+  const getItemSourceFields = (sourceArrayPath: string): PickerField[] => {
+    const arr = resolvePath(parsedSampleInvoice, sourceArrayPath);
+    if (!Array.isArray(arr) || arr.length === 0 || typeof arr[0] !== 'object' || arr[0] === null) return [];
+    return flattenObject(arr[0]);
+  };
 
   const validateJson = (jsonString: string): { valid: boolean; error?: string } => {
     try {
@@ -353,9 +868,185 @@ export default function AdminErpSupport() {
     }
   };
 
+  // Top-level field mapping helpers
+  const addFieldMapping = useCallback(
+    (source: string, target: string) => {
+      setMappingData((prev) => {
+        if (prev.some((m) => m.source === source && m.target === target)) return prev;
+        const schemaField = (selectedSchema?.fields || []).find((f) => f.field_path === target);
+        const required = schemaField ? isFieldRequired(schemaField) : false;
+        return [...prev, { source, target, required }];
+      });
+    },
+    [selectedSchema]
+  );
+
+  const removeFieldMappingBySource = useCallback((source: string) => {
+    setMappingData((prev) => prev.filter((m) => m.source !== source));
+  }, []);
+
+  const removeFieldMappingByTarget = useCallback((target: string) => {
+    setMappingData((prev) => prev.filter((m) => m.target !== target));
+  }, []);
+
+  const removeFieldMappingAt = useCallback((index: number) => {
+    setMappingData((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const updateFieldMapping = useCallback((index: number, patch: Partial<FieldMapping>) => {
+    setMappingData((prev) => prev.map((m, i) => (i === index ? { ...m, ...patch } : m)));
+  }, []);
+
+  // Array mapping helpers
+  const addArrayMapping = () => {
+    if (!newArraySource.trim() || !newArrayTarget.trim()) return;
+    setArrayMappings((prev) => [
+      ...prev,
+      { source_array_path: newArraySource.trim(), target_array_path: newArrayTarget.trim(), item_mappings: [] },
+    ]);
+    setNewArraySource('');
+    setNewArrayTarget('');
+  };
+
+  const removeArrayMapping = (idx: number) => {
+    setArrayMappings((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const addItemMapping = (arrIdx: number, source: string, target: string) => {
+    setArrayMappings((prev) =>
+      prev.map((am, i) => {
+        if (i !== arrIdx) return am;
+        if (am.item_mappings.some((m) => m.source === source && m.target === target)) return am;
+        const fullPath = `${am.target_array_path}[*].${target}`;
+        const schemaField = (selectedSchema?.fields || []).find((f) => f.field_path === fullPath);
+        const required = schemaField ? isFieldRequired(schemaField) : false;
+        return { ...am, item_mappings: [...am.item_mappings, { source, target, required }] };
+      })
+    );
+  };
+
+  const removeItemMappingBySource = (arrIdx: number, source: string) => {
+    setArrayMappings((prev) =>
+      prev.map((am, i) => (i === arrIdx ? { ...am, item_mappings: am.item_mappings.filter((m) => m.source !== source) } : am))
+    );
+  };
+
+  const removeItemMappingByTarget = (arrIdx: number, target: string) => {
+    setArrayMappings((prev) =>
+      prev.map((am, i) => (i === arrIdx ? { ...am, item_mappings: am.item_mappings.filter((m) => m.target !== target) } : am))
+    );
+  };
+
+  const removeItemMappingAt = (arrIdx: number, itemIdx: number) => {
+    setArrayMappings((prev) =>
+      prev.map((am, i) => (i === arrIdx ? { ...am, item_mappings: am.item_mappings.filter((_, j) => j !== itemIdx) } : am))
+    );
+  };
+
+  const updateItemMapping = (arrIdx: number, itemIdx: number, patch: Partial<FieldMapping>) => {
+    setArrayMappings((prev) =>
+      prev.map((am, i) =>
+        i === arrIdx ? { ...am, item_mappings: am.item_mappings.map((m, j) => (j === itemIdx ? { ...m, ...patch } : m)) } : am
+      )
+    );
+  };
+
+  const handleGenerate = async () => {
+    if (!parsedSampleInvoice) return;
+    setGenerating(true);
+    try {
+      const response = await (api as any).v1.workflow.transform.mapping.generate.post({
+        erp: effectiveErp,
+        sample_invoice: parsedSampleInvoice,
+        nrs_version: selectedNrsVersion,
+      });
+      if (response.error) {
+        toast.error((response.error as any)?.value?.error || 'Failed to generate mapping template');
+        return;
+      }
+      // POST /mapping/generate is a synchronous design-time draft — the full
+      // template comes back inline in the response body as data.template
+      // (not data itself), and is never persisted until Save & Activate.
+      const template: MappingTemplate = response.data?.data?.template;
+      const nextFieldMappings = template?.field_mappings || [];
+      const nextArrayMappings = template?.array_mappings || [];
+      setMappingData(nextFieldMappings);
+      setArrayMappings(nextArrayMappings);
+
+      const reqFields = new Set(
+        (selectedSchema?.fields || []).filter((f) => !f.field_path.includes('[*]') && isFieldRequired(f)).map((f) => f.field_path)
+      );
+      setExtraTargets(Array.from(new Set(nextFieldMappings.map((m) => m.target).filter((t) => !reqFields.has(t)))));
+
+      const reqItemFieldsByArray = new Set(
+        nextArrayMappings.flatMap((am) => {
+          const prefix = `${am.target_array_path}[*].`;
+          return (selectedSchema?.fields || [])
+            .filter((f) => f.field_path.startsWith(prefix) && isFieldRequired(f))
+            .map((f) => f.field_path.slice(prefix.length));
+        })
+      );
+      setExtraItemTargets(
+        Array.from(
+          new Set(
+            nextArrayMappings.flatMap((am) => am.item_mappings.map((m) => m.target)).filter((t) => !reqItemFieldsByArray.has(t))
+          )
+        )
+      );
+
+      toast.success('AI-generated mapping template ready — review and adjust as needed');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to generate mapping template');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleTest = async () => {
+    if (!parsedSampleInvoice) return;
+    setTesting(true);
+    setTestResult(null);
+    setTestRequestErrors(null);
+    try {
+      const template: MappingTemplate = {
+        erp_source: effectiveErp,
+        nrs_schema_version: selectedNrsVersion,
+        field_mappings: mappingData,
+        array_mappings: arrayMappings,
+      };
+      const response = await (api as any).v1.workflow.transform.mapping.test.post({
+        sample_invoice: parsedSampleInvoice,
+        template,
+      });
+      if (response.error) {
+        const errorValue = (response.error as any)?.value;
+        const errors = parseApiValidationErrors(errorValue);
+        if (errors.length > 0) {
+          setTestRequestErrors(errors);
+          toast.error(errorValue?.details?.message || errorValue?.error || 'Mapping test failed');
+        } else {
+          toast.error(errorValue?.error || 'Mapping test failed');
+        }
+        return;
+      }
+      const result: MappingTestResult = response.data?.data ?? response.data;
+      setTestResult(result);
+    } catch (error: any) {
+      toast.error(error?.message || 'Mapping test failed');
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!effectiveErp) {
       toast.error('Please select or enter an ERP type');
+      return;
+    }
+
+    if (!selectedNrsVersion) {
+      toast.error('Select an NRS target schema first');
+      setConfigStep('setup');
       return;
     }
 
@@ -376,15 +1067,61 @@ export default function AdminErpSupport() {
       return;
     }
 
+    if (mappingData.length === 0) {
+      toast.error('Add at least one field mapping first');
+      setConfigStep('mapping');
+      return;
+    }
+
     setSaving(true);
+    setSaveErrors(null);
     try {
       const invoiceData = JSON.parse(invoiceJson);
       const metadataData = JSON.parse(metadataJson);
 
+      // The mapping engine's own gatekeeper validates the template first —
+      // if it rejects, we stop here and never touch the ERP support record.
+      const template: MappingTemplate = {
+        erp_source: effectiveErp,
+        nrs_schema_version: selectedNrsVersion,
+        field_mappings: mappingData,
+        array_mappings: arrayMappings,
+      };
+      const mapResponse = await (api as any).v1.workflow.transform.mapping.save.post({
+        erp: effectiveErp,
+        sample_invoice: invoiceData,
+        template,
+      });
+
+      if (mapResponse.error) {
+        const errorValue = (mapResponse.error as any)?.value;
+        // Two distinct rejection sources share this same 400 path: Elysia's
+        // own request-schema validation (details.fields, checked by
+        // parseApiValidationErrors) fires before any business logic runs;
+        // the mapping engine's own gatekeeper is *meant* to send
+        // details: [{ message }, ...] on a semantically-invalid-but-well-
+        // formed template, but as of transform.routes.ts:165 that path is
+        // currently broken backend-side (error.errors never reaches
+        // ResponseBuilder.error) — this still checks for it so it starts
+        // working the moment that ships, with no frontend change needed.
+        const errors = parseApiValidationErrors(errorValue);
+        if (errors.length > 0) {
+          setSaveErrors(errors);
+          toast.error(errorValue?.details?.message || 'Mapping failed validation — see errors below');
+        } else {
+          toast.error(errorValue?.error || 'Failed to save mapping template');
+        }
+        return;
+      }
+      setSaveErrors(null);
+
       const metadataWithStatus = {
         ...metadataData,
         status: status,
-        mapping_rules: mappingData,
+        nrs_schema_version: selectedNrsVersion,
+        field_mappings: mappingData,
+        array_mappings: arrayMappings,
+        mapping_rules: mappingData.map(({ source, target }) => ({ source, target })),
       };
 
       const response = await api.v1.admin.config['supported-erps'].post({
@@ -394,10 +1131,10 @@ export default function AdminErpSupport() {
       });
 
       if (response.error) {
-        const errorMessage = (response.error as any)?.value?.error || 'Failed to save ERP support';
+        const errorMessage = (response.error as any)?.value?.error || 'Mapping activated, but failed to update ERP support record';
         toast.error(errorMessage);
       } else if (response.data?.data) {
-        toast.success('ERP support saved successfully');
+        toast.success('ERP mapping saved and activated');
         await fetchErpList();
         await fetchErpSupport(effectiveErp);
         setShowConfig(false);
@@ -443,6 +1180,14 @@ export default function AdminErpSupport() {
     setInvoiceJson('{}');
     setMetadataJson('{}');
     setMappingData([]);
+    setArrayMappings([]);
+    setSelectedNrsVersion('');
+    setMappingMode(null);
+    setExtraTargets([]);
+    setExtraItemTargets([]);
+    setTestResult(null);
+    setTestRequestErrors(null);
+    setSaveErrors(null);
     setStatus(SchemaStatus.DRAFT);
     setInvoiceError(null);
     setMetadataError(null);
@@ -472,6 +1217,11 @@ export default function AdminErpSupport() {
     setMetadataError(null);
     setUseCustomErp(false);
     setCustomErpName('');
+    setTestResult(null);
+    setTestRequestErrors(null);
+    setSaveErrors(null);
+    setExtraTargets([]);
+    setExtraItemTargets([]);
   };
 
   const handleProcessPayload = () => {
@@ -509,7 +1259,7 @@ export default function AdminErpSupport() {
     }
   };
 
-  const canProceedFromSetup = !!effectiveErp;
+  const canProceedFromSetup = !!effectiveErp && !!selectedNrsVersion;
   const canProceedFromSchema = !invoiceError && !metadataError && invoiceJson !== '{}';
 
   const handleNextStep = () => {
@@ -525,27 +1275,6 @@ export default function AdminErpSupport() {
       setConfigStep(CONFIG_STEPS[stepIdx - 1].id);
     }
   };
-
-  // Mapping helpers
-  const addMapping = useCallback((sourceKey: string, targetKey: string) => {
-    setMappingData(prev => {
-      // Don't add duplicates
-      if (prev.some(m => m.source === sourceKey && m.target === targetKey)) return prev;
-      return [...prev, { source: sourceKey, target: targetKey }];
-    });
-  }, []);
-
-  const removeMapping = useCallback((sourceKey: string, targetKey: string) => {
-    setMappingData(prev => prev.filter(m => !(m.source === sourceKey && m.target === targetKey)));
-  }, []);
-
-  const removeMappingBySource = useCallback((sourceKey: string) => {
-    setMappingData(prev => prev.filter(m => m.source !== sourceKey));
-  }, []);
-
-  const removeMappingByTarget = useCallback((targetKey: string) => {
-    setMappingData(prev => prev.filter(m => m.target !== targetKey));
-  }, []);
 
   // Stepper component
   const Stepper = () => (
@@ -658,44 +1387,8 @@ export default function AdminErpSupport() {
     </Dialog>
   );
 
-  // ===== Field Mapping Component (react-data-mapping) =====
+  // ===== Field Mapping Step (deterministic mapping engine) =====
   const FieldMappingStep = () => {
-    const [selectedSource, setSelectedSource] = useState<string | null>(null);
-    const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
-    const [sourceSearch, setSourceSearch] = useState('');
-    const [targetSearch, setTargetSearch] = useState('');
-
-    const filteredSourceFields = useMemo(() => {
-      if (!sourceSearch) return erpSourceFields;
-      const q = sourceSearch.toLowerCase();
-      return erpSourceFields.filter(f => f.key.toLowerCase().includes(q));
-    }, [sourceSearch, erpSourceFields]);
-
-    const filteredTargetFields = useMemo(() => {
-      if (!targetSearch) return firsTargetFields;
-      const q = targetSearch.toLowerCase();
-      return firsTargetFields.filter(f => f.key.toLowerCase().includes(q));
-    }, [targetSearch, firsTargetFields]);
-
-    // Get mappings for a source/target field
-    const getMappingsForSource = (key: string) => mappingData.filter(m => m.source === key);
-    const getMappingsForTarget = (key: string) => mappingData.filter(m => m.target === key);
-
-    const handleConnect = () => {
-      if (selectedSource && selectedTarget) {
-        addMapping(selectedSource, selectedTarget);
-        setSelectedSource(null);
-        setSelectedTarget(null);
-      }
-    };
-
-    // Auto-connect when both source and target are selected
-    useEffect(() => {
-      if (selectedSource && selectedTarget) {
-        handleConnect();
-      }
-    }, [selectedSource, selectedTarget]);
-
     if (erpSourceFields.length === 0) {
       return (
         <Card>
@@ -720,7 +1413,7 @@ export default function AdminErpSupport() {
       );
     }
 
-    if (firsTargetFields.length === 0 && !firsLoading) {
+    if (!selectedSchema) {
       return (
         <Card>
           <CardContent className="pt-12 pb-12">
@@ -729,11 +1422,15 @@ export default function AdminErpSupport() {
                 <FileJson className="w-8 h-8 text-muted-foreground" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold">NRS Dictionary not configured</h3>
+                <h3 className="text-lg font-semibold">No NRS schema selected</h3>
                 <p className="text-sm text-muted-foreground max-w-md">
-                  The NRS UBL Invoice Schema has not been set up yet. Configure it from the NRS Dictionary page to enable field mapping.
+                  Go back to the Setup step and select an NRS target schema version to enable field mapping.
                 </p>
               </div>
+              <Button variant="outline" onClick={() => setConfigStep('setup')} className="rounded-full mt-4">
+                <ChevronLeft className="w-4 h-4 mr-2" />
+                Back to Setup
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -741,12 +1438,66 @@ export default function AdminErpSupport() {
     }
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-6" ref={mappingContainerRef}>
+        {saveErrors && saveErrors.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTitle>Save Blocked — Validation Errors ({saveErrors.length})</AlertTitle>
+            <AlertDescription>
+              <ValidationIssuesTable issues={saveErrors} />
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Mode toggle */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card
+            className={cn('cursor-pointer transition-all', mappingMode === 'ai' && 'border-primary bg-primary/5 shadow-sm')}
+            onClick={() => setMappingMode('ai')}
+          >
+            <CardContent className="pt-6 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold">AI Auto-Generate</h3>
+                <p className="text-sm text-muted-foreground">
+                  Draft a starting mapping template automatically from the sample invoice and NRS schema, then refine it below.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card
+            className={cn('cursor-pointer transition-all', mappingMode === 'manual' && 'border-primary bg-primary/5 shadow-sm')}
+            onClick={() => setMappingMode('manual')}
+          >
+            <CardContent className="pt-6 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <PenLine className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Manual</h3>
+                <p className="text-sm text-muted-foreground">Connect every field yourself using the mapper below.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        {mappingMode === 'ai' && (
+          <div className="flex justify-end">
+            <Button onClick={handleGenerate} disabled={generating} className="rounded-full">
+              {generating ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</>
+              ) : (
+                <><Sparkles className="w-4 h-4 mr-2" />Generate with AI</>
+              )}
+            </Button>
+          </div>
+        )}
+
         {/* Mapping stats */}
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <span>{erpSourceFields.length} source fields</span>
+        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+          <span>{topSourceFields.length} source fields</span>
           <span>-</span>
-          <span>{firsTargetFields.length} target fields</span>
+          <span>{topTargetFields.length} target fields</span>
           <span>-</span>
           <Badge variant="secondary">{mappingData.length} mappings</Badge>
           {mappingData.length > 0 && (
@@ -762,236 +1513,366 @@ export default function AdminErpSupport() {
           )}
         </div>
 
-        {/* Mapping UI */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" ref={mappingContainerRef}>
-          {/* Source (ERP Fields) */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Server className="w-4 h-4" />
-                {effectiveErp} Fields
-              </CardTitle>
-              <Input
-                placeholder="Search source fields..."
-                value={sourceSearch}
-                onChange={(e) => setSourceSearch(e.target.value)}
-                className="mt-2"
-              />
-            </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[500px]">
-                <div className="space-y-0.5 p-3">
-                  {filteredSourceFields.map((field) => {
-                    const mappings = getMappingsForSource(field.key);
-                    const isMapped = mappings.length > 0;
-                    const isSelected = selectedSource === field.key;
-                    return (
-                      <div
-                        key={field.key}
-                        className={cn(
-                          'flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors text-sm group',
-                          isSelected && 'bg-primary/10 border border-primary/30',
-                          isMapped && !isSelected && 'bg-success/5 border border-success/20',
-                          !isMapped && !isSelected && 'hover:bg-muted/50 border border-transparent'
-                        )}
-                        onClick={() => setSelectedSource(isSelected ? null : field.key)}
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <code className="text-xs font-mono truncate">{field.key}</code>
-                          <Badge variant="outline" className="text-[10px] shrink-0">{field.type}</Badge>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {isMapped && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              {mappings.length}
-                            </Badge>
-                          )}
-                          {isMapped && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeMappingBySource(field.key);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/10 rounded"
-                              title="Remove mapping"
-                            >
-                              <Unlink className="w-3 h-3 text-destructive" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+        <ConnectMapper
+          sourceFields={topSourceFields}
+          targetFields={topTargetFields}
+          mappings={mappingData}
+          onConnect={addFieldMapping}
+          onRemoveBySource={removeFieldMappingBySource}
+          onRemoveByTarget={removeFieldMappingByTarget}
+          sourceLabel={`${effectiveErp} Fields`}
+          targetLabel="NRS Fields"
+          onAddCustomTarget={(path) => setExtraTargets((prev) => (prev.includes(path) ? prev : [...prev, path]))}
+        />
 
-          {/* Target (NRS UBL Fields) */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileJson className="w-4 h-4" />
-                NRS UBL Fields
-              </CardTitle>
-              <Input
-                placeholder="Search target fields..."
-                value={targetSearch}
-                onChange={(e) => setTargetSearch(e.target.value)}
-                className="mt-2"
-              />
-            </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[500px]">
-                <div className="space-y-0.5 p-3">
-                  {filteredTargetFields.map((field) => {
-                    const mappings = getMappingsForTarget(field.key);
-                    const isMapped = mappings.length > 0;
-                    const isSelected = selectedTarget === field.key;
-                    return (
-                      <div
-                        key={field.key}
-                        className={cn(
-                          'flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors text-sm group',
-                          isSelected && 'bg-primary/10 border border-primary/30',
-                          isMapped && !isSelected && 'bg-success/5 border border-success/20',
-                          !isMapped && !isSelected && 'hover:bg-muted/50 border border-transparent'
-                        )}
-                        onClick={() => setSelectedTarget(isSelected ? null : field.key)}
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <code className="text-xs font-mono truncate">{field.key}</code>
-                          <Badge variant="outline" className="text-[10px] shrink-0">{field.type}</Badge>
-                          {field.required && (
-                            <Badge className="bg-destructive/10 text-destructive text-[10px] shrink-0">req</Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {isMapped && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              {mappings.length}
-                            </Badge>
-                          )}
-                          {isMapped && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeMappingByTarget(field.key);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/10 rounded"
-                              title="Remove mapping"
-                            >
-                              <Unlink className="w-3 h-3 text-destructive" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Current Mappings */}
+        {/* Active Mappings */}
         {mappingData.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Active Mappings ({mappingData.length})</CardTitle>
-              <CardDescription>
-                Click the unlink icon to remove a mapping
-              </CardDescription>
+              <CardDescription>Expand a mapping to configure transform, fallback sources, or a default value</CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="max-h-[300px]">
+              <ScrollArea className="h-[320px]">
                 <div className="space-y-1">
-                  {mappingData.map((mapping, idx) => (
-                    <div
-                      key={`${mapping.source}-${mapping.target}-${idx}`}
-                      className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/30 group text-sm"
-                    >
-                      <code className="text-xs font-mono text-primary flex-1 truncate">{mapping.source}</code>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <code className="text-xs font-mono text-success flex-1 truncate">{mapping.target}</code>
-                      <button
-                        onClick={() => removeMapping(mapping.source, mapping.target)}
-                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded shrink-0"
-                        title="Remove mapping"
-                      >
-                        <Unlink className="w-3 h-3 text-destructive" />
-                      </button>
-                    </div>
+                  {mappingData.map((m, idx) => (
+                    <MappingRow
+                      key={`${m.source}-${m.target}-${idx}`}
+                      mapping={m}
+                      onRemove={() => removeFieldMappingAt(idx)}
+                      onChange={(patch) => updateFieldMapping(idx, patch)}
+                    />
                   ))}
                 </div>
               </ScrollArea>
             </CardContent>
           </Card>
         )}
+
+        {/* Array / Line-Item Mappings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Array / Line-Item Mappings</CardTitle>
+            <CardDescription>Map repeating structures (e.g. invoice line items) separately from top-level fields</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">Source Array Path</Label>
+                {arraySourcePaths.length > 0 ? (
+                  <Select value={newArraySource} onValueChange={setNewArraySource}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Select detected array..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {arraySourcePaths.map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="e.g. line_items"
+                    value={newArraySource}
+                    onChange={(e) => setNewArraySource(e.target.value)}
+                    className="h-9"
+                  />
+                )}
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">Target Array Path</Label>
+                <Input
+                  placeholder="e.g. invoice_line"
+                  value={newArrayTarget}
+                  onChange={(e) => setNewArrayTarget(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <Button onClick={addArrayMapping} disabled={!newArraySource.trim() || !newArrayTarget.trim()} className="rounded-full h-9">
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
+            </div>
+
+            {arrayMappings.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No array mappings yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {arrayMappings.map((am, arrIdx) => {
+                  const itemSourceFields = getItemSourceFields(am.source_array_path);
+                  const isExpanded = expandedArrayIdx === arrIdx;
+                  return (
+                    <Card key={`${am.source_array_path}-${arrIdx}`}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => setExpandedArrayIdx(isExpanded ? null : arrIdx)}
+                            className="p-0.5 hover:bg-muted rounded shrink-0"
+                          >
+                            <ChevronDown className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-180')} />
+                          </button>
+                          <code className="text-xs font-mono text-primary">{am.source_array_path}</code>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <code className="text-xs font-mono text-success">{am.target_array_path}</code>
+                          <Badge variant="secondary" className="text-[10px]">{am.item_mappings.length} item mappings</Badge>
+                          <button
+                            onClick={() => removeArrayMapping(arrIdx)}
+                            className="ml-auto p-1 hover:bg-destructive/10 rounded"
+                            title="Remove array mapping"
+                          >
+                            <Unlink className="w-3.5 h-3.5 text-destructive" />
+                          </button>
+                        </div>
+                      </CardHeader>
+                      {isExpanded && (
+                        <CardContent className="space-y-4">
+                          <ConnectMapper
+                            sourceFields={itemSourceFields}
+                            targetFields={getItemTargetFields(am.target_array_path)}
+                            mappings={am.item_mappings}
+                            onConnect={(source, target) => addItemMapping(arrIdx, source, target)}
+                            onRemoveBySource={(source) => removeItemMappingBySource(arrIdx, source)}
+                            onRemoveByTarget={(target) => removeItemMappingByTarget(arrIdx, target)}
+                            sourceLabel="Item Fields"
+                            targetLabel="NRS Item Fields"
+                            onAddCustomTarget={(path) =>
+                              setExtraItemTargets((prev) => (prev.includes(path) ? prev : [...prev, path]))
+                            }
+                          />
+                          {am.item_mappings.length > 0 && (
+                            <div className="space-y-1">
+                              {am.item_mappings.map((m, itemIdx) => (
+                                <MappingRow
+                                  key={`${m.source}-${m.target}-${itemIdx}`}
+                                  mapping={m}
+                                  onRemove={() => removeItemMappingAt(arrIdx, itemIdx)}
+                                  onChange={(patch) => updateItemMapping(arrIdx, itemIdx, patch)}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Test & Preview */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle className="text-base">Test & Preview</CardTitle>
+                <CardDescription>Run the deterministic dry-run against your sample invoice before saving</CardDescription>
+              </div>
+              <Button onClick={handleTest} disabled={testing || mappingData.length === 0} className="rounded-full">
+                {testing ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Testing...</>
+                ) : (
+                  <><PlayCircle className="w-4 h-4 mr-2" />Test Mapping</>
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+          {testRequestErrors && testRequestErrors.length > 0 && (
+            <CardContent>
+              <Alert variant="destructive">
+                <AlertTitle>Request Rejected — Invalid Mapping Data ({testRequestErrors.length})</AlertTitle>
+                <AlertDescription>
+                  <p className="text-sm mb-1">
+                    The mapping couldn't even be tested — some fields aren't shaped correctly. Check for mappings with a missing/empty source or target.
+                  </p>
+                  <ValidationIssuesTable issues={testRequestErrors} />
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          )}
+          {testResult && (
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className={cn('status-badge', testResult.success ? 'status-active' : 'status-error')}>
+                  {testResult.success ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1 inline" />
+                  ) : (
+                    <XCircle className="w-3.5 h-3.5 mr-1 inline" />
+                  )}
+                  {testResult.success ? 'Valid' : 'Invalid'}
+                </span>
+                <span className="text-sm text-muted-foreground">Executed in {testResult.executionTimeMs}ms</span>
+                <span className="text-sm text-muted-foreground">{testResult.appliedRulesCount} rules applied</span>
+              </div>
+
+              {testResult.healedFields && testResult.healedFields.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="text-xs text-muted-foreground mr-1">Auto-healed:</span>
+                  {testResult.healedFields.map((field, idx) => (
+                    <Badge key={`${field}-${idx}`} variant="secondary" className="text-[10px]">{field}</Badge>
+                  ))}
+                </div>
+              )}
+
+              {testResult.missingRequiredFields && testResult.missingRequiredFields.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertTitle>Missing Required Fields ({testResult.missingRequiredFields.length})</AlertTitle>
+                  <AlertDescription>
+                    <IssuesList items={testResult.missingRequiredFields} />
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {!testResult.success && testResult.errors && testResult.errors.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertTitle>Validation Errors ({testResult.errors.length})</AlertTitle>
+                  <AlertDescription>
+                    <IssuesList items={testResult.errors} />
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Original Invoice</p>
+                  <div className="border rounded-lg overflow-hidden" style={{ height: '350px' }}>
+                    <Editor
+                      height="100%"
+                      defaultLanguage="json"
+                      language="json"
+                      value={invoiceJson}
+                      theme="vs-dark"
+                      options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, wordWrap: 'on', automaticLayout: true, scrollBeyondLastLine: false }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Transformed Invoice</p>
+                  <div className="border rounded-lg overflow-hidden" style={{ height: '350px' }}>
+                    <Editor
+                      height="100%"
+                      defaultLanguage="json"
+                      language="json"
+                      value={JSON.stringify(testResult.data, null, 2)}
+                      theme="vs-dark"
+                      options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, wordWrap: 'on', automaticLayout: true, scrollBeyondLastLine: false }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          )}
+        </Card>
       </div>
     );
   };
 
   // Read-only mapping summary shown in view mode — no field pickers, no
-  // remove/clear actions, just the source -> target pairs already saved.
+  // remove/clear actions, just the mappings already saved (with transform/
+  // required badges when present) plus an array-mappings summary.
   const ReadOnlyMappingsList = () => (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Field Mappings ({mappingData.length})</CardTitle>
-        <CardDescription>Source fields mapped to NRS UBL target fields</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {mappingData.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">No field mappings configured.</p>
-        ) : (
-          <ScrollArea className="max-h-[500px]">
-            <div className="space-y-1">
-              {mappingData.map((mapping, idx) => (
-                <div
-                  key={`${mapping.source}-${mapping.target}-${idx}`}
-                  className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/30 text-sm"
-                >
-                  <code className="text-xs font-mono text-primary flex-1 truncate">{mapping.source}</code>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <code className="text-xs font-mono text-success flex-1 truncate">{mapping.target}</code>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Field Mappings ({mappingData.length})</CardTitle>
+          <CardDescription>Source fields mapped to NRS target fields</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {mappingData.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">No field mappings configured.</p>
+          ) : (
+            // A fixed height is required for Radix ScrollArea to actually
+            // clip/scroll (max-height alone doesn't, since its Viewport's
+            // height:100% can't resolve against an auto-height parent) —
+            // but only wrap in one once there's enough rows to need it, so
+            // short lists don't get stuck with empty space below them.
+            (() => {
+              const rows = (
+                <div className="space-y-1">
+                  {mappingData.map((mapping, idx) => (
+                    <div
+                      key={`${mapping.source}-${mapping.target}-${idx}`}
+                      className="flex items-center gap-3 px-3 py-2 rounded-md bg-muted/30 text-sm"
+                    >
+                      <code className="text-xs font-mono text-primary flex-1 truncate">{mapping.source}</code>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <code className="text-xs font-mono text-success flex-1 truncate">{mapping.target}</code>
+                      {mapping.required && (
+                        <Badge className="bg-destructive/10 text-destructive text-[10px] shrink-0">Required</Badge>
+                      )}
+                      {mapping.transform && <Badge variant="outline" className="text-[10px] shrink-0">{mapping.transform}</Badge>}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </ScrollArea>
-        )}
-      </CardContent>
-    </Card>
+              );
+              return mappingData.length > 10 ? <ScrollArea className="h-[500px]">{rows}</ScrollArea> : rows;
+            })()
+          )}
+        </CardContent>
+      </Card>
+
+      {arrayMappings.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Array Mappings ({arrayMappings.length})</CardTitle>
+            <CardDescription>Repeating structures mapped separately from top-level fields</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {arrayMappings.map((am, arrIdx) => (
+              <div key={`${am.source_array_path}-${arrIdx}`} className="rounded-md bg-muted/30 p-3 space-y-1">
+                <div className="flex items-center gap-3 text-sm">
+                  <code className="text-xs font-mono text-primary">{am.source_array_path}</code>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <code className="text-xs font-mono text-success">{am.target_array_path}</code>
+                  <Badge variant="secondary" className="text-[10px]">{am.item_mappings.length} item mappings</Badge>
+                </div>
+                {am.item_mappings.map((m, itemIdx) => (
+                  <div key={`${m.source}-${m.target}-${itemIdx}`} className="flex items-center gap-3 pl-6 text-xs text-muted-foreground">
+                    <code className="font-mono">{m.source}</code>
+                    <ChevronRight className="w-3 h-3 shrink-0" />
+                    <code className="font-mono">{m.target}</code>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 
   // Read-only key/type table for a flattened schema (invoice fields or metadata)
-  const FieldTable = ({ fields }: { fields: { key: string; type: string }[] }) => (
-    fields.length === 0 ? (
-      <p className="text-sm text-muted-foreground py-4 text-center">No fields defined.</p>
-    ) : (
-      <ScrollArea className="max-h-[500px]">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-muted-foreground border-b">
-              <th className="pb-2 font-medium">Field</th>
-              <th className="pb-2 font-medium">Type</th>
+  const FieldTable = ({ fields }: { fields: { key: string; type: string }[] }) => {
+    if (fields.length === 0) {
+      return <p className="text-sm text-muted-foreground py-4 text-center">No fields defined.</p>;
+    }
+    const table = (
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-muted-foreground border-b">
+            <th className="pb-2 font-medium">Field</th>
+            <th className="pb-2 font-medium">Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {fields.map((f) => (
+            <tr key={f.key} className="border-b border-border/50 last:border-0">
+              <td className="py-2 pr-4">
+                <code className="text-xs font-mono">{f.key}</code>
+              </td>
+              <td className="py-2">
+                <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {fields.map((f) => (
-              <tr key={f.key} className="border-b border-border/50 last:border-0">
-                <td className="py-2 pr-4">
-                  <code className="text-xs font-mono">{f.key}</code>
-                </td>
-                <td className="py-2">
-                  <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </ScrollArea>
-    )
-  );
+          ))}
+        </tbody>
+      </table>
+    );
+    // See the mapping-rows note above — fixed height is required for the
+    // scroll area to actually clip, only applied once it's actually needed.
+    return fields.length > 12 ? <ScrollArea className="h-[500px]">{table}</ScrollArea> : table;
+  };
 
   // View mode — single-page, read-only detail view (no wizard/stepper)
   if (showConfig && isViewMode) {
@@ -1124,7 +2005,7 @@ export default function AdminErpSupport() {
               ) : (
                 <Button
                   onClick={handleSave}
-                  disabled={saving || loading || !!invoiceError || !!metadataError || !effectiveErp}
+                  disabled={saving || loading || !!invoiceError || !!metadataError || !effectiveErp || !selectedNrsVersion || mappingData.length === 0}
                   className="rounded-full"
                 >
                   {saving ? (
@@ -1264,6 +2145,48 @@ export default function AdminErpSupport() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* NRS Target Schema */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>NRS Target Schema</CardTitle>
+                  <CardDescription>
+                    Select the versioned NRS schema this ERP will map to
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {nrsLoading ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : nrsSchemas.length === 0 ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">{nrsError || 'No NRS schemas registered yet'}</span>
+                      <Button variant="ghost" size="sm" onClick={fetchNrsSchemas}>
+                        <RefreshCw className="w-4 h-4 mr-1" />
+                        Retry
+                      </Button>
+                    </div>
+                  ) : (
+                    <Select value={selectedNrsVersion} onValueChange={setSelectedNrsVersion}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select NRS schema version" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {nrsSchemas.map((s) => (
+                          <SelectItem key={s.version} value={s.version}>
+                            {s.name} ({s.version})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {selectedSchema && (
+                    <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+                      <span>{selectedSchema.fields?.filter((f) => !f.field_path.includes('[*]') && isFieldRequired(f)).length || 0} required fields</span>
+                      <span>{selectedSchema.fields?.filter((f) => f.field_path.includes('[*]') && isFieldRequired(f)).length || 0} required item fields</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           )}
 
@@ -1367,12 +2290,12 @@ export default function AdminErpSupport() {
 
           {/* Step 3: Field Mapping */}
           {configStep === 'mapping' && (
-            firsLoading ? (
+            nrsLoading ? (
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mr-2" />
-                    <span className="text-muted-foreground">Loading NRS dictionary fields...</span>
+                    <span className="text-muted-foreground">Loading NRS schemas...</span>
                   </div>
                 </CardContent>
               </Card>
