@@ -581,9 +581,21 @@ export default function AdminTransactionLogs() {
       sortable: true,
       accessor: (inv) =>
         inv.invoiceNumber ? (
-          <span className="font-mono text-sm truncate max-w-[140px] block" title={inv.invoiceNumber}>
-            {inv.invoiceNumber}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="font-mono text-sm truncate max-w-[120px]" title={inv.invoiceNumber}>
+              {inv.invoiceNumber}
+            </span>
+            <button
+              className="text-muted-foreground hover:text-foreground shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(inv.invoiceNumber!);
+                toast.success("Invoice number copied");
+              }}
+            >
+              <Copy className="w-3 h-3" />
+            </button>
+          </div>
         ) : (
           <span className="text-muted-foreground text-xs">&mdash;</span>
         ),
