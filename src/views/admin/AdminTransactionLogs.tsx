@@ -215,7 +215,7 @@ export default function AdminTransactionLogs() {
       const mapped: Invoice[] = data.map((invoice: any) => ({
         id: invoice.irn,
         irn: invoice.irn,
-        invoiceNumber: invoice.invoiceNumber || invoice.irn,
+        invoiceNumber: invoice.invoiceNumber ?? null,
         type: (invoice.type || "outbound") as "inbound" | "outbound",
         tenantId: invoice.tenantId,
         tenantName: invoice.tenantName,
@@ -568,9 +568,9 @@ export default function AdminTransactionLogs() {
             <div className="flex items-center gap-1.5">
               <p
                 className="font-mono font-medium text-sm truncate max-w-[120px]"
-                title={inv.invoiceNumber || inv.irn}
+                title={inv.irn}
               >
-                {(inv.invoiceNumber || inv.irn).slice(0, 12)}…
+                {inv.irn.slice(0, 12)}…
               </p>
               <button
                 className="text-muted-foreground hover:text-foreground shrink-0"
@@ -589,6 +589,19 @@ export default function AdminTransactionLogs() {
           </div>
         </div>
       ),
+    },
+    {
+      key: "invoiceNumber",
+      header: "Invoice Number",
+      sortable: true,
+      accessor: (inv) =>
+        inv.invoiceNumber ? (
+          <span className="font-mono text-sm truncate max-w-[140px] block" title={inv.invoiceNumber}>
+            {inv.invoiceNumber}
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-xs">&mdash;</span>
+        ),
     },
     {
       key: "status",
@@ -662,25 +675,25 @@ export default function AdminTransactionLogs() {
         );
       },
     },
-    // {
-    //   key: 'customerName',
-    //   header: 'Counterparty',
-    //   sortable: true,
-    //   accessor: (inv) => {
-    //     const name = inv.type === 'outbound' ? inv.customerName : inv.supplierName;
-    //     const sub = inv.type === 'inbound' && inv.supplierTIN ? inv.supplierTIN : null;
-    //     if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>;
-    //     return (
-    //       <div className="min-w-0">
-    //         <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
-    //         {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
-    //         {inv.tenantName && (
-    //           <p className="text-xs text-muted-foreground truncate max-w-[160px]">Tenant: {inv.tenantName}</p>
-    //         )}
-    //       </div>
-    //     );
-    //   },
-    // },
+    {
+      key: 'customerName',
+      header: 'Counterparty',
+      sortable: true,
+      accessor: (inv) => {
+        const name = inv.type === 'outbound' ? inv.customerName : inv.supplierName;
+        const sub = inv.type === 'inbound' && inv.supplierTIN ? inv.supplierTIN : null;
+        if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>;
+        return (
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
+            {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
+            {inv.tenantName && (
+              <p className="text-xs text-muted-foreground truncate max-w-[160px]">Tenant: {inv.tenantName}</p>
+            )}
+          </div>
+        );
+      },
+    },
     {
       key: "qrCode",
       header: "QR Code",
@@ -1012,7 +1025,10 @@ export default function AdminTransactionLogs() {
             <DialogTitle>Invoice Details</DialogTitle>
             <DialogDescription>
               {selectedInvoice?.type === "outbound" ? "Outbound" : "Inbound"}{" "}
-              Invoice — {selectedInvoice?.invoiceNumber || selectedInvoice?.irn}
+              Invoice —{" "}
+              {invoiceDetails?.invoice?.invoiceNumber ||
+                selectedInvoice?.invoiceNumber ||
+                selectedInvoice?.irn}
               {selectedInvoice?.tenantName &&
                 ` · ${selectedInvoice.tenantName}`}
             </DialogDescription>
@@ -1162,6 +1178,26 @@ export default function AdminTransactionLogs() {
                         {invoiceDetails.invoice?.irn || selectedInvoice?.irn}
                       </p>
                     </div>
+                    {invoiceDetails.invoice?.invoiceNumber && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Invoice Number
+                        </p>
+                        <p className="font-mono text-xs break-all">
+                          {invoiceDetails.invoice.invoiceNumber}
+                        </p>
+                      </div>
+                    )}
+                    {invoiceDetails.invoice?.customerName && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Customer
+                        </p>
+                        <p className="text-xs break-all">
+                          {invoiceDetails.invoice.customerName}
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs text-muted-foreground">
                         Invoice Status

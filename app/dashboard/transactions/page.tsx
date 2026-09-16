@@ -75,9 +75,9 @@ export type PaymentStatus = "pending" | "paid" | "rejected" | "cancelled";
 export interface Invoice {
   id: string;
   irn: string;
-  invoiceNumber: string;
+  invoiceNumber: string | null;
   type: "inbound" | "outbound";
-  customerName?: string;
+  customerName?: string | null;
   supplierName?: string;
   supplierTIN?: string;
   status: string;
@@ -234,7 +234,7 @@ export default function TransactionsPage() {
       const mapped: Invoice[] = data.map((invoice: any) => ({
         id: invoice.irn,
         irn: invoice.irn,
-        invoiceNumber: invoice.invoiceNumber || invoice.irn,
+        invoiceNumber: invoice.invoiceNumber ?? null,
         type: (invoice.type || "outbound") as "inbound" | "outbound",
         status: invoice.status,
         lastJobError: {
@@ -600,9 +600,9 @@ export default function TransactionsPage() {
             <div className="flex items-center gap-1.5">
               <p
                 className="font-mono font-medium text-sm truncate max-w-[120px]"
-                title={inv.invoiceNumber || inv.irn}
+                title={inv.irn}
               >
-                {(inv.invoiceNumber || inv.irn).slice(0, 12)}…
+                {inv.irn.slice(0, 12)}…
               </p>
               <button
                 className="text-muted-foreground hover:text-foreground shrink-0"
@@ -621,6 +621,32 @@ export default function TransactionsPage() {
           </div>
         </div>
       ),
+    },
+    {
+      key: "invoiceNumber",
+      header: "Invoice Number",
+      sortable: true,
+      accessor: (inv) =>
+        inv.invoiceNumber ? (
+          <span className="font-mono text-sm truncate max-w-[140px] block" title={inv.invoiceNumber}>
+            {inv.invoiceNumber}
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-xs">&mdash;</span>
+        ),
+    },
+    {
+      key: "customerName",
+      header: "Customer",
+      sortable: true,
+      accessor: (inv) =>
+        inv.customerName ? (
+          <span className="text-sm truncate max-w-[160px] block" title={inv.customerName}>
+            {inv.customerName}
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-xs">&mdash;</span>
+        ),
     },
     {
       key: "status",
@@ -1003,7 +1029,10 @@ export default function TransactionsPage() {
             <DialogTitle>Invoice Details</DialogTitle>
             <DialogDescription>
               {selectedInvoice?.type === "outbound" ? "Outbound" : "Inbound"}{" "}
-              Invoice — {selectedInvoice?.invoiceNumber || selectedInvoice?.irn}
+              Invoice —{" "}
+              {invoiceDetails?.invoice?.invoiceNumber ||
+                selectedInvoice?.invoiceNumber ||
+                selectedInvoice?.irn}
             </DialogDescription>
           </DialogHeader>
           {detailLoading ? (
@@ -1190,6 +1219,26 @@ export default function TransactionsPage() {
                         {invoiceDetails.invoice?.irn || selectedInvoice?.irn}
                       </p>
                     </div>
+                    {invoiceDetails.invoice?.invoiceNumber && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Invoice Number
+                        </p>
+                        <p className="font-mono text-xs break-all">
+                          {invoiceDetails.invoice.invoiceNumber}
+                        </p>
+                      </div>
+                    )}
+                    {invoiceDetails.invoice?.customerName && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Customer
+                        </p>
+                        <p className="text-xs break-all">
+                          {invoiceDetails.invoice.customerName}
+                        </p>
+                      </div>
+                    )}
                     {invoiceDetails.invoice?.erpInvoiceId && (
                       <div>
                         <p className="text-xs text-muted-foreground">
