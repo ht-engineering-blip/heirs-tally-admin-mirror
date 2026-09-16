@@ -53,6 +53,8 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { createTenantApi } from "@/lib/api/tenant-api";
 import { cn } from "@/lib/utils";
+import { FriendlyErrorBlock } from "@/components/shared";
+import { humanizeInvoiceError, humanizeValidationErrorEntry } from "@/lib/errors/friendly-invoice-error";
 import { format } from "date-fns";
 import {
   AlertCircle,
@@ -462,23 +464,6 @@ export default function TransactionsPage() {
       });
       return !hasActiveRoute;
     });
-  };
-
-  const formatJobErrorMessage = (
-    err: { action?: string; error?: string } | null | undefined,
-  ): string => {
-    if (!err) return "An unexpected error occurred. Please try again.";
-    const action =
-      err.action && err.action !== "undefined"
-        ? err.action.replace(/-/g, " ")
-        : null;
-    const error = err.error && err.error !== "undefined" ? err.error : null;
-    if (action && error)
-      return `${action.charAt(0).toUpperCase() + action.slice(1)} failed — ${error}`;
-    if (error) return error;
-    if (action)
-      return `${action.charAt(0).toUpperCase() + action.slice(1)} failed. Please try again.`;
-    return "An unexpected error occurred. Please try again.";
   };
 
   const renderHistoryError = (raw: string) => {
@@ -1087,38 +1072,11 @@ export default function TransactionsPage() {
                 >
                   {/* Last Job Error */}
                   {hasJobError(invoiceDetails?.invoice) && (
-                      <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-2">
-                        <p className="text-sm font-medium text-destructive">
-                          Last Job Error
-                        </p>
-                        <p className="text-xs text-foreground">
-                          {formatJobErrorMessage(
-                            invoiceDetails.invoice.lastJobError,
-                          )}
-                        </p>
-                        <table className="w-full text-xs border-collapse">
-                          <tbody>
-                            {Object.entries(invoiceDetails.invoice.lastJobError)
-                              .filter(([, v]) => v !== undefined && v !== null)
-                              .map(([key, value]) => (
-                                <tr
-                                  key={key}
-                                  className="border-t border-destructive/20"
-                                >
-                                  <td className="py-1 pr-3 font-medium text-muted-foreground capitalize w-1/3">
-                                    {key.replace(/([A-Z])/g, " $1").trim()}
-                                  </td>
-                                  <td className="py-1 break-all text-foreground whitespace-pre-line">
-                                    {String(value) === "undefined - undefined"
-                                      ? "NRS Validation failed. Please try again."
-                                      : String(value)}
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                    <FriendlyErrorBlock
+                      title="Last Job Error"
+                      error={humanizeInvoiceError(invoiceDetails.invoice.lastJobError)}
+                    />
+                  )}
                   {/* Workflow State Pipeline */}
                   {invoiceDetails.invoice?.workflowState && (
                     <div className="p-4 bg-muted/50 rounded-lg border">
@@ -1349,19 +1307,13 @@ export default function TransactionsPage() {
 
                   {/* Validation Errors */}
                   {invoiceDetails.invoice?.validationErrors?.length > 0 && (
-                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                      <p className="text-sm font-medium text-destructive mb-2">
-                        Validation Errors
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-destructive">
+                        Validation Errors ({invoiceDetails.invoice.validationErrors.length})
                       </p>
-                      <ul className="list-disc list-inside space-y-1 text-xs text-foreground">
-                        {invoiceDetails.invoice.validationErrors.map(
-                          (err: any, idx: number) => (
-                            <li key={idx}>
-                              {err.message || err.error || JSON.stringify(err)}
-                            </li>
-                          ),
-                        )}
-                      </ul>
+                      {invoiceDetails.invoice.validationErrors.map((err: any, idx: number) => (
+                        <FriendlyErrorBlock key={idx} error={humanizeValidationErrorEntry(err)} />
+                      ))}
                     </div>
                   )}
 
