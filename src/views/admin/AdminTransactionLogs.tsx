@@ -5,7 +5,9 @@ import {
   DataTable,
   FilterOption,
   StatusBadge,
+  FriendlyErrorBlock,
 } from "@/components/shared";
+import { humanizeInvoiceError, humanizeValidationErrorEntry } from "@/lib/errors/friendly-invoice-error";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -215,7 +217,7 @@ export default function AdminTransactionLogs() {
       const mapped: Invoice[] = data.map((invoice: any) => ({
         id: invoice.irn,
         irn: invoice.irn,
-        invoiceNumber: invoice.invoiceNumber || invoice.irn,
+        invoiceNumber: invoice.invoiceNumber ?? null,
         type: (invoice.type || "outbound") as "inbound" | "outbound",
         tenantId: invoice.tenantId,
         tenantName: invoice.tenantName,
@@ -514,23 +516,6 @@ export default function AdminTransactionLogs() {
     });
   };
 
-  const formatJobErrorMessage = (
-    err: { action?: string; error?: string } | null | undefined,
-  ): string => {
-    if (!err) return "An unexpected error occurred. Please try again.";
-    const action =
-      err.action && err.action !== "undefined"
-        ? err.action.replace(/-/g, " ")
-        : null;
-    const error = err.error && err.error !== "undefined" ? err.error : null;
-    if (action && error)
-      return `${action.charAt(0).toUpperCase() + action.slice(1)} failed — ${error}`;
-    if (error) return error;
-    if (action)
-      return `${action.charAt(0).toUpperCase() + action.slice(1)} failed. Please try again.`;
-    return "An unexpected error occurred. Please try again.";
-  };
-
   const isFailed = (status: string) => {
     const s = (status || "").toLowerCase();
     return s === "failed" || s === "rejected" || s === "transmission_failed";
@@ -568,9 +553,9 @@ export default function AdminTransactionLogs() {
             <div className="flex items-center gap-1.5">
               <p
                 className="font-mono font-medium text-sm truncate max-w-[120px]"
-                title={inv.invoiceNumber || inv.irn}
+                title={inv.irn}
               >
-                {(inv.invoiceNumber || inv.irn).slice(0, 12)}…
+                {inv.irn.slice(0, 12)}…
               </p>
               <button
                 className="text-muted-foreground hover:text-foreground shrink-0"
@@ -589,6 +574,19 @@ export default function AdminTransactionLogs() {
           </div>
         </div>
       ),
+    },
+    {
+      key: "invoiceNumber",
+      header: "Invoice Number",
+      sortable: true,
+      accessor: (inv) =>
+        inv.invoiceNumber ? (
+          <span className="font-mono text-sm truncate max-w-[140px] block" title={inv.invoiceNumber}>
+            {inv.invoiceNumber}
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-xs">&mdash;</span>
+        ),
     },
     {
       key: "status",
@@ -662,25 +660,25 @@ export default function AdminTransactionLogs() {
         );
       },
     },
-    // {
-    //   key: 'customerName',
-    //   header: 'Counterparty',
-    //   sortable: true,
-    //   accessor: (inv) => {
-    //     const name = inv.type === 'outbound' ? inv.customerName : inv.supplierName;
-    //     const sub = inv.type === 'inbound' && inv.supplierTIN ? inv.supplierTIN : null;
-    //     if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>;
-    //     return (
-    //       <div className="min-w-0">
-    //         <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
-    //         {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
-    //         {inv.tenantName && (
-    //           <p className="text-xs text-muted-foreground truncate max-w-[160px]">Tenant: {inv.tenantName}</p>
-    //         )}
-    //       </div>
-    //     );
-    //   },
-    // },
+    {
+      key: 'customerName',
+      header: 'Counterparty',
+      sortable: true,
+      accessor: (inv) => {
+        const name = inv.type === 'outbound' ? inv.customerName : inv.supplierName;
+        const sub = inv.type === 'inbound' && inv.supplierTIN ? inv.supplierTIN : null;
+        if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>;
+        return (
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
+            {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
+            {inv.tenantName && (
+              <p className="text-xs text-muted-foreground truncate max-w-[160px]">Tenant: {inv.tenantName}</p>
+            )}
+          </div>
+        );
+      },
+    },
     {
       key: "qrCode",
       header: "QR Code",
@@ -1012,7 +1010,10 @@ export default function AdminTransactionLogs() {
             <DialogTitle>Invoice Details</DialogTitle>
             <DialogDescription>
               {selectedInvoice?.type === "outbound" ? "Outbound" : "Inbound"}{" "}
-              Invoice — {selectedInvoice?.invoiceNumber || selectedInvoice?.irn}
+              Invoice —{" "}
+              {invoiceDetails?.invoice?.invoiceNumber ||
+                selectedInvoice?.invoiceNumber ||
+                selectedInvoice?.irn}
               {selectedInvoice?.tenantName &&
                 ` · ${selectedInvoice.tenantName}`}
             </DialogDescription>
@@ -1162,6 +1163,26 @@ export default function AdminTransactionLogs() {
                         {invoiceDetails.invoice?.irn || selectedInvoice?.irn}
                       </p>
                     </div>
+                    {invoiceDetails.invoice?.invoiceNumber && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Invoice Number
+                        </p>
+                        <p className="font-mono text-xs break-all">
+                          {invoiceDetails.invoice.invoiceNumber}
+                        </p>
+                      </div>
+                    )}
+                    {invoiceDetails.invoice?.customerName && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          Customer
+                        </p>
+                        <p className="text-xs break-all">
+                          {invoiceDetails.invoice.customerName}
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs text-muted-foreground">
                         Invoice Status
@@ -1262,19 +1283,13 @@ export default function AdminTransactionLogs() {
 
                   {/* Validation Errors */}
                   {invoiceDetails.invoice?.validationErrors?.length > 0 && (
-                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                      <p className="text-sm font-medium text-destructive mb-2">
-                        Validation Errors
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-destructive">
+                        Validation Errors ({invoiceDetails.invoice.validationErrors.length})
                       </p>
-                      <ul className="list-disc list-inside space-y-1 text-xs text-foreground">
-                        {invoiceDetails.invoice.validationErrors.map(
-                          (err: any, idx: number) => (
-                            <li key={idx}>
-                              {err.message || err.error || JSON.stringify(err)}
-                            </li>
-                          ),
-                        )}
-                      </ul>
+                      {invoiceDetails.invoice.validationErrors.map((err: any, idx: number) => (
+                        <FriendlyErrorBlock key={idx} error={humanizeValidationErrorEntry(err)} />
+                      ))}
                     </div>
                   )}
 
@@ -1306,35 +1321,10 @@ export default function AdminTransactionLogs() {
                   {invoiceDetails.invoice?.lastJobError &&
                     Object.keys(invoiceDetails.invoice.lastJobError).length >
                       0 && invoiceDetails.status && (
-                      <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-2">
-                        <p className="text-sm font-medium text-destructive">
-                          Last Job Error
-                        </p>
-                        <p className="text-xs text-foreground">
-                          {formatJobErrorMessage(
-                            invoiceDetails.invoice.lastJobError,
-                          )}
-                        </p>
-                        <table className="w-full text-xs border-collapse">
-                          <tbody>
-                            {Object.entries(invoiceDetails.invoice.lastJobError)
-                              .filter(([, v]) => v !== undefined && v !== null)
-                              .map(([key, value]) => (
-                                <tr
-                                  key={key}
-                                  className="border-t border-destructive/20"
-                                >
-                                  <td className="py-1 pr-3 font-medium text-muted-foreground capitalize w-1/3">
-                                    {key.replace(/([A-Z])/g, " $1").trim()}
-                                  </td>
-                                  <td className="py-1 break-all text-foreground">
-                                    {String(value)}
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <FriendlyErrorBlock
+                        title="Last Job Error"
+                        error={humanizeInvoiceError(invoiceDetails.invoice.lastJobError)}
+                      />
                     )}
                 </TabsContent>
 

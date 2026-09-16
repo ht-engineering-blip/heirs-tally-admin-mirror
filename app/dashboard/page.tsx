@@ -62,17 +62,34 @@ export default function DashboardPage() {
     }).format(amount)
   }
 
+  // Mirrors the status→color mapping on /dashboard/transactions exactly, so
+  // a given status always renders the same color everywhere. Uses plain
+  // Tailwind utility classes rather than the custom .status-* helpers —
+  // those aren't recognized by tailwind-merge for dedup against Badge's
+  // default bg-primary variant, and utilities always beat components in
+  // Tailwind's cascade, so the custom color silently lost to bg-primary
+  // (this app's primary brand color happens to be a deep maroon/red,
+  // which is why every status rendered the same red regardless of value).
   const getStatusBadge = (status: string) => {
+    const s = (status || '').toLowerCase()
     const styles: Record<string, string> = {
-      submitted: 'status-badge status-active',
-      validated: 'bg-info/10 text-info',
-      pending: 'status-badge status-pending',
-      failed: 'status-badge status-error',
-      cancelled: 'status-badge status-inactive',
-      transformed: 'bg-info/10 text-info',
-      signed: 'status-badge status-active',
+      // outbound
+      created: 'bg-muted text-muted-foreground',
+      validated: 'bg-success/10 text-success',
+      signed: 'bg-success/10 text-success',
+      transmitted: 'bg-success/10 text-success',
+      delivered: 'bg-success/10 text-success',
+      failed: 'bg-destructive/10 text-destructive',
+      transmission_failed: 'bg-destructive/10 text-destructive',
+      // inbound
+      acknowledged: 'bg-success/10 text-success',
+      downloaded: 'bg-success/10 text-success',
+      synced_to_erp: 'bg-success/10 text-success',
+      paid: 'bg-success/10 text-success',
+      rejected: 'bg-destructive/10 text-destructive',
+      canceled: 'bg-muted text-muted-foreground',
     }
-    return styles[status] || 'status-badge status-inactive'
+    return styles[s] || 'bg-muted text-muted-foreground'
   }
 
   return (
@@ -192,7 +209,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right hidden sm:block">
                       <p className="font-semibold">
-                        {tx.totalAmount ? formatAmount(Number(tx.totalAmount), tx.currency || 'NGN') : 'N/A'}
+                        {tx.totalAmount != null ? formatAmount(Number(tx.totalAmount), tx.currency || 'NGN') : 'N/A'}
                       </p>
                       {tx.createdAt && (
                         <p className="text-xs text-muted-foreground">
@@ -200,7 +217,7 @@ export default function DashboardPage() {
                         </p>
                       )}
                     </div>
-                    <Badge className={cn(getStatusBadge(tx.status), 'text-xs')}>
+                    <Badge className={cn(getStatusBadge(tx.status), 'text-xs capitalize')}>
                       {tx.status}
                     </Badge>
                   </div>
