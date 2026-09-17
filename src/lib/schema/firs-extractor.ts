@@ -76,6 +76,60 @@ function escapeControlCharsInStrings(json: string): string {
   return result;
 }
 
+/**
+ * Strips `//` and `/* *​/` comments from a JSON string (respecting block
+ * comments spanning multiple lines) without parsing it — used to make a
+ * single JSON.parse call tolerant of comments, independent of the fuller
+ * invoice/metadata extraction below. Returns the input unchanged if it's
+ * already valid JSON (fast path) or contains no recognizable comments.
+ */
+function stripJsonComments(jsonWithComments: string): string {
+  const sanitized = escapeControlCharsInStrings(jsonWithComments);
+
+  try {
+    JSON.parse(sanitized);
+    return sanitized;
+  } catch {
+    // may genuinely contain comments — fall through to strip them
+  }
+
+  const lines = sanitized.split('\n');
+  const cleanLines: string[] = [];
+  let inBlockComment = false;
+
+  for (let line of lines) {
+    if (inBlockComment) {
+      const endBlockIndex = line.indexOf('*/');
+      if (endBlockIndex !== -1) {
+        line = line.substring(endBlockIndex + 2);
+        inBlockComment = false;
+      } else {
+        continue;
+      }
+    }
+
+    const blockCommentStart = line.indexOf('/*');
+    if (blockCommentStart !== -1) {
+      const blockCommentEnd = line.indexOf('*/', blockCommentStart);
+      if (blockCommentEnd !== -1) {
+        line = line.substring(0, blockCommentStart) + line.substring(blockCommentEnd + 2);
+      } else {
+        line = line.substring(0, blockCommentStart);
+        inBlockComment = true;
+      }
+    }
+
+    const lineCommentIndex = line.indexOf('//');
+    const cleanLine = lineCommentIndex !== -1 ? line.substring(0, lineCommentIndex).trim() : line;
+
+    if (cleanLine.trim()) {
+      cleanLines.push(cleanLine);
+    }
+  }
+
+  return cleanLines.join('\n');
+}
+
 class JsonWithCommentsExtractor {
   private readonly categoryMap: Record<string, string> = {
     // Field name patterns to categories
@@ -298,5 +352,5 @@ function extractJsonWithMetadata(jsonWithComments: string): ExtractionResult {
     }
 }
 
-export { extractJsonWithMetadata, JsonWithCommentsExtractor };
+export { extractJsonWithMetadata, JsonWithCommentsExtractor, stripJsonComments };
 export type { ExtractionResult, FieldMetadata };
