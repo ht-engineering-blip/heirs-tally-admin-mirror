@@ -33,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { extractJsonWithMetadata } from '@/lib/schema/firs-extractor';
+import { extractJsonWithMetadata, stripJsonComments } from '@/lib/schema/firs-extractor';
 import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
 import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -772,8 +772,8 @@ export default function AdminErpSupport() {
   // Derive ERP source fields from the invoice JSON
   const erpSourceFields = useMemo(() => {
     try {
-      let parsedMetaData = JSON.parse(metadataJson)
-      const parsed = (parsedMetaData && parsedMetaData?.source_invoice_sample)? parsedMetaData?.source_invoice_sample : JSON.parse(invoiceJson);
+      let parsedMetaData = JSON.parse(stripJsonComments(metadataJson))
+      const parsed = (parsedMetaData && parsedMetaData?.source_invoice_sample)? parsedMetaData?.source_invoice_sample : JSON.parse(stripJsonComments(invoiceJson));
       return flattenObject(parsed);
     } catch {
       return [];
@@ -785,8 +785,8 @@ export default function AdminErpSupport() {
   // own source_invoice_sample fallback so both stay in sync.
   const parsedSampleInvoice = useMemo(() => {
     try {
-      const parsedMetaData = JSON.parse(metadataJson);
-      return parsedMetaData && parsedMetaData?.source_invoice_sample ? parsedMetaData.source_invoice_sample : JSON.parse(invoiceJson);
+      const parsedMetaData = JSON.parse(stripJsonComments(metadataJson));
+      return parsedMetaData && parsedMetaData?.source_invoice_sample ? parsedMetaData.source_invoice_sample : JSON.parse(stripJsonComments(invoiceJson));
     } catch {
       return null;
     }
@@ -837,7 +837,7 @@ export default function AdminErpSupport() {
 
   const validateJson = (jsonString: string): { valid: boolean; error?: string } => {
     try {
-      JSON.parse(jsonString);
+      JSON.parse(stripJsonComments(jsonString));
       return { valid: true };
     } catch (error: any) {
       return { valid: false, error: error.message };
@@ -1076,8 +1076,8 @@ export default function AdminErpSupport() {
     setSaving(true);
     setSaveErrors(null);
     try {
-      const invoiceData = JSON.parse(invoiceJson);
-      const metadataData = JSON.parse(metadataJson);
+      const invoiceData = JSON.parse(stripJsonComments(invoiceJson));
+      const metadataData = JSON.parse(stripJsonComments(metadataJson));
 
       // The mapping engine's own gatekeeper validates the template first —
       // if it rejects, we stop here and never touch the ERP support record.

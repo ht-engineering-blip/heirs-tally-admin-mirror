@@ -33,8 +33,12 @@ export function createTenantApi() {
         headers: { Authorization: `Bearer ${token}` },
       }),
 
+    // The generated server.d.ts types this as v1.auth.oauth.firs (stale
+    // codegen) — the real backend route is /v1/auth/firs-oauth, confirmed
+    // against the live OpenAPI docs and a direct request (the old path
+    // 404s, this one correctly validates the body).
     firsOAuth: (email: string, password: string, mock = false) =>
-      api.v1.auth.oauth.firs.post({ email, password, mock }),
+      (api as any).v1.auth['firs-oauth'].post({ email, password, mock }),
 
     updateCredentials: (tenantId: string, certificate: string, publicKey: string) =>
       (api as any).v1.tenants({ tenantId })['credentials'].put({ certificate, publicKey }),

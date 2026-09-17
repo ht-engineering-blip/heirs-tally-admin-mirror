@@ -14,7 +14,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatErpName } from '@/hooks/use-supported-erps';
 import { getAdminApiClient } from '@/lib/api/client';
-import { extractJsonWithMetadata } from '@/lib/schema/firs-extractor';
+import { extractJsonWithMetadata, stripJsonComments } from '@/lib/schema/firs-extractor';
 import Editor from '@monaco-editor/react';
 import { ArrowLeft, Calendar, Clock, Edit, FileJson, Loader2, Save, Settings } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -135,7 +135,7 @@ export default function AdminFirsDictionary() {
 
   const validateJson = (jsonString: string): { valid: boolean; error?: string } => {
     try {
-      JSON.parse(jsonString);
+      JSON.parse(stripJsonComments(jsonString));
       return { valid: true };
     } catch (error: any) {
       return { valid: false, error: error.message };
@@ -185,8 +185,8 @@ export default function AdminFirsDictionary() {
 
     setSaving(true);
     try {
-      const fieldsData = JSON.parse(fieldsJson);
-      const metadataData = JSON.parse(metadataJson);
+      const fieldsData = JSON.parse(stripJsonComments(fieldsJson));
+      const metadataData = JSON.parse(stripJsonComments(metadataJson));
 
       const response = await api.v1.admin.config['firs-dictionary'].put({
         invoice: fieldsData,
