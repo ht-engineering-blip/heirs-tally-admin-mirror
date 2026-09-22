@@ -7,7 +7,7 @@ import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { StatusBadge, InvoiceIdKeyEditor, WebhookExpiryBadge } from '@/components/shared';
+import { StatusBadge, InvoiceKeyConfigSection, WebhookExpiryBadge } from '@/components/shared';
 import { toast } from 'sonner';
 import { getAdminApiClient } from '@/lib/api/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,8 +32,6 @@ import {
 } from '@/components/ui/select';
 import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 import { SectionLoader } from '@/components/shared/SectionLoader';
-
-const CREDIT_NOTE_EVENT_TYPE = 'erp.creditnote.issued';
 
 interface Tenant {
   id: string;
@@ -126,12 +124,6 @@ export default function TenantDetail() {
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [selectedLifespan, setSelectedLifespan] = useState('NO_EXPIRATION');
   const [selectedAuthMode, setSelectedAuthMode] = useState('auto');
-  const [keyConfig, setKeyConfig] = useState({
-    invoiceIdKey: '',
-    creditNoteIdKey: '',
-    creditNoteReferenceIdKey: '',
-  });
-  const [keyConfigLoading, setKeyConfigLoading] = useState(true);
   const [showFirsCredentialsModal, setShowFirsCredentialsModal] = useState(false);
   const [firsCredentialsSaving, setFirsCredentialsSaving] = useState(false);
   const [firsCredentialsForm, setFirsCredentialsForm] = useState({ certificate: '', publicKey: '' });
@@ -209,31 +201,6 @@ export default function TenantDetail() {
     }
   };
 
-  const fetchKeyConfig = async () => {
-    if (!tenantId) return;
-    setKeyConfigLoading(true);
-    try {
-      const response = await (api as any).v1.tenants({ tenantId })['key-config'].get();
-      if (response.error) {
-        const errorMessage = (response.error as any)?.value?.error || 'Failed to load invoice ID key configuration';
-        console.error('getKeyConfig failed:', response.error);
-        toast.error(errorMessage);
-      } else if (response.data?.data) {
-        const data = response.data.data as any;
-        setKeyConfig({
-          invoiceIdKey: data.invoiceIdKey || '',
-          creditNoteIdKey: data.idKeyMap?.[CREDIT_NOTE_EVENT_TYPE] || '',
-          creditNoteReferenceIdKey: data.referenceIdKeyMap?.[CREDIT_NOTE_EVENT_TYPE] || '',
-        });
-      }
-    } catch (error: any) {
-      console.error('getKeyConfig threw:', error);
-      toast.error(error?.message || 'Failed to load invoice ID key configuration');
-    } finally {
-      setKeyConfigLoading(false);
-    }
-  };
-
   const fetchWebhookStatus = async () => {
     if (!tenantId) return;
     setWebhookStatusLoading(true);
@@ -255,7 +222,6 @@ export default function TenantDetail() {
   useEffect(() => {
     if (tenantId) {
       fetchTenant();
-      fetchKeyConfig();
       fetchWebhookStatus();
     }
   }, [tenantId]);
@@ -735,69 +701,44 @@ export default function TenantDetail() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {keyConfigLoading ? (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <InvoiceKeyConfigSection
+                    tenantId={tenant.tenantId}
+                    keyType="standard_invoice"
+                    title="Standard Invoice"
+                    fetchConfig={(tid, kt) => (api as any).v1.tenants({ tenantId: tid })['key-config'].get({ query: { keyType: kt } })}
+                    saveConfig={(tid, payload) => (api as any).v1.tenants({ tenantId: tid })['key-config'].put(payload)}
+                  />
+
+                  <InvoiceKeyConfigSection
+                    className="space-y-3 pt-4 border-t"
+                    tenantId={tenant.tenantId}
+                    keyType="credit_note"
+                    title="Credit Note"
+                    idKeyPlaceholder="e.g. creditNote.documentId"
+                    hasReferenceKey
+                    referenceKeyPlaceholder="e.g. creditNote.originalInvoiceId"
+                    referenceKeyHelpText="Dot-notation path to the original invoice's ID, used to validate this credit note against it"
+                    fetchConfig={(tid, kt) => (api as any).v1.tenants({ tenantId: tid })['key-config'].get({ query: { keyType: kt } })}
+                    saveConfig={(tid, payload) => (api as any).v1.tenants({ tenantId: tid })['key-config'].put(payload)}
+                  />
+
+                  <div className="space-y-3 pt-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-muted-foreground">Debit Note</p>
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <Lock className="w-3 h-3" />
+                        Coming soon
+                      </Badge>
                     </div>
-                  ) : (
-                    <>
-                      <div className="space-y-3">
-                        <p className="text-sm font-medium">Standard Invoice</p>
-                        <InvoiceIdKeyEditor
-                          initialValue={keyConfig.invoiceIdKey}
-                          onSave={async (key) => {
-                            const res = await (api as any).v1.tenants({ tenantId: tenant.tenantId })['invoice-id-key'].put({ invoiceIdKey: key });
-                            if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update invoice ID key');
-                          }}
-                          onSaved={() => fetchKeyConfig()}
-                        />
-                      </div>
-
-                      <div className="space-y-3 pt-4 border-t">
-                        <p className="text-sm font-medium">Credit Note</p>
-                        <InvoiceIdKeyEditor
-                          initialValue={keyConfig.creditNoteIdKey}
-                          placeholder="e.g. creditNote.documentId"
-                          successMessage="Credit note ID key updated"
-                          onSave={async (key) => {
-                            const res = await (api as any).v1.tenants({ tenantId: tenant.tenantId })['id-key-map'].put({ eventType: CREDIT_NOTE_EVENT_TYPE, idKey: key });
-                            if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update credit note ID key');
-                          }}
-                          onSaved={() => fetchKeyConfig()}
-                        />
-                        <InvoiceIdKeyEditor
-                          initialValue={keyConfig.creditNoteReferenceIdKey}
-                          label="Reference ID Key"
-                          placeholder="e.g. creditNote.originalInvoiceId"
-                          helpText="Dot-notation path to the original invoice's ID, used to validate this credit note against it"
-                          successMessage="Credit note reference ID key updated"
-                          onSave={async (key) => {
-                            const res = await (api as any).v1.tenants({ tenantId: tenant.tenantId })['reference-id-key-map'].put({ eventType: CREDIT_NOTE_EVENT_TYPE, idKey: key });
-                            if (res.error) throw new Error((res.error as any)?.value?.error || 'Failed to update credit note reference ID key');
-                          }}
-                          onSaved={() => fetchKeyConfig()}
-                        />
-                      </div>
-
-                      <div className="space-y-3 pt-4 border-t">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-muted-foreground">Debit Note</p>
-                          <Badge variant="outline" className="text-xs gap-1">
-                            <Lock className="w-3 h-3" />
-                            Coming soon
-                          </Badge>
-                        </div>
-                        <div className="space-y-2 opacity-60">
-                          <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
-                          <Input disabled placeholder="e.g. debitNote.documentId" className="font-mono text-xs" />
-                        </div>
-                        <div className="space-y-2 opacity-60">
-                          <Label className="text-xs text-muted-foreground">Reference ID Key</Label>
-                          <Input disabled placeholder="e.g. debitNote.originalInvoiceId" className="font-mono text-xs" />
-                        </div>
-                      </div>
-                    </>
-                  )}
+                    <div className="space-y-2 opacity-60">
+                      <Label className="text-xs text-muted-foreground">Invoice ID Key</Label>
+                      <Input disabled placeholder="e.g. debitNote.documentId" className="font-mono text-xs" />
+                    </div>
+                    <div className="space-y-2 opacity-60">
+                      <Label className="text-xs text-muted-foreground">Reference ID Key</Label>
+                      <Input disabled placeholder="e.g. debitNote.originalInvoiceId" className="font-mono text-xs" />
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
