@@ -4,7 +4,7 @@ import {
   Column,
   DataTable,
   EventMappingEditor,
-  InvoiceIdKeyEditor,
+  InvoiceKeyConfigSection,
   JsonBlock,
   KeyValueTable,
   stringifyJson,
@@ -85,8 +85,6 @@ import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
 
 import { stripTrailingSlash } from "@/lib/helpers";
-
-const CREDIT_NOTE_EVENT_TYPE = "erp.creditnote.issued";
 
 // ===== Types =====
 
@@ -310,13 +308,6 @@ export default function WebhookSettingsPage() {
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [secretVisible, setSecretVisible] = useState(false);
   const [rawSecret, setRawSecret] = useState<string | null>(null);
-  const [keyConfig, setKeyConfig] = useState({
-    invoiceIdKey: "",
-    creditNoteIdKey: "",
-    creditNoteReferenceIdKey: "",
-  });
-  const [keyConfigLoading, setKeyConfigLoading] = useState(true);
-
   // Webhook expiration/lifespan status
   const [webhookStatus, setWebhookStatus] = useState<WebhookStatus | null>(null);
   const [webhookStatusLoading, setWebhookStatusLoading] = useState(true);
@@ -406,41 +397,6 @@ export default function WebhookSettingsPage() {
     }
   }, [tenantId]);
 
-  // Load credit/debit note key config from the new bearer-token-authed endpoint
-  const fetchKeyConfig = useCallback(async () => {
-    if (!tenantId) return;
-    setKeyConfigLoading(true);
-    try {
-      const api = createTenantApi();
-      const response = await api.getKeyConfig(tenantId);
-      if (response.error) {
-        const errorMessage =
-          (response.error as any)?.value?.error ||
-          (response.error as any)?.status ||
-          "Failed to load invoice ID key configuration";
-        console.error("getKeyConfig failed:", response.error);
-        toast.error(
-          typeof errorMessage === "string"
-            ? errorMessage
-            : "Failed to load invoice ID key configuration",
-        );
-      } else if (response.data?.data) {
-        const data = response.data.data as any;
-        setKeyConfig({
-          invoiceIdKey: data.invoiceIdKey || "",
-          creditNoteIdKey: data.idKeyMap?.[CREDIT_NOTE_EVENT_TYPE] || "",
-          creditNoteReferenceIdKey:
-            data.referenceIdKeyMap?.[CREDIT_NOTE_EVENT_TYPE] || "",
-        });
-      }
-    } catch (error: any) {
-      console.error("getKeyConfig threw:", error);
-      toast.error(error?.message || "Failed to load invoice ID key configuration");
-    } finally {
-      setKeyConfigLoading(false);
-    }
-  }, [tenantId]);
-
   // Load config from tenant data
   useEffect(() => {
     if (tenantData) {
@@ -462,7 +418,6 @@ export default function WebhookSettingsPage() {
 
       // Fetch event routing from new API
       fetchEventRouting();
-      fetchKeyConfig();
 
       if (metadata?.webhookFieldMappings) {
         setMappingData(metadata.webhookFieldMappings);
@@ -470,7 +425,7 @@ export default function WebhookSettingsPage() {
 
       setLoadingConfig(false);
     }
-  }, [tenantData, fetchEventRouting, fetchKeyConfig]);
+  }, [tenantData, fetchEventRouting]);
 
   // Live webhook status (lifespan/expiry) — tenantData above only has the URL
   // fields already baked into the tenant record, not expiry info, so this is
@@ -1121,7 +1076,7 @@ export default function WebhookSettingsPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="contents">
@@ -1578,81 +1533,30 @@ export default function WebhookSettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {keyConfigLoading ? (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
+                {tenantId && (
                   <>
-                    <div className="space-y-3">
-                      <p className="text-sm font-medium">Standard Invoice</p>
-                      <InvoiceIdKeyEditor
-                        initialValue={keyConfig.invoiceIdKey}
-                        disabled={!canUpdate}
-                        onSave={async (key) => {
-                          if (!tenantId) return;
-                          const api = createTenantApi();
-                          const res = await api.updateInvoiceIdKey(
-                            tenantId,
-                            key,
-                          );
-                          if (res.error)
-                            throw new Error(
-                              (res.error as any)?.value?.error ||
-                                "Failed to update invoice ID key",
-                            );
-                        }}
-                        onSaved={() => fetchKeyConfig()}
-                      />
-                    </div>
+                    <InvoiceKeyConfigSection
+                      tenantId={tenantId}
+                      keyType="standard_invoice"
+                      title="Standard Invoice"
+                      disabled={!canUpdate}
+                      fetchConfig={(tid, kt) => createTenantApi().getKeyConfig(tid, kt)}
+                      saveConfig={(tid, payload) => createTenantApi().updateKeyConfig(tid, payload)}
+                    />
 
-                    <div className="space-y-3 pt-4 border-t">
-                      <p className="text-sm font-medium">Credit Note</p>
-                      <InvoiceIdKeyEditor
-                        initialValue={keyConfig.creditNoteIdKey}
-                        placeholder="e.g. creditNote.documentId"
-                        successMessage="Credit note ID key updated"
-                        disabled={!canUpdate}
-                        onSave={async (key) => {
-                          if (!tenantId) return;
-                          const api = createTenantApi();
-                          const res = await api.updateIdKeyMap(
-                            tenantId,
-                            CREDIT_NOTE_EVENT_TYPE,
-                            key,
-                          );
-                          if (res.error)
-                            throw new Error(
-                              (res.error as any)?.value?.error ||
-                                "Failed to update credit note ID key",
-                            );
-                        }}
-                        onSaved={() => fetchKeyConfig()}
-                      />
-                      <InvoiceIdKeyEditor
-                        initialValue={keyConfig.creditNoteReferenceIdKey}
-                        label="Reference ID Key"
-                        placeholder="e.g. creditNote.originalInvoiceId"
-                        helpText="Dot-notation path to the original invoice's ID, used to validate this credit note against it"
-                        successMessage="Credit note reference ID key updated"
-                        disabled={!canUpdate}
-                        onSave={async (key) => {
-                          if (!tenantId) return;
-                          const api = createTenantApi();
-                          const res = await api.updateReferenceIdKeyMap(
-                            tenantId,
-                            CREDIT_NOTE_EVENT_TYPE,
-                            key,
-                          );
-                          if (res.error)
-                            throw new Error(
-                              (res.error as any)?.value?.error ||
-                                "Failed to update credit note reference ID key",
-                            );
-                        }}
-                        onSaved={() => fetchKeyConfig()}
-                      />
-                    </div>
+                    <InvoiceKeyConfigSection
+                      className="space-y-3 pt-4 border-t"
+                      tenantId={tenantId}
+                      keyType="credit_note"
+                      title="Credit Note"
+                      idKeyPlaceholder="e.g. creditNote.documentId"
+                      hasReferenceKey
+                      referenceKeyPlaceholder="e.g. creditNote.originalInvoiceId"
+                      referenceKeyHelpText="Dot-notation path to the original invoice's ID, used to validate this credit note against it"
+                      disabled={!canUpdate}
+                      fetchConfig={(tid, kt) => createTenantApi().getKeyConfig(tid, kt)}
+                      saveConfig={(tid, payload) => createTenantApi().updateKeyConfig(tid, payload)}
+                    />
 
                     <div className="space-y-3 pt-4 border-t">
                       <div className="flex items-center gap-2">

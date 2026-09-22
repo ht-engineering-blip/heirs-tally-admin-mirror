@@ -50,6 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { getAdminApiClient } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
@@ -66,6 +67,7 @@ import {
   Download,
   Eye,
   FileText,
+  Info,
   Package,
   QrCode,
   RefreshCw,
@@ -852,6 +854,23 @@ export default function AdminTransactionLogs() {
 
   const stats = statsData;
 
+  const activeTypeLabel =
+    activeTab === "outbound" ? "Outbound" : activeTab === "inbound" ? "Inbound" : null;
+
+  const activeTypeDescription =
+    activeTab === "outbound"
+      ? "Invoices you've issued to your customers and reported to FIRS."
+      : activeTab === "inbound"
+        ? "Invoices your suppliers have sent you, received via FIRS through your Access Point Provider (APP)."
+        : null;
+
+  const emptyMessage =
+    activeTab === "outbound"
+      ? "No outbound invoices yet. Invoices you issue to customers will appear here once submitted."
+      : activeTab === "inbound"
+        ? "No inbound invoices yet. Invoices your suppliers send you will appear here once received."
+        : "No transactions found";
+
   return (
     <>
       <div className="space-y-6 animate-fade-in">
@@ -913,9 +932,17 @@ export default function AdminTransactionLogs() {
                       {stats.outbound}
                     </p>
                   )}
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Outbound
-                  </p>
+                  <div className="flex items-center gap-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      Outbound
+                    </p>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="w-3 h-3 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>Sales invoices you send out.</TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -934,9 +961,17 @@ export default function AdminTransactionLogs() {
                       {stats.inbound}
                     </p>
                   )}
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Inbound
-                  </p>
+                  <div className="flex items-center gap-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      Inbound
+                    </p>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="w-3 h-3 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>Purchase invoices sent to you.</TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -981,6 +1016,13 @@ export default function AdminTransactionLogs() {
           </TabsList>
         </Tabs>
 
+        {(activeTypeLabel || activeTypeDescription) && (
+          <div>
+            <h2 className="text-base font-semibold">{activeTypeLabel}</h2>
+            <p className="text-sm text-muted-foreground">{activeTypeDescription}</p>
+          </div>
+        )}
+
         {/* Data Table */}
         <DataTable
           key={activeTab}
@@ -1011,7 +1053,7 @@ export default function AdminTransactionLogs() {
             setPage(1);
           }}
           onSort={handleSort}
-          emptyMessage="No transactions found"
+          emptyMessage={emptyMessage}
         />
       </div>
 
