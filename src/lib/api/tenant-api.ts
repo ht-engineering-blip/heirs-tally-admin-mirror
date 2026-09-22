@@ -1,4 +1,5 @@
 import { getAdminApiClient, getTenantApiClient } from './client';
+import type { InvoiceKeyType } from '@/types/invoice-key-config';
 
 export function createTenantApi() {
   const api = getTenantApiClient()
@@ -65,17 +66,15 @@ export function createTenantApi() {
     getWebhookConfig: (tenantId: string) =>
       (api as any).v1.tenants({ tenantId }).webhook.config.get(),
 
-    updateInvoiceIdKey: (tenantId: string, invoiceIdKey: string) =>
-      api.v1.tenants({ tenantId })['invoice-id-key'].put({ invoiceIdKey }),
+    // Unified key-config endpoint covering all NRS document types — replaces
+    // the older invoice-id-key / id-key-map / reference-id-key-map routes.
+    getKeyConfig: (tenantId: string, keyType?: InvoiceKeyType) =>
+      (api as any).v1.tenants({ tenantId })['key-config'].get({ query: keyType ? { keyType } : {} }),
 
-    getKeyConfig: (tenantId: string) =>
-      (api as any).v1.tenants({ tenantId })['key-config'].get(),
-
-    updateIdKeyMap: (tenantId: string, eventType: string, idKey: string) =>
-      (api as any).v1.tenants({ tenantId })['id-key-map'].put({ eventType, idKey }),
-
-    updateReferenceIdKeyMap: (tenantId: string, eventType: string, idKey: string) =>
-      (api as any).v1.tenants({ tenantId })['reference-id-key-map'].put({ eventType, idKey }),
+    updateKeyConfig: (
+      tenantId: string,
+      payload: { keyType: InvoiceKeyType; idKey: string; referenceIdKey?: string },
+    ) => (api as any).v1.tenants({ tenantId })['key-config'].put(payload),
 
     updatePaymentStatus: (irn: string, data: {
       status: string;
