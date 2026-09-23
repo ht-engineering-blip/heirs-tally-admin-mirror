@@ -294,6 +294,16 @@ export default function TenantDetail() {
     toast.success(`${label} copied to clipboard`);
   };
 
+  const CopyIconButton = ({ value, label }: { value: string; label: string }) => (
+    <button
+      className="text-muted-foreground hover:text-foreground shrink-0"
+      onClick={() => copyToClipboard(value, label)}
+      title={`Copy ${label}`}
+    >
+      <Copy className="w-3.5 h-3.5" />
+    </button>
+  );
+
   const handleGenerateWebhook = async () => {
     if (!tenant) return;
     setIsGenerating(true);
@@ -435,7 +445,10 @@ export default function TenantDetail() {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold">{tenant.businessName}</h3>
-                  <p className="text-sm text-muted-foreground">Tenant ID: {tenant.tenantId}</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    Tenant ID: {tenant.tenantId}
+                    <CopyIconButton value={tenant.tenantId} label="Tenant ID" />
+                  </p>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <StatusBadge status={tenant.status} />
                     {tenant.onboarding && (
@@ -482,7 +495,10 @@ export default function TenantDetail() {
                     <Key className="w-5 h-5 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">TIN</p>
-                      <p className="font-mono">{tenant.tin}</p>
+                      <p className="font-mono flex items-center gap-1.5">
+                        {tenant.tin}
+                        <CopyIconButton value={tenant.tin} label="TIN" />
+                      </p>
                     </div>
                   </div>
                   {tenant.businessRegistrationNumber && (
@@ -490,7 +506,10 @@ export default function TenantDetail() {
                       <Key className="w-5 h-5 text-muted-foreground" />
                       <div>
                         <p className="text-sm text-muted-foreground">Registration Number</p>
-                        <p className="font-mono">{tenant.businessRegistrationNumber}</p>
+                        <p className="font-mono flex items-center gap-1.5">
+                          {tenant.businessRegistrationNumber}
+                          <CopyIconButton value={tenant.businessRegistrationNumber} label="Registration Number" />
+                        </p>
                       </div>
                     </div>
                   )}
@@ -513,14 +532,20 @@ export default function TenantDetail() {
                     <Mail className="w-5 h-5 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Email</p>
-                      <p className="font-medium">{tenant.contactEmail}</p>
+                      <p className="font-medium flex items-center gap-1.5">
+                        {tenant.contactEmail}
+                        <CopyIconButton value={tenant.contactEmail} label="Email" />
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <Phone className="w-5 h-5 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Phone</p>
-                      <p className="font-medium">{tenant.contactPhone}</p>
+                      <p className="font-medium flex items-center gap-1.5">
+                        {tenant.contactPhone}
+                        <CopyIconButton value={tenant.contactPhone} label="Phone" />
+                      </p>
                     </div>
                   </div>
                 </CardContent>
