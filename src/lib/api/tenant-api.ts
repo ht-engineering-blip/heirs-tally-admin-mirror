@@ -1,5 +1,6 @@
 import { getAdminApiClient, getTenantApiClient } from './client';
 import type { InvoiceKeyType } from '@/types/invoice-key-config';
+import type { OnboardingProfilePayload, BusinessSettingsPayload } from '@/types/tenant-profile';
 
 export function createTenantApi() {
   const api = getTenantApiClient()
@@ -65,6 +66,19 @@ export function createTenantApi() {
 
     getWebhookConfig: (tenantId: string) =>
       (api as any).v1.tenants({ tenantId }).webhook.config.get(),
+
+    updateOnboardingProfile: (tenantId: string, payload: OnboardingProfilePayload) =>
+      (api as any).v1.tenants({ tenantId }).onboarding.profile.put(payload),
+
+    getBusinessSettings: (tenantId: string) =>
+      (api as any).v1.tenants({ tenantId }).settings.business.get(),
+
+    updateBusinessSettings: (tenantId: string, payload: BusinessSettingsPayload) =>
+      (api as any).v1.tenants({ tenantId }).settings.business.put(payload),
+
+    getStates: () => (api as any).v1.invoice.resources.states.get(),
+
+    getLgas: () => (api as any).v1.invoice.resources.lgas.get(),
 
     // Unified key-config endpoint covering all NRS document types — replaces
     // the older invoice-id-key / id-key-map / reference-id-key-map routes.

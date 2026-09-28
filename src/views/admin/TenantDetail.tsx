@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge, InvoiceKeyConfigSection, WebhookExpiryBadge } from '@/components/shared';
+import { BusinessInformationTab } from '@/components/profile/BusinessInformationTab';
 import { toast } from 'sonner';
 import { getAdminApiClient } from '@/lib/api/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -578,6 +579,16 @@ export default function TenantDetail() {
                   )}
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Business Information (editable) */}
+            <div className="mt-6">
+              <BusinessInformationTab
+                tenantId={tenant.tenantId}
+                fetchConfig={(tid) => (api as any).v1.tenants({ tenantId: tid }).settings.business.get()}
+                saveConfig={(tid, payload) => (api as any).v1.tenants({ tenantId: tid }).settings.business.put(payload)}
+                onSaved={fetchTenant}
+              />
             </div>
           </TabsContent>
 

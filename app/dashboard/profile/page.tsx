@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { useSession } from '@/hooks/use-session'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Form,
   FormControl,
@@ -22,16 +22,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Loader2, Building2, AlertCircle, CheckCircle, Pencil, X, Shield, Eye, EyeOff, Copy, Mail } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { SectionLoader } from '@/components/shared/SectionLoader'
+import { BusinessInformationTab } from '@/components/profile/BusinessInformationTab'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
-
-const profileSchema = z.object({
-  businessName: z.string().min(1, 'Business name is required'),
-  contactPhone: z.string().min(1, 'Phone number is required'),
-})
-
-type ProfileFormValues = z.infer<typeof profileSchema>
 
 const credentialsSchema = z.object({
   certificate: z.string().min(1, 'Certificate is required'),
@@ -44,8 +38,6 @@ export default function ProfilePage() {
   const { tenantId, tenantData, metadata, isLoading, error: tenantError, refetch } = useTenant()
   const { hasPermission } = usePermissions()
   const canEdit = hasPermission('profile:update')
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
   const [isEditingCredentials, setIsEditingCredentials] = useState(false)
   const [isSavingCredentials, setIsSavingCredentials] = useState(false)
@@ -62,42 +54,10 @@ export default function ProfilePage() {
   const tenant = tenantData as Record<string, any> | undefined
   const config = tenant?.config as Record<string, any> | undefined
 
-  const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    values: {
-      businessName: tenant?.businessName || '',
-      contactPhone: tenant?.contactPhone || '',
-    },
-  })
-
   const credentialsForm = useForm<CredentialsFormValues>({
     resolver: zodResolver(credentialsSchema),
     defaultValues: { certificate: '', publicKey: '' },
   })
-
-  const onSubmit = async (data: ProfileFormValues) => {
-    if (!tenantId) return
-    setIsSaving(true)
-
-    try {
-      const api = createTenantApi()
-      const response = await api.updateTenant(tenantId, data)
-
-      if (response.error) {
-        const msg = (response.error as any)?.value?.error || 'Failed to update profile'
-        toast.error(msg)
-        return
-      }
-
-      toast.success('Profile updated successfully')
-      setIsEditing(false)
-      refetch()
-    } catch (err) {
-      toast.error('An unexpected error occurred')
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   const handleRequestEmailChange = async () => {
     if (!tenantId || !newEmail.trim() || !currentPassword.trim()) return
@@ -181,337 +141,289 @@ export default function ProfilePage() {
         </Badge>
       </div>
 
-      {/* Profile Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Business Information</CardTitle>
-              <CardDescription>Your registered business details</CardDescription>
-            </div>
-            {!isEditing ? (
-              canEdit && (
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                  <Pencil className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
-              )
-            ) : (
-              <Button variant="ghost" size="sm" onClick={() => { setIsEditing(false); form.reset() }}>
-                <X className="h-4 w-4 mr-1" />
-                Cancel
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isEditing ? (
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="businessName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Business Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="contactPhone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contact Phone</FormLabel>
-                      <FormControl>
-                        <Input type="tel" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end pt-2">
-                  <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
-                    {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Save Changes
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          ) : (
-            <div className="space-y-4">
-              <ProfileField label="Business Name" value={tenant?.businessName} />
-              <ProfileField label="TIN" value={tenant?.tin} />
-              <ProfileField label="Contact Email" value={tenant?.contactEmail} />
-              <ProfileField label="Contact Phone" value={tenant?.contactPhone} />
-              <ProfileField label="ERP System" value={config?.erpSystem || tenant?.erpSystem} />
-              <ProfileField label="Registered" value={tenant?.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : undefined} />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="business" className="space-y-6">
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
+          <TabsTrigger value="business">Business Information</TabsTrigger>
+          {canEdit && <TabsTrigger value="email">Email Address</TabsTrigger>}
+          <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          <TabsTrigger value="credentials">FIRS Credentials</TabsTrigger>
+        </TabsList>
 
-      {/* Email Address Card */}
-      {canEdit && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="h-5 w-5" />
-                  Email Address
-                </CardTitle>
-                <CardDescription>Change your account contact email</CardDescription>
-              </div>
-              {!isChangingEmail && !emailChangeSuccess && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => { setIsChangingEmail(true); setEmailChangeError(null) }}
-                >
-                  <Pencil className="h-4 w-4 mr-1" />
-                  Change
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ProfileField label="Current Email" value={tenant?.contactEmail} />
+        {/* Business Information */}
+        <TabsContent value="business">
+          <BusinessInformationTab
+            tenantId={tenantId ?? ''}
+            disabled={!hasPermission('settings:update')}
+            fetchConfig={(tid) => createTenantApi().getBusinessSettings(tid)}
+            saveConfig={(tid, payload) => createTenantApi().updateBusinessSettings(tid, payload)}
+            onSaved={refetch}
+          />
+        </TabsContent>
 
-            {emailChangeSuccess ? (
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-success/10 border border-success/20">
-                <CheckCircle className="h-5 w-5 text-success shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-success">Verification email sent</p>
-                  <p className="text-sm text-muted-foreground">
-                    A verification link has been sent to <span className="font-medium text-foreground">{emailChangeSuccess}</span>. Click the link in that email to confirm the change.
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => { setEmailChangeSuccess(null); setIsChangingEmail(false) }}
-                  >
-                    Send to a different address
-                  </Button>
-                </div>
-              </div>
-            ) : isChangingEmail ? (
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">New Email Address</label>
-                  <Input
-                    type="email"
-                    placeholder="new-email@company.com"
-                    value={newEmail}
-                    onChange={(e) => { setNewEmail(e.target.value); setEmailChangeError(null) }}
-                  />
-                  {newEmail.trim().toLowerCase() === tenant?.contactEmail?.toLowerCase() && newEmail.trim() && (
-                    <p className="text-xs text-destructive">New email must be different from your current email.</p>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Current Password</label>
-                  <div className="relative">
-                    <Input
-                      type={showCurrentPassword ? 'text' : 'password'}
-                      placeholder="Enter your current password"
-                      value={currentPassword}
-                      onChange={(e) => { setCurrentPassword(e.target.value); setEmailChangeError(null) }}
-                      onKeyDown={(e) => e.key === 'Enter' && handleRequestEmailChange()}
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      tabIndex={-1}
-                    >
-                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
+        {/* Email Address */}
+        {canEdit && (
+          <TabsContent value="email">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Mail className="h-5 w-5" />
+                      Email Address
+                    </CardTitle>
+                    <CardDescription>Change your account contact email</CardDescription>
                   </div>
-                </div>
-                {emailChangeError && (
-                  <p className="text-xs text-destructive">{emailChangeError}</p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  A verification link will be sent to the new address. The change only applies after you click that link.
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={handleRequestEmailChange}
-                    disabled={isRequestingEmailChange || !newEmail.trim() || !currentPassword.trim() || newEmail.trim().toLowerCase() === tenant?.contactEmail?.toLowerCase()}
-                  >
-                    {isRequestingEmailChange && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Send Verification
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => { setIsChangingEmail(false); setNewEmail(''); setCurrentPassword(''); setShowCurrentPassword(false); setEmailChangeError(null) }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Configuration Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Configuration</CardTitle>
-          <CardDescription>Your account configuration and limits</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ProfileField
-            label="Webhook URL"
-            value={config?.webhookUrl || 'Not configured'}
-            copyable={!!config?.webhookUrl}
-            onCopy={() => handleCopy(config?.webhookUrl, 'Webhook URL')}
-          />
-          <ProfileField
-            label="Webhook Enabled"
-            value={config?.webhookEnabled ? 'Yes' : 'No'}
-          />
-          {config?.features && (
-            <>
-              <ProfileField label="Auto Fix" value={config.features.autoFix ? 'Enabled' : 'Disabled'} />
-              <ProfileField label="QR Code Generation" value={config.features.qrCodeGeneration ? 'Enabled' : 'Disabled'} />
-              <ProfileField label="Max Retries" value={config.features.maxRetries?.toString()} />
-            </>
-          )}
-          {config?.limits && (
-            <>
-              <ProfileField label="Monthly Invoice Limit" value={config.limits.monthlyInvoiceLimit?.toLocaleString()} />
-              <ProfileField label="API Rate Limit" value={config.limits.apiRateLimit ? `${config.limits.apiRateLimit}/min` : undefined} />
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* FIRS Credentials Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                FIRS Credentials
-              </CardTitle>
-              <CardDescription>Your FIRS certificate and public key for invoice signing</CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCredentials(!showCredentials)}
-              >
-                {showCredentials ? (
-                  <><EyeOff className="h-4 w-4 mr-1" /> Hide</>
-                ) : (
-                  <><Eye className="h-4 w-4 mr-1" /> Show</>
-                )}
-              </Button>
-              {!isEditingCredentials && canEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => { setIsEditingCredentials(true); setShowCredentials(false) }}
-                >
-                  <Pencil className="h-4 w-4 mr-1" />
-                  Update
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isEditingCredentials ? (
-            <Form {...credentialsForm}>
-              <form onSubmit={credentialsForm.handleSubmit(handleUpdateCredentials)} className="space-y-4">
-                <FormField
-                  control={credentialsForm.control}
-                  name="certificate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Certificate</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
-                          className="font-mono text-xs min-h-[120px]"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                  {!isChangingEmail && !emailChangeSuccess && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setIsChangingEmail(true); setEmailChangeError(null) }}
+                    >
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Change
+                    </Button>
                   )}
-                />
-                <FormField
-                  control={credentialsForm.control}
-                  name="publicKey"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Public Key</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
-                          className="font-mono text-xs min-h-[120px]"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => { setIsEditingCredentials(false); credentialsForm.reset() }}
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Cancel
-                  </Button>
-                  <Button type="submit" size="sm" disabled={isSavingCredentials || !credentialsForm.formState.isDirty}>
-                    {isSavingCredentials && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Save Credentials
-                  </Button>
                 </div>
-              </form>
-            </Form>
-          ) : showCredentials ? (
-            <div className="space-y-4">
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ProfileField label="Current Email" value={tenant?.contactEmail} />
+
+                {emailChangeSuccess ? (
+                  <div className="flex items-start gap-3 p-4 rounded-lg bg-success/10 border border-success/20">
+                    <CheckCircle className="h-5 w-5 text-success shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-success">Verification email sent</p>
+                      <p className="text-sm text-muted-foreground">
+                        A verification link has been sent to <span className="font-medium text-foreground">{emailChangeSuccess}</span>. Click the link in that email to confirm the change.
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => { setEmailChangeSuccess(null); setIsChangingEmail(false) }}
+                      >
+                        Send to a different address
+                      </Button>
+                    </div>
+                  </div>
+                ) : isChangingEmail ? (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">New Email Address</label>
+                      <Input
+                        type="email"
+                        placeholder="new-email@company.com"
+                        value={newEmail}
+                        onChange={(e) => { setNewEmail(e.target.value); setEmailChangeError(null) }}
+                      />
+                      {newEmail.trim().toLowerCase() === tenant?.contactEmail?.toLowerCase() && newEmail.trim() && (
+                        <p className="text-xs text-destructive">New email must be different from your current email.</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Current Password</label>
+                      <div className="relative">
+                        <Input
+                          type={showCurrentPassword ? 'text' : 'password'}
+                          placeholder="Enter your current password"
+                          value={currentPassword}
+                          onChange={(e) => { setCurrentPassword(e.target.value); setEmailChangeError(null) }}
+                          onKeyDown={(e) => e.key === 'Enter' && handleRequestEmailChange()}
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPassword((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          tabIndex={-1}
+                        >
+                          {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    {emailChangeError && (
+                      <p className="text-xs text-destructive">{emailChangeError}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      A verification link will be sent to the new address. The change only applies after you click that link.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleRequestEmailChange}
+                        disabled={isRequestingEmailChange || !newEmail.trim() || !currentPassword.trim() || newEmail.trim().toLowerCase() === tenant?.contactEmail?.toLowerCase()}
+                      >
+                        {isRequestingEmailChange && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Send Verification
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { setIsChangingEmail(false); setNewEmail(''); setCurrentPassword(''); setShowCurrentPassword(false); setEmailChangeError(null) }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {/* Configuration */}
+        <TabsContent value="configuration">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuration</CardTitle>
+              <CardDescription>Your account configuration and limits</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <ProfileField
-                label="FIRS Status"
-                value={config?.firs ? 'Connected' : 'Not connected'}
+                label="Webhook URL"
+                value={config?.webhookUrl || 'Not configured'}
+                copyable={!!config?.webhookUrl}
+                onCopy={() => handleCopy(config?.webhookUrl, 'Webhook URL')}
               />
-              {config?.firs && (
+              <ProfileField
+                label="Webhook Enabled"
+                value={config?.webhookEnabled ? 'Yes' : 'No'}
+              />
+              {config?.features && (
                 <>
-                  <ProfileField
-                    label="Service ID"
-                    value={config.firs.serviceId}
-                  />
-                  <ProfileField label="Business Name" value={tenant?.businessName} />
-                  <ProfileField label="TIN" value={tenant?.tin} />
+                  <ProfileField label="Auto Fix" value={config.features.autoFix ? 'Enabled' : 'Disabled'} />
+                  <ProfileField label="QR Code Generation" value={config.features.qrCodeGeneration ? 'Enabled' : 'Disabled'} />
+                  <ProfileField label="Max Retries" value={config.features.maxRetries?.toString()} />
                 </>
               )}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Click &quot;Show&quot; to view your FIRS credential details, or &quot;Update&quot; to replace your certificate and key.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+              {config?.limits && (
+                <>
+                  <ProfileField label="Monthly Invoice Limit" value={config.limits.monthlyInvoiceLimit?.toLocaleString()} />
+                  <ProfileField label="API Rate Limit" value={config.limits.apiRateLimit ? `${config.limits.apiRateLimit}/min` : undefined} />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* FIRS Credentials */}
+        <TabsContent value="credentials">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    FIRS Credentials
+                  </CardTitle>
+                  <CardDescription>Your FIRS certificate and public key for invoice signing</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowCredentials(!showCredentials)}
+                  >
+                    {showCredentials ? (
+                      <><EyeOff className="h-4 w-4 mr-1" /> Hide</>
+                    ) : (
+                      <><Eye className="h-4 w-4 mr-1" /> Show</>
+                    )}
+                  </Button>
+                  {!isEditingCredentials && canEdit && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setIsEditingCredentials(true); setShowCredentials(false) }}
+                    >
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Update
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isEditingCredentials ? (
+                <Form {...credentialsForm}>
+                  <form onSubmit={credentialsForm.handleSubmit(handleUpdateCredentials)} className="space-y-4">
+                    <FormField
+                      control={credentialsForm.control}
+                      name="certificate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Certificate</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                              className="font-mono text-xs min-h-[120px]"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={credentialsForm.control}
+                      name="publicKey"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Public Key</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"
+                              className="font-mono text-xs min-h-[120px]"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setIsEditingCredentials(false); credentialsForm.reset() }}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={isSavingCredentials || !credentialsForm.formState.isDirty}>
+                        {isSavingCredentials && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Save Credentials
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              ) : showCredentials ? (
+                <div className="space-y-4">
+                  <ProfileField
+                    label="FIRS Status"
+                    value={config?.firs ? 'Connected' : 'Not connected'}
+                  />
+                  {config?.firs && (
+                    <>
+                      <ProfileField
+                        label="Service ID"
+                        value={config.firs.serviceId}
+                      />
+                      <ProfileField label="Business Name" value={tenant?.businessName} />
+                      <ProfileField label="TIN" value={tenant?.tin} />
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Click &quot;Show&quot; to view your FIRS credential details, or &quot;Update&quot; to replace your certificate and key.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
