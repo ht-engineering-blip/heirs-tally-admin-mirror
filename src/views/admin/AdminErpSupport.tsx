@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   FileJson, Save, Loader2, Edit, Eye, Settings, Calendar, Clock, ArrowLeft, Server, Plus, Check,
   ChevronRight, ChevronLeft, Link2, Unlink, Sparkles, PenLine, PlayCircle, CheckCircle2, XCircle,
-  ChevronDown, X, RefreshCw,
+  ChevronDown, RefreshCw,
 } from 'lucide-react';
 import { getAdminApiClient } from '@/lib/api/client';
 import { usePathname } from 'next/navigation';
@@ -34,100 +34,29 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { extractJsonWithMetadata, stripJsonComments } from '@/lib/schema/firs-extractor';
-import { DataTable, Column, FilterOption, StatusBadge } from '@/components/shared';
+import {
+  DataTable,
+  Column,
+  FilterOption,
+  StatusBadge,
+  ConnectMapper,
+  MappingRow,
+  ValidationIssuesTable,
+  IssuesList,
+} from '@/components/shared';
 import { useSupportedErps, formatErpName } from '@/hooks/use-supported-erps';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { findArrayPaths, resolvePath, parseApiValidationErrors, flattenObject, isFieldRequired } from '@/lib/erp-mapping/helpers';
 import type {
   FieldMapping,
   ArrayMapping,
   MappingTemplate,
   NrsSchema,
-  NrsSchemaField,
   MappingTestResult,
-  TransformType,
+  PickerField,
+  ValidationIssue,
 } from '@/types/mapping';
-
-// The backend's `is_required` flag on NRS schema fields is currently
-// unreliable (observed false even on fields whose validation_rules says
-// "required"), so treat either signal as authoritative.
-function isFieldRequired(f: Pick<NrsSchemaField, 'is_required' | 'validation_rules'>): boolean {
-  return !!f.is_required || /required/i.test(f.validation_rules || '');
-}
-
-interface ValidationIssue {
-  field?: string;
-  message: string;
-}
-
-// The mapping.test/mapping.save endpoints can fail with two structurally
-// different `details` shapes: Elysia's own request-body schema validation
-// (before any business logic runs) sends
-// `{ on, message, fields: Record<fieldPath, message> }`, while the mapping
-// engine's own gatekeeper (once its backend bug — see handleSave — is
-// fixed) sends `[{ message }, ...]`. Handle both.
-function parseApiValidationErrors(errorValue: any): ValidationIssue[] {
-  const fields = errorValue?.details?.fields;
-  if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
-    return Object.entries(fields).map(([field, message]) => ({ field, message: String(message) }));
-  }
-  if (Array.isArray(errorValue?.details)) {
-    return errorValue.details
-      .map((d: any) => (typeof d === 'string' ? { message: d } : d?.message ? { field: d.field, message: d.message } : null))
-      .filter(Boolean);
-  }
-  return [];
-}
-
-// Two-column Field/Issue table for structured validation failures (a rejected
-// request body, or the mapping gatekeeper's per-field errors).
-function ValidationIssuesTable({ issues }: { issues: ValidationIssue[] }) {
-  return (
-    <div className="border rounded-md overflow-hidden mt-2">
-      <div className="max-h-[280px] overflow-y-auto">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-muted">
-            <tr className="text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2 font-medium w-2/5">Field</th>
-              <th className="px-3 py-2 font-medium">Issue</th>
-            </tr>
-          </thead>
-          <tbody>
-            {issues.map((issue, idx) => (
-              <tr key={idx} className="border-t border-border/50">
-                <td className="px-3 py-2 align-top">
-                  {issue.field ? (
-                    <code className="text-xs font-mono break-all">{issue.field}</code>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 align-top text-muted-foreground">{issue.message}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// Single-column bordered list for plain message strings (no field data to
-// split out) — e.g. the deterministic transform's own errors/missing fields.
-function IssuesList({ items }: { items: string[] }) {
-  return (
-    <div className="border rounded-md overflow-hidden mt-2">
-      <div className="max-h-[240px] overflow-y-auto divide-y divide-border/50">
-        {items.map((item, idx) => (
-          <div key={idx} className="px-3 py-2 text-sm flex items-start gap-2">
-            <span className="text-muted-foreground shrink-0">•</span>
-            <span>{item}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 interface ErpSupport {
   _id?: string;
@@ -152,45 +81,6 @@ interface ErpListItem {
   last_updated: Date;
 }
 
-interface PickerField {
-  key: string;
-  type?: string;
-  required?: boolean;
-}
-
-const TRANSFORM_OPTIONS: { value: TransformType | 'none'; label: string }[] = [
-  { value: 'none', label: 'None' },
-  { value: 'toDate', label: 'To Date' },
-  { value: 'toTime', label: 'To Time' },
-  { value: 'toNumber', label: 'To Number' },
-  { value: 'toString', label: 'To String' },
-  { value: 'trim', label: 'Trim' },
-  { value: 'uppercase', label: 'Uppercase' },
-  { value: 'lowercase', label: 'Lowercase' },
-  { value: 'sanitizePhone', label: 'Sanitize Phone' },
-  { value: 'sanitizeHsn', label: 'Sanitize HSN' },
-];
-
-/** List dot-notation paths of every array-valued field in an object */
-function findArrayPaths(obj: any, prefix = ''): string[] {
-  const paths: string[] = [];
-  if (!obj || typeof obj !== 'object') return paths;
-  for (const [k, v] of Object.entries(obj)) {
-    const fullKey = prefix ? `${prefix}.${k}` : k;
-    if (Array.isArray(v)) {
-      paths.push(fullKey);
-    } else if (v && typeof v === 'object') {
-      paths.push(...findArrayPaths(v, fullKey));
-    }
-  }
-  return paths;
-}
-
-function resolvePath(obj: any, path: string): any {
-  if (!obj || !path) return undefined;
-  return path.split('.').reduce((acc: any, seg) => (acc == null ? undefined : acc[seg]), obj);
-}
-
 /**
  * Schema Status
  */
@@ -209,353 +99,6 @@ const CONFIG_STEPS = [
 ] as const;
 
 type ConfigStep = typeof CONFIG_STEPS[number]['id'];
-
-/** Flatten a nested object into dot-notation paths */
-function flattenObject(obj: any, prefix = ''): { key: string; type: string }[] {
-  const result: { key: string; type: string }[] = [];
-  if (!obj || typeof obj !== 'object') return result;
-
-  // Handle arrays - we represent them with [*] notation
-  if (Array.isArray(obj)) {
-    if (obj.length > 0 && typeof obj[0] === 'object') {
-      result.push(...flattenObject(obj[0], `${prefix}[*]`));
-    } else {
-      result.push({ key: prefix || 'root', type: 'array' });
-    }
-    return result;
-  }
-
-  for (const [k, v] of Object.entries(obj)) {
-    const fullKey = prefix ? `${prefix}.${k}` : k;
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      result.push(...flattenObject(v, fullKey));
-    } else if (Array.isArray(v)) {
-      if (v.length > 0 && typeof v[0] === 'object') {
-        result.push(...flattenObject(v[0], `${fullKey}[*]`));
-      } else {
-        result.push({ key: fullKey, type: 'array' });
-      }
-    } else {
-      result.push({ key: fullKey, type: typeof v });
-    }
-  }
-  return result;
-}
-
-// Reusable click-to-connect source/target picker — used for both the
-// top-level field mapper and each array mapping's nested item mapper.
-function ConnectMapper({
-  sourceFields,
-  targetFields,
-  mappings,
-  onConnect,
-  onRemoveBySource,
-  onRemoveByTarget,
-  sourceLabel,
-  targetLabel,
-  onAddCustomTarget,
-}: {
-  sourceFields: PickerField[];
-  targetFields: PickerField[];
-  mappings: FieldMapping[];
-  onConnect: (source: string, target: string) => void;
-  onRemoveBySource: (source: string) => void;
-  onRemoveByTarget: (target: string) => void;
-  sourceLabel: string;
-  targetLabel: string;
-  onAddCustomTarget?: (path: string) => void;
-}) {
-  const [selectedSource, setSelectedSource] = useState<string | null>(null);
-  const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
-  const [sourceSearch, setSourceSearch] = useState('');
-  const [targetSearch, setTargetSearch] = useState('');
-  const [customTarget, setCustomTarget] = useState('');
-
-  const filteredSource = useMemo(() => {
-    if (!sourceSearch) return sourceFields;
-    const q = sourceSearch.toLowerCase();
-    return sourceFields.filter((f) => f.key.toLowerCase().includes(q));
-  }, [sourceSearch, sourceFields]);
-
-  const filteredTarget = useMemo(() => {
-    if (!targetSearch) return targetFields;
-    const q = targetSearch.toLowerCase();
-    return targetFields.filter((f) => f.key.toLowerCase().includes(q));
-  }, [targetSearch, targetFields]);
-
-  const getForSource = (key: string) => mappings.filter((m) => m.source === key);
-  const getForTarget = (key: string) => mappings.filter((m) => m.target === key);
-
-  useEffect(() => {
-    if (selectedSource && selectedTarget) {
-      onConnect(selectedSource, selectedTarget);
-      setSelectedSource(null);
-      setSelectedTarget(null);
-    }
-  }, [selectedSource, selectedTarget]);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Server className="w-4 h-4" />
-            {sourceLabel}
-          </CardTitle>
-          <Input
-            placeholder="Search..."
-            value={sourceSearch}
-            onChange={(e) => setSourceSearch(e.target.value)}
-            className="mt-2 h-8"
-          />
-        </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="h-[320px]">
-            <div className="space-y-0.5 p-3">
-              {filteredSource.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-6">No fields available</p>
-              )}
-              {filteredSource.map((field) => {
-                const mapped = getForSource(field.key);
-                const isMapped = mapped.length > 0;
-                const isSelected = selectedSource === field.key;
-                return (
-                  <div
-                    key={field.key}
-                    className={cn(
-                      'flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors text-sm group',
-                      isSelected && 'bg-primary/10 border border-primary/30',
-                      isMapped && !isSelected && 'bg-success/5 border border-success/20',
-                      !isMapped && !isSelected && 'hover:bg-muted/50 border border-transparent'
-                    )}
-                    onClick={() => setSelectedSource(isSelected ? null : field.key)}
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <code className="text-xs font-mono truncate">{field.key}</code>
-                      {field.type && <Badge variant="outline" className="text-[10px] shrink-0">{field.type}</Badge>}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {isMapped && <Badge variant="secondary" className="text-[10px]">{mapped.length}</Badge>}
-                      {isMapped && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveBySource(field.key);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/10 rounded"
-                          title="Remove mapping"
-                        >
-                          <Unlink className="w-3 h-3 text-destructive" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <FileJson className="w-4 h-4" />
-            {targetLabel}
-          </CardTitle>
-          <Input
-            placeholder="Search..."
-            value={targetSearch}
-            onChange={(e) => setTargetSearch(e.target.value)}
-            className="mt-2 h-8"
-          />
-        </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="h-[320px]">
-            <div className="space-y-0.5 p-3">
-              {filteredTarget.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-6">No fields available</p>
-              )}
-              {filteredTarget.map((field) => {
-                const mapped = getForTarget(field.key);
-                const isMapped = mapped.length > 0;
-                const isSelected = selectedTarget === field.key;
-                return (
-                  <div
-                    key={field.key}
-                    className={cn(
-                      'flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors text-sm group',
-                      isSelected && 'bg-primary/10 border border-primary/30',
-                      isMapped && !isSelected && 'bg-success/5 border border-success/20',
-                      !isMapped && !isSelected && 'hover:bg-muted/50 border border-transparent'
-                    )}
-                    onClick={() => setSelectedTarget(isSelected ? null : field.key)}
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <code className="text-xs font-mono truncate">{field.key}</code>
-                      {field.required && (
-                        <Badge className="bg-destructive/10 text-destructive text-[10px] shrink-0">Required</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {isMapped && <Badge variant="secondary" className="text-[10px]">{mapped.length}</Badge>}
-                      {isMapped && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveByTarget(field.key);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/10 rounded"
-                          title="Remove mapping"
-                        >
-                          <Unlink className="w-3 h-3 text-destructive" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        </CardContent>
-        {onAddCustomTarget && (
-          <div className="flex items-center gap-2 p-3 border-t">
-            <Input
-              placeholder="Add custom target path..."
-              value={customTarget}
-              onChange={(e) => setCustomTarget(e.target.value)}
-              className="h-8 text-xs"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 shrink-0"
-              disabled={!customTarget.trim()}
-              onClick={() => {
-                onAddCustomTarget(customTarget.trim());
-                setCustomTarget('');
-              }}
-            >
-              <Plus className="w-3 h-3" />
-            </Button>
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-}
-
-// Expandable row for one field mapping — reveals transform, fallback
-// sources, and default value controls, reused for both top-level and
-// per-array item mappings.
-function MappingRow({
-  mapping,
-  onRemove,
-  onChange,
-}: {
-  mapping: FieldMapping;
-  onRemove: () => void;
-  onChange: (patch: Partial<FieldMapping>) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [newFallback, setNewFallback] = useState('');
-
-  return (
-    <div className="rounded-md bg-muted/30">
-      <div className="flex items-center gap-2 px-3 py-2 text-sm group">
-        <button onClick={() => setExpanded((e) => !e)} className="p-0.5 hover:bg-muted rounded shrink-0">
-          <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', expanded && 'rotate-180')} />
-        </button>
-        <code className="text-xs font-mono text-primary flex-1 truncate">{mapping.source}</code>
-        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-        <code className="text-xs font-mono text-success flex-1 truncate">{mapping.target}</code>
-        {mapping.required && (
-          <Badge className="bg-destructive/10 text-destructive text-[10px] shrink-0">Required</Badge>
-        )}
-        {mapping.transform && <Badge variant="outline" className="text-[10px] shrink-0">{mapping.transform}</Badge>}
-        <button
-          onClick={onRemove}
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded shrink-0"
-          title="Remove mapping"
-        >
-          <Unlink className="w-3 h-3 text-destructive" />
-        </button>
-      </div>
-      {expanded && (
-        <div className="px-3 pb-3 pt-1 space-y-3 border-t border-border/50">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Transform</Label>
-              <Select
-                value={mapping.transform || 'none'}
-                onValueChange={(v) => onChange({ transform: v === 'none' ? undefined : (v as TransformType) })}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TRANSFORM_OPTIONS.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Default Value</Label>
-              <Input
-                className="h-8 text-xs"
-                placeholder="Used when source is empty"
-                value={mapping.default_value !== undefined && mapping.default_value !== null ? String(mapping.default_value) : ''}
-                onChange={(e) => onChange({ default_value: e.target.value || undefined })}
-              />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Fallback Sources</Label>
-            {(mapping.fallback_sources || []).length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {(mapping.fallback_sources || []).map((fb, i) => (
-                  <Badge key={`${fb}-${i}`} variant="secondary" className="text-[10px] gap-1">
-                    <code>{fb}</code>
-                    <button
-                      onClick={() =>
-                        onChange({ fallback_sources: (mapping.fallback_sources || []).filter((_, idx) => idx !== i) })
-                      }
-                    >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <Input
-                className="h-8 text-xs"
-                placeholder="Add fallback source path..."
-                value={newFallback}
-                onChange={(e) => setNewFallback(e.target.value)}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 shrink-0"
-                disabled={!newFallback.trim()}
-                onClick={() => {
-                  onChange({ fallback_sources: [...(mapping.fallback_sources || []), newFallback.trim()] });
-                  setNewFallback('');
-                }}
-              >
-                <Plus className="w-3 h-3" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function AdminErpSupport() {
   const api = getAdminApiClient();
@@ -1096,14 +639,11 @@ export default function AdminErpSupport() {
       if (mapResponse.error) {
         const errorValue = (mapResponse.error as any)?.value;
         // Two distinct rejection sources share this same 400 path: Elysia's
-        // own request-schema validation (details.fields, checked by
-        // parseApiValidationErrors) fires before any business logic runs;
-        // the mapping engine's own gatekeeper is *meant* to send
+        // own request-schema validation (details.fields) fires before any
+        // business logic runs; the mapping engine's own gatekeeper sends
         // details: [{ message }, ...] on a semantically-invalid-but-well-
-        // formed template, but as of transform.routes.ts:165 that path is
-        // currently broken backend-side (error.errors never reaches
-        // ResponseBuilder.error) — this still checks for it so it starts
-        // working the moment that ships, with no frontend change needed.
+        // formed template (confirmed shape). Both are handled by
+        // parseApiValidationErrors.
         const errors = parseApiValidationErrors(errorValue);
         if (errors.length > 0) {
           setSaveErrors(errors);

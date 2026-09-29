@@ -8,6 +8,9 @@ export { EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping 
 export { InvoiceIdKeyEditor } from './InvoiceIdKeyEditor';
 export { InvoiceKeyConfigSection } from './InvoiceKeyConfigSection';
 export { PostalAddressFields } from './PostalAddressFields';
+export { ConnectMapper } from './ConnectMapper';
+export { MappingRow } from './MappingRow';
+export { ValidationIssuesTable, IssuesList } from './ValidationIssuesTable';
 export { FriendlyErrorBlock } from './FriendlyErrorBlock';
 export { BackgroundTaskProvider, useBackgroundTask } from './background-task';
 export type { BackgroundTask, BackgroundTaskRunOptions } from './background-task';
