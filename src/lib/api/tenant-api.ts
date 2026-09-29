@@ -1,5 +1,7 @@
 import { getAdminApiClient, getTenantApiClient } from './client';
 import type { InvoiceKeyType } from '@/types/invoice-key-config';
+import type { OnboardingProfilePayload, BusinessSettingsPayload } from '@/types/tenant-profile';
+import type { MappingTemplate } from '@/types/mapping';
 
 export function createTenantApi() {
   const api = getTenantApiClient()
@@ -65,6 +67,46 @@ export function createTenantApi() {
 
     getWebhookConfig: (tenantId: string) =>
       (api as any).v1.tenants({ tenantId }).webhook.config.get(),
+
+    updateOnboardingProfile: (tenantId: string, payload: OnboardingProfilePayload) =>
+      (api as any).v1.tenants({ tenantId }).onboarding.profile.put(payload),
+
+    getBusinessSettings: (tenantId: string) =>
+      (api as any).v1.tenants({ tenantId }).settings.business.get(),
+
+    updateBusinessSettings: (tenantId: string, payload: BusinessSettingsPayload) =>
+      (api as any).v1.tenants({ tenantId }).settings.business.put(payload),
+
+    getStates: () => (api as any).v1.invoice.resources.states.get(),
+
+    getLgas: () => (api as any).v1.invoice.resources.lgas.get(),
+
+    // ERP <-> NRS mapping engine — same routes as the admin's x-admin-key
+    // calls, auto-scoped to the caller's own tenant via bearer/API-key auth.
+    // No tenant_id is sent (confirmed via authorizeAndResolveTargetTenant).
+    getNrsSchemas: () =>
+      (api as any).v1.workflow.transform['nrs-schemas'].get(),
+
+    // Fetches the currently-active template for this ERP — the tenant's own
+    // saved override if one exists, otherwise the platform default
+    // (data.is_custom distinguishes the two). 404 means neither exists yet.
+    getMapping: (erp: string) =>
+      (api as any).v1.workflow.transform.mapping({ erp }).get(),
+
+    generateMapping: (payload: {
+      erp: string;
+      sample_invoice: any;
+      nrs_version?: string;
+      base_template?: any;
+      custom_prompt?: string;
+      custom_config?: any;
+    }) => (api as any).v1.workflow.transform.mapping.generate.post(payload),
+
+    testMapping: (payload: { sample_invoice: any; template: MappingTemplate }) =>
+      (api as any).v1.workflow.transform.mapping.test.post(payload),
+
+    saveMapping: (payload: { erp: string; sample_invoice: any; template: MappingTemplate }) =>
+      (api as any).v1.workflow.transform.mapping.save.post(payload),
 
     // Unified key-config endpoint covering all NRS document types — replaces
     // the older invoice-id-key / id-key-map / reference-id-key-map routes.

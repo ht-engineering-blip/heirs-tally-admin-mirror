@@ -74,3 +74,31 @@ export interface MappingSaveResult {
   status: string;
   message: string;
 }
+
+// Returned by GET /workflow/transform/mapping/:erp — the currently-active
+// template for that ERP, tenant-scoped when called with tenant auth.
+export interface GetMappingResult {
+  schema_id: string;
+  name: string;
+  erp_source: string;
+  tenant_id: string | null;
+  status: 'active' | 'draft' | 'deprecated' | 'archived';
+  // true = the tenant's own saved override; false = the platform default.
+  is_custom: boolean;
+  template: MappingTemplate;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** One selectable field in ConnectMapper's source/target lists. */
+export interface PickerField {
+  key: string;
+  type?: string;
+  required?: boolean;
+}
+
+/** One row in ValidationIssuesTable — a field-level or general validation failure. */
+export interface ValidationIssue {
+  field?: string;
+  message: string;
+}
