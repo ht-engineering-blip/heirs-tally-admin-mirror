@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -23,6 +25,7 @@ import {
   ChevronRight,
   Check,
   CheckCircle2,
+  Edit,
   FileJson,
   Link2,
   Loader2,
@@ -48,6 +51,7 @@ import {
   MappingRow,
   ValidationIssuesTable,
   IssuesList,
+  ReadOnlyMappingsList,
 } from '@/components/shared'
 import {
   findArrayPaths,
@@ -94,6 +98,8 @@ export default function ErpMappingPage() {
 
   const [mappingMode, setMappingMode] = useState<'ai' | 'manual' | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [showCustomPrompt, setShowCustomPrompt] = useState(false)
   const [mappingData, setMappingData] = useState<FieldMapping[]>([])
   const [arrayMappings, setArrayMappings] = useState<ArrayMapping[]>([])
   const [extraTargets, setExtraTargets] = useState<string[]>([])
@@ -112,6 +118,11 @@ export default function ErpMappingPage() {
 
   const [existingMapping, setExistingMapping] = useState<GetMappingResult | null>(null)
   const [mappingLookupLoading, setMappingLookupLoading] = useState(false)
+  // true = showing the read-only summary of the active template; false =
+  // showing the edit wizard. Starts false so a first-time (404) tenant lands
+  // straight in the wizard; flips true once an existing template is found,
+  // and again after a successful save.
+  const [viewMode, setViewMode] = useState(false)
 
   const invoiceEditorRef = useRef<any>(null)
 
@@ -142,6 +153,7 @@ export default function ErpMappingPage() {
       if (result?.template) {
         setExistingMapping(result)
         applyTemplate(result.template)
+        setViewMode(true)
       }
     }).finally(() => {
       if (!cancelled) setMappingLookupLoading(false)
@@ -149,6 +161,18 @@ export default function ErpMappingPage() {
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canConfigure, erpSystem])
+
+  // Discards any in-progress edits and returns to the read-only summary of
+  // whatever is currently active — used by both "Back to Summary" (cancel)
+  // and by re-entering the page with a template already on file.
+  const handleBackToSummary = () => {
+    if (existingMapping) applyTemplate(existingMapping.template)
+    setTestResult(null)
+    setTestRequestErrors(null)
+    setSaveErrors(null)
+    setStep('data')
+    setViewMode(true)
+  }
 
   const fetchNrsSchemas = async () => {
     setNrsLoading(true)
@@ -339,6 +363,7 @@ export default function ErpMappingPage() {
         erp: erpSystem,
         sample_invoice: parsedSampleInvoice,
         nrs_version: selectedNrsVersion,
+        ...(customPrompt.trim() ? { custom_prompt: customPrompt.trim() } : {}),
       })
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to generate mapping template')
@@ -458,6 +483,7 @@ export default function ErpMappingPage() {
       setSaveErrors(null)
       setSavedOnce(true)
       setExistingMapping((prev) => ({ ...(prev as GetMappingResult), is_custom: true, template }))
+      setViewMode(true)
       toast.success('ERP mapping saved and activated')
     } catch (error: any) {
       toast.error(error?.message || 'Failed to save mapping template')
@@ -488,6 +514,62 @@ export default function ErpMappingPage() {
     )
   }
 
+  if (mappingLookupLoading) {
+    return <SectionLoader message="Loading ERP mapping" />
+  }
+
+  // View mode — read-only summary of the currently-active template (your own
+  // saved override, or the platform default), shown instead of the wizard
+  // whenever one exists. This is also where a successful save lands, so the
+  // page visibly changes state instead of just sitting on the same form.
+  if (viewMode && existingMapping) {
+    const { template, is_custom, updated_at } = existingMapping
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="page-header">
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="page-title flex items-center gap-3">
+                <Workflow className="w-6 h-6" />
+                ERP Mapping
+              </h1>
+              <p className="page-subtitle">Map your ERP's invoice fields to the NRS schema</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {erpSystem && <Badge variant="outline">{erpSystem}</Badge>}
+            <Button
+              onClick={() => {
+                setStep('data')
+                setViewMode(false)
+              }}
+              className="rounded-full"
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit Mapping
+            </Button>
+          </div>
+        </div>
+
+        <Alert className={savedOnce ? 'border-success/30 bg-success/5' : undefined}>
+          <CheckCircle2 className={cn('h-4 w-4', savedOnce && 'text-success')} />
+          <AlertTitle>
+            {savedOnce ? 'Mapping active' : is_custom ? 'Using your saved mapping' : 'Using the platform default template'}
+          </AlertTitle>
+          <AlertDescription>
+            {savedOnce
+              ? 'Your last save is live. Click Edit Mapping to keep adjusting — each save replaces the active mapping.'
+              : is_custom
+                ? `This is the mapping you last saved for ${erpSystem}.${updated_at ? ` Last updated ${new Date(updated_at).toLocaleString()}.` : ''}`
+                : `No mapping saved yet for ${erpSystem} — this is the platform's default template. Edit and save to create your own override.`}
+          </AlertDescription>
+        </Alert>
+
+        <ReadOnlyMappingsList mappingData={template.field_mappings || []} arrayMappings={template.array_mappings || []} />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="page-header">
@@ -502,6 +584,11 @@ export default function ErpMappingPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {erpSystem && <Badge variant="outline">{erpSystem}</Badge>}
+          {existingMapping && (
+            <Button onClick={handleBackToSummary} variant="ghost" className="rounded-full">
+              Cancel
+            </Button>
+          )}
           {step !== 'data' && (
             <Button onClick={() => setStep('data')} variant="outline" className="rounded-full">
               <ChevronLeft className="w-4 h-4 mr-2" />
@@ -544,27 +631,15 @@ export default function ErpMappingPage() {
         </Alert>
       )}
 
-      {savedOnce ? (
+      {existingMapping && (
         <Alert>
           <CheckCircle2 className="h-4 w-4" />
-          <AlertTitle>Mapping active</AlertTitle>
+          <AlertTitle>{existingMapping.is_custom ? 'Editing your saved mapping' : 'Editing the platform default template'}</AlertTitle>
           <AlertDescription>
-            Your last save is live. You can keep adjusting and save again — each save replaces the active mapping.
+            Paste a sample invoice below to test or adjust it further — the mapping itself is already prefilled.
           </AlertDescription>
         </Alert>
-      ) : mappingLookupLoading ? (
-        <Skeleton className="h-16 w-full" />
-      ) : existingMapping ? (
-        <Alert>
-          <CheckCircle2 className="h-4 w-4" />
-          <AlertTitle>{existingMapping.is_custom ? 'Using your saved mapping' : 'Using the platform default template'}</AlertTitle>
-          <AlertDescription>
-            {existingMapping.is_custom
-              ? `Prefilled from the mapping you last saved for ${erpSystem}. Paste a sample invoice to test or adjust it further.`
-              : `No mapping saved yet for ${erpSystem} — prefilled from the platform's default template. Paste a sample invoice, then save to create your own override.`}
-          </AlertDescription>
-        </Alert>
-      ) : null}
+      )}
 
       {/* Stepper */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -775,15 +850,39 @@ export default function ErpMappingPage() {
               </Card>
             </div>
             {mappingMode === 'ai' && (
-              <div className="flex justify-end">
-                <Button onClick={handleGenerate} disabled={generating} className="rounded-full">
-                  {generating ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</>
-                  ) : (
-                    <><Sparkles className="w-4 h-4 mr-2" />Generate with AI</>
-                  )}
-                </Button>
-              </div>
+              <Card>
+                <CardContent className="pt-6 space-y-3">
+                  <Collapsible open={showCustomPrompt} onOpenChange={setShowCustomPrompt}>
+                    <CollapsibleTrigger asChild>
+                      <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground">
+                        <ChevronRight className={cn('w-3.5 h-3.5 mr-1 transition-transform', showCustomPrompt && 'rotate-90')} />
+                        Add Context for AI Autogenerate (optional)
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-1 mt-2">
+                      <Textarea
+                        placeholder="e.g. &quot;HSN codes live under item.tax_code&quot;, &quot;ignore the deprecated legacy_ref field&quot;, &quot;dates are DD/MM/YYYY&quot;"
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        className="min-h-[80px] text-sm"
+                        autoFocus
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Anything the AI can't infer from the sample invoice alone — field quirks, formats, or fields to skip.
+                      </p>
+                    </CollapsibleContent>
+                  </Collapsible>
+                  <div className="flex justify-end">
+                    <Button onClick={handleGenerate} disabled={generating} className="rounded-full">
+                      {generating ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</>
+                      ) : (
+                        <><Sparkles className="w-4 h-4 mr-2" />Generate with AI</>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Mapping stats */}
