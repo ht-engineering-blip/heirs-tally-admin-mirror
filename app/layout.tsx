@@ -8,8 +8,9 @@ const inter = Inter({ subsets: ['latin'] })
 const dmSans = DM_Sans({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Heirs Tally Admin Dashboard',
-  description: 'Heirs Tally Admin Dashboard - Heirs Tally',
+  title: 'Heirs E-Invoicing Admin',
+  description:
+    "A multi-tenant B2B e-invoicing platform that helps businesses generate, validate, and submit invoices electronically in compliance with NRS/FIRS requirements in Nigeria.",
 }
 
 export default function RootLayout({

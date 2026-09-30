@@ -10,22 +10,27 @@ import {
   OnboardingStepper,
   NrsOAuthStep,
   NrsCredentialsStep,
+  BusinessProfileStep,
   WebhookGenerateStep,
   OnboardingComplete,
 } from '@/components/onboarding'
 import type { OnboardingStep } from '@/components/onboarding'
 import { SectionLoader } from '@/components/shared/SectionLoader'
 
-const STEP_KEYS = ['firs_oauth', 'firs_credentials', 'webhook_generate'] as const
+const STEP_KEYS = ['firs_oauth', 'firs_credentials', 'business_profile', 'webhook_generate'] as const
 type StepKey = typeof STEP_KEYS[number]
 const KEY_ALIAS = {
   firs_oauth: "firsProvisioning",
   firs_credentials: "firsProvisioning",
+  // No backend onboarding-steps flag exists for this step yet — see the
+  // businessDescription fallback in the `steps` memo below.
+  business_profile: "businessProfile",
   webhook_generate: "erpConfiguration",
 }
 const STEP_META: Record<StepKey, { label: string; description: string }> = {
   firs_oauth: { label: 'NRS Auth', description: 'Authenticate with NRS portal' },
   firs_credentials: { label: 'Credentials', description: 'Provide NRS certificate & key' },
+  business_profile: { label: 'Business Profile', description: 'Tell us more about your business' },
   webhook_generate: { label: 'Webhook', description: 'Generate webhook URL' },
 }
 
@@ -63,6 +68,12 @@ export default function OnboardingPage() {
         return { key, ...STEP_META[key], status: 'completed' as const }
       }
 
+      // No dedicated backend flag for the profile step — treat it as done once
+      // the tenant record already carries a business description.
+      if (key === 'business_profile' && (tenantData as any)?.businessDescription) {
+        return { key, ...STEP_META[key], status: 'completed' as const }
+      }
+
       // If the user has advanced past this step via the override, treat it as done
       // so the stepper and progress bar reflect the user's actual position.
       if (overrideIndex > index) {
@@ -76,7 +87,7 @@ export default function OnboardingPage() {
 
       return { key, ...STEP_META[key], status: 'pending' as const }
     })
-  }, [onboardingSteps, tenantMetadata, currentStepOverride])
+  }, [onboardingSteps, tenantMetadata, tenantData, currentStepOverride])
 
   const allStepsComplete = useMemo(() => steps.every(s => s.status === 'completed'), [steps])
 
@@ -177,6 +188,9 @@ export default function OnboardingPage() {
           )}
           {tenantId && activeStepKey === 'firs_credentials' && (
             <NrsCredentialsStep tenantId={tenantId} onStepComplete={handleStepComplete} />
+          )}
+          {tenantId && activeStepKey === 'business_profile' && (
+            <BusinessProfileStep tenantId={tenantId} onStepComplete={handleStepComplete} />
           )}
           {tenantId && activeStepKey === 'webhook_generate' && (
             <WebhookGenerateStep tenantId={tenantId} onStepComplete={handleStepComplete} />

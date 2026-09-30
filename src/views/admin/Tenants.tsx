@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/select";
 import { formatErpName, useSupportedErps } from "@/hooks/use-supported-erps";
 import { getAdminApiClient } from "@/lib/api/client";
-import { Building2, Edit, Eye, Loader2, Mail, Plus, Power, Trash2 } from "lucide-react";
+import { Building2, Copy, Edit, Eye, Loader2, Mail, Plus, Power, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -543,9 +543,33 @@ export default function Tenants() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium">{tenant.businessName}</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="font-medium flex items-center gap-1.5">
+              {tenant.businessName}
+              <button
+                className="text-muted-foreground hover:text-foreground shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(tenant.businessName);
+                  toast.success("Business name copied");
+                }}
+                title="Copy business name"
+              >
+                <Copy className="w-3 h-3" />
+              </button>
+            </p>
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5">
               {tenant.contactEmail}
+              <button
+                className="text-muted-foreground hover:text-foreground shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(tenant.contactEmail);
+                  toast.success("Email copied");
+                }}
+                title="Copy email"
+              >
+                <Copy className="w-3 h-3" />
+              </button>
             </p>
           </div>
         </div>

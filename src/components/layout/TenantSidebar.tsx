@@ -29,6 +29,7 @@ import {
   TestTube,
   Users,
   WebhookIcon,
+  Workflow,
   X,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -132,6 +133,7 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
       : []),
     { title: 'Transactions', href: '/dashboard/transactions', icon: FileText, permission: 'transactions:read' },
     { title: 'ERP Sync', href: '/dashboard/erp-sync', icon: RefreshCcw, permission: 'erp:view' },
+    { title: 'ERP Mapping', href: '/dashboard/erp-mapping', icon: Workflow, permission: 'erp:configure' },
     { title: 'Sandbox', href: '/dashboard/sandbox', icon: TestTube, permission: 'sandbox:test' },
   ]
 

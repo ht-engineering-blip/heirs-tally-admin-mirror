@@ -102,11 +102,19 @@ export function KeyValueTable({ data, className, emptyText = 'No data' }: KeyVal
                   <span className="text-muted-foreground italic">null</span>
                 ) : value === undefined ? (
                   <span className="text-muted-foreground italic">—</span>
-                ) : typeof value === 'object' ? (
-                  <pre className="whitespace-pre-wrap break-all font-mono">{JSON.stringify(value, undefined, 2)}</pre>
-                ) : (
-                  linkify(String(value))
-                )}
+                ) : (() => {
+                  // Also normalize per-cell: a value can itself be a
+                  // serialized-JSON string (e.g. a nested payload field),
+                  // in which case it should pretty-print + linkify too.
+                  const cellValue = normalize(value)
+                  return typeof cellValue === 'object' && cellValue !== null ? (
+                    <pre className="whitespace-pre-wrap break-all font-mono">
+                      {linkify(JSON.stringify(cellValue, undefined, 2))}
+                    </pre>
+                  ) : (
+                    linkify(String(cellValue))
+                  )
+                })()}
               </td>
             </tr>
           ))}
