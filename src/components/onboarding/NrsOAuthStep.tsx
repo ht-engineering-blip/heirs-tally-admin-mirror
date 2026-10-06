@@ -84,14 +84,20 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) {
       }
 
       const responseData = (response.data as any)?.data
-      if (!responseData?.business) {
+      // The live response nests the verified business under `tenant`, not
+      // `business` — confirmed via the actual /firs-oauth network response
+      // (data: { tenant: { id, businessName, email, status }, token,
+      // tokenType, expiresIn }). tin/sector/erpSystem/isActive aren't part
+      // of this payload; the card below still reads them pending backend
+      // confirmation of where they should come from.
+      if (!responseData?.tenant) {
         setError('Unexpected response from NRS')
         toast.error('Unexpected response from NRS')
         setIsSubmitting(false)
         return
       }
 
-      setBusinessInfo(responseData.business)
+      setBusinessInfo(responseData.tenant)
       toast.success('NRS authentication successful!')
       onStepComplete()
     } catch (err: any) {
