@@ -190,7 +190,13 @@ export default function OnboardingPage() {
             <NrsCredentialsStep tenantId={tenantId} onStepComplete={handleStepComplete} />
           )}
           {tenantId && activeStepKey === 'business_profile' && (
-            <BusinessProfileStep tenantId={tenantId} onStepComplete={handleStepComplete} />
+            <BusinessProfileStep
+              tenantId={tenantId}
+              onStepComplete={handleStepComplete}
+              businessName={(tenantData as any)?.businessName}
+              email={(tenantData as any)?.contactEmail}
+              telephone={(tenantData as any)?.contactPhone}
+            />
           )}
           {tenantId && activeStepKey === 'webhook_generate' && (
             <WebhookGenerateStep tenantId={tenantId} onStepComplete={handleStepComplete} />
