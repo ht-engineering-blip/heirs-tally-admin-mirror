@@ -88,6 +88,11 @@ export interface GetMappingResult {
   template: MappingTemplate;
   created_at?: string;
   updated_at?: string;
+  // Persisted by the backend (transform.service.ts#saveMappingTemplate,
+  // metadata.sample_invoice) but not yet returned by GET /mapping/:erp —
+  // read defensively so the Sample Invoice editor prefills automatically
+  // once the backend adds it to the response, no frontend change needed.
+  sample_invoice?: Record<string, any>;
 }
 
 /** One selectable field in ConnectMapper's source/target lists. */
