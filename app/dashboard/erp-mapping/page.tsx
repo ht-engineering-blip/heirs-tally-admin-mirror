@@ -903,6 +903,7 @@ export default function ErpMappingPage() {
                       />
                       <p className="text-xs text-muted-foreground">
                         Anything the AI can't infer from the sample invoice alone — field quirks, formats, or fields to skip.
+                        Drag the bottom-right corner to resize.
                       </p>
                     </CollapsibleContent>
                   </Collapsible>

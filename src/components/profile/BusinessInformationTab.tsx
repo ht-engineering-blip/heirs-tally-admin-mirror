@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -153,7 +154,14 @@ export function BusinessInformationTab({
     } finally {
       setLoading(false);
     }
-  }, [tenantId, fetchConfig, form]);
+    // fetchConfig/form are stable in practice but get a new identity on
+    // every parent re-render (fetchConfig is typically an inline prop) — if
+    // this effect re-ran on that alone, any unsaved edits would be wiped by
+    // form.reset() the moment the parent re-rendered for an unrelated reason
+    // (e.g. a session refresh on window focus). Keying this purely on
+    // tenantId means it only re-fetches when what's being viewed changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   useEffect(() => {
     load();
@@ -292,6 +300,7 @@ export function BusinessInformationTab({
                           {...field}
                         />
                       </FormControl>
+                      <FormDescription>Drag the bottom-right corner to resize</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

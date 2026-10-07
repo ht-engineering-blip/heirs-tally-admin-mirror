@@ -56,6 +56,12 @@ type BusinessProfileFormValues = z.infer<typeof businessProfileSchema>;
 interface BusinessProfileStepProps {
   tenantId: string;
   onStepComplete: () => void | Promise<void>;
+  // Already on the tenant record by this step (business name + email from
+  // the NRS OAuth step, phone from registration/a prior session) — prefill
+  // instead of asking for them again.
+  businessName?: string;
+  email?: string;
+  telephone?: string;
 }
 
 /** Drops empty strings so the backend's min-length rules never see "". */
@@ -80,6 +86,9 @@ function buildPayload(data: BusinessProfileFormValues): OnboardingProfilePayload
 export function BusinessProfileStep({
   tenantId,
   onStepComplete,
+  businessName,
+  email,
+  telephone,
 }: BusinessProfileStepProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -88,9 +97,9 @@ export function BusinessProfileStep({
   const form = useForm<BusinessProfileFormValues>({
     resolver: zodResolver(businessProfileSchema),
     defaultValues: {
-      party_name: "",
-      email: "",
-      telephone: "",
+      party_name: businessName || "",
+      email: email || "",
+      telephone: telephone || "",
       business_description: "",
       postal_address: {
         street_name: "",
@@ -189,8 +198,9 @@ export function BusinessProfileStep({
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="billing@company.com" {...field} />
+                    <Input type="email" placeholder="billing@company.com" disabled {...field} />
                   </FormControl>
+                  <FormDescription>From your NRS account — can&apos;t be changed here</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -223,7 +233,7 @@ export function BusinessProfileStep({
                     {...field}
                   />
                 </FormControl>
-                <FormDescription>Optional</FormDescription>
+                <FormDescription>Optional — drag the bottom-right corner to resize</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
