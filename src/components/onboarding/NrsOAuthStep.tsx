@@ -39,7 +39,9 @@ interface FirsOAuthStepProps {
 
 interface BusinessInfo {
   id: string
-  name: string
+  businessName: string
+  email: string
+  status: string
   tin: string
   sector: string
   erpSystem: string
@@ -84,14 +86,19 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) {
       }
 
       const responseData = (response.data as any)?.data
-      if (!responseData?.business) {
+      // The live response nests the verified business under `tenant`, not
+      // `business` (data: { tenant: { id, businessName, email, status, tin,
+      // sector, erpSystem, isActive }, token, tokenType, expiresIn }) —
+      // confirmed via the actual /firs-oauth network response and, for
+      // tin/sector/erpSystem/isActive, via the backend source directly.
+      if (!responseData?.tenant) {
         setError('Unexpected response from NRS')
         toast.error('Unexpected response from NRS')
         setIsSubmitting(false)
         return
       }
 
-      setBusinessInfo(responseData.business)
+      setBusinessInfo(responseData.tenant)
       toast.success('NRS authentication successful!')
       onStepComplete()
     } catch (err: any) {
@@ -127,7 +134,7 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) {
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
               <div>
                 <dt className="text-muted-foreground">Business Name</dt>
-                <dd className="font-medium">{businessInfo.name}</dd>
+                <dd className="font-medium">{businessInfo.businessName}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">TIN</dt>

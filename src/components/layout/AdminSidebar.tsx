@@ -541,7 +541,7 @@ export function NavLinkWithChildren({
     <div
       className={cn(
         'nav-item relative',
-        isActive ? 'nav-item-active' : isHighlighted ? 'nav-item-highlighted' : 'nav-item-inactive',
+        isActive || isHighlighted ? 'nav-item-active' : 'nav-item-inactive',
         isCollapsed && 'justify-center px-2'
       )}
     >

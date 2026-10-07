@@ -128,12 +128,19 @@ export default function ErpMappingPage() {
 
   // Prefills the mapping editor from the currently-active template — the
   // tenant's own saved override if one exists, otherwise the platform
-  // default for this ERP. A 404 means neither exists yet; leave blank.
-  const applyTemplate = (template: MappingTemplate) => {
+  // default for this ERP. Also prefills the sample invoice when the backend
+  // includes it (not live yet — flagged to backend separately — but this
+  // activates automatically the moment GET /mapping/:erp starts returning
+  // `sample_invoice`, no further frontend change needed).
+  const applyTemplate = (result: GetMappingResult) => {
+    const { template } = result
     setSelectedNrsVersion(template.nrs_schema_version || '')
     setMappingData(template.field_mappings || [])
     setArrayMappings(template.array_mappings || [])
     setMappingMode((template.field_mappings || []).length > 0 ? 'manual' : null)
+    if (result.sample_invoice && Object.keys(result.sample_invoice).length > 0) {
+      setInvoiceJson(JSON.stringify(result.sample_invoice, null, 2))
+    }
   }
 
   useEffect(() => {
@@ -152,7 +159,7 @@ export default function ErpMappingPage() {
       const result: GetMappingResult = response.data?.data
       if (result?.template) {
         setExistingMapping(result)
-        applyTemplate(result.template)
+        applyTemplate(result)
         setViewMode(true)
       }
     }).finally(() => {
@@ -166,7 +173,7 @@ export default function ErpMappingPage() {
   // whatever is currently active — used by both "Back to Summary" (cancel)
   // and by re-entering the page with a template already on file.
   const handleBackToSummary = () => {
-    if (existingMapping) applyTemplate(existingMapping.template)
+    if (existingMapping) applyTemplate(existingMapping)
     setTestResult(null)
     setTestRequestErrors(null)
     setSaveErrors(null)
@@ -492,7 +499,12 @@ export default function ErpMappingPage() {
     }
   }
 
-  const canProceedFromData = !invoiceError && invoiceJson !== '{}' && !!selectedNrsVersion
+  // A sample invoice isn't required to proceed when there's already a loaded
+  // template to review/adjust (Edit Mapping never gets one back from the
+  // GET endpoint) — Step 2 itself prompts for one before allowing new
+  // connections, a test, or a save.
+  const canProceedFromData =
+    !invoiceError && !!selectedNrsVersion && (invoiceJson !== '{}' || mappingData.length > 0 || arrayMappings.length > 0)
 
   if (tenantLoading) {
     return <SectionLoader message="Loading ERP mapping" />
@@ -766,25 +778,47 @@ export default function ErpMappingPage() {
       {/* Step 2: Field Mapping */}
       {step === 'mapping' && (
         erpSourceFields.length === 0 ? (
-          <Card>
-            <CardContent className="pt-12 pb-12">
-              <div className="flex flex-col items-center justify-center text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                  <Link2 className="w-8 h-8 text-muted-foreground" />
+          mappingData.length > 0 || arrayMappings.length > 0 ? (
+            // A template is already loaded (from Edit Mapping) but there's no
+            // sample invoice in this session yet — GET /mapping/:erp never
+            // returns one, so it has to be re-pasted every time. Show what's
+            // already there instead of hiding it behind the empty state below.
+            <div className="space-y-6">
+              <Alert>
+                <FileJson className="h-4 w-4" />
+                <AlertTitle>Paste a sample invoice to test or adjust these mappings</AlertTitle>
+                <AlertDescription>
+                  The mappings below are already loaded, but connecting new fields, testing, or saving needs a sample invoice —
+                  it isn't stored, so it has to be pasted again each time you edit.
+                </AlertDescription>
+              </Alert>
+              <Button variant="outline" onClick={() => setStep('data')} className="rounded-full">
+                <ChevronLeft className="w-4 h-4 mr-2" />
+                Back to Sample Data
+              </Button>
+              <ReadOnlyMappingsList mappingData={mappingData} arrayMappings={arrayMappings} />
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="pt-12 pb-12">
+                <div className="flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                    <Link2 className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold">No source fields available</h3>
+                    <p className="text-sm text-muted-foreground max-w-md">
+                      Go back to Sample Data and paste your invoice JSON to generate source fields for mapping.
+                    </p>
+                  </div>
+                  <Button variant="outline" onClick={() => setStep('data')} className="rounded-full mt-4">
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back to Sample Data
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold">No source fields available</h3>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    Go back to Sample Data and paste your invoice JSON to generate source fields for mapping.
-                  </p>
-                </div>
-                <Button variant="outline" onClick={() => setStep('data')} className="rounded-full mt-4">
-                  <ChevronLeft className="w-4 h-4 mr-2" />
-                  Back to Sample Data
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )
         ) : !selectedSchema ? (
           <Card>
             <CardContent className="pt-12 pb-12">
