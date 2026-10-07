@@ -1048,7 +1048,7 @@ export default function WebhookSettingsPage() {
           </p>
           {evt.createdAt && (
             <p className="text-muted-foreground/70">
-              {format(new Date(evt.createdAt), "MMM dd, HH:mm")}
+              {format(new Date(evt.createdAt), "MMM dd, h:mmaaa")}
             </p>
           )}
         </div>

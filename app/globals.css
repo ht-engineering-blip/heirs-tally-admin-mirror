@@ -252,11 +252,6 @@
     @apply text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
   }
 
-  /* Parent item highlighted when child is active */
-  .nav-item-highlighted {
-    @apply bg-primary/10 text-primary border-l-2 border-primary;
-  }
-
   /* Child/sub-menu items */
   .nav-item-child {
     @apply px-2 py-1.5 text-xs font-normal ml-1;
