@@ -13,7 +13,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
 
   return (
-    <SessionProvider refetchInterval={5 * 60} refetchOnWindowFocus={true}>
+    // refetchOnWindowFocus triggers a session re-validation (and the
+    // re-renders that follow from it) every time the tab regains focus —
+    // on pages with in-progress form state (e.g. Profile), that wipes
+    // whatever the user was typing. The periodic refetchInterval already
+    // keeps the session fresh without this.
+    <SessionProvider refetchInterval={5 * 60} refetchOnWindowFocus={false}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
