@@ -8,8 +8,8 @@ The platform bridges a business's internal ERP system (Tally, SAP, NetSuite, etc
 
 ## Portals
 
-- **Super Admin** (`/admin`) — platform management: tenant onboarding, ERP configuration, webhook oversight, transaction auditing
-- **Tenant Dashboard** (`/dashboard`) — self-service: webhook setup, ERP sync, invoice ID key configuration, API keys, team management
+- **Super Admin** (`/admin`) — platform management: tenant onboarding, ERP configuration and field mapping, webhook oversight, transaction auditing
+- **Tenant Dashboard** (`/dashboard`) — self-service: webhook setup, ERP sync, ERP field mapping, invoice ID key configuration, API keys, team management
 
 ## Tech Stack
 
@@ -63,11 +63,22 @@ Bearer tokens (backend JWTs) are stored in a `js-cookie` cookie (`access_token`,
 - **Test & Map tab** — send manual test payloads or open a live SSE stream to capture real events as they arrive; includes a field mapper for wiring ERP payload fields to NRS UBL schema fields
 - **History tab** — powered by `GET /v1/webhook/events/` with real server-side pagination (7,828+ events). Clicking a row lazily fetches the full event detail (payload, job errors, failure reason, metadata) via `GET /v1/webhook/events/:eventId`
 
+### ERP Mapping (`/dashboard/erp-mapping`, folded into `/admin/system/erp-support`)
+Deterministic field-mapping engine between an ERP's invoice shape and the NRS UBL schema, shared between the admin and tenant pages via `src/components/shared` (`ConnectMapper`, `MappingRow`, `ReadOnlyMappingsList`, `ValidationIssuesTable`) and `src/lib/erp-mapping/helpers.ts`.
+- **Sample Data step** — pick an NRS target schema version, paste a sample invoice as JSON
+- **Field Mapping step** — AI auto-generate (optional free-text context for the prompt) or manual click-to-connect mapping, plus a dedicated array/line-item mapper for repeating structures
+- **Test & Preview** — deterministic dry-run against the sample invoice before saving
+- The tenant page (`erp:configure` permission) prefills from `GET /mapping/:erp` on load and shows a read-only summary (your saved override vs. the platform default) instead of always starting from a blank wizard; a successful save returns to that summary
+- Placeholder tokens (`{{SUPPLIER_TIN}}`, `{{IRN}}`, etc.) can be inserted into a field mapping's default value — the backend fills these in per-tenant at transform time
+
 ### Tenant Onboarding (`/dashboard/onboarding`)
-Three-step flow gated by `firsProvisioning.completed` on the tenant record:
-1. FIRS OAuth — authenticate with FIRS credentials
-2. NRS Credentials — upload PEM certificate and public key (mock mode available in dev)
-3. Webhook Generation — generate the inbound webhook URL
+Four-step flow gated by `firsProvisioning.completed`/`businessProfile` on the tenant record:
+1. NRS Auth — authenticate with NRS/FIRS credentials (mock mode available in dev)
+2. NRS Credentials — upload PEM certificate and public key
+3. Business Profile — business name, email (read-only, tied to the NRS account), telephone, description, and postal address; name/phone/email prefill from data already on the tenant record
+4. Webhook Generation — generate the inbound webhook URL
+
+An admin-only `POST /v1/tenants/:tenantId/reset-onboarding` tool (surfaced as "Reset Onboarding" on both the Tenants list and Tenant Detail → Onboarding tab) resets a tenant stuck mid-onboarding back to step 1, with an optional toggle to also clear FIRS credentials.
 
 ### Shared `DataTable` Component (`src/components/shared/DataTable.tsx`)
 Supports two modes:
