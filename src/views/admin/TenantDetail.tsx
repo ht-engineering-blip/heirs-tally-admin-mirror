@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePersistedTab } from '@/hooks/use-persisted-tab';
-import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw, Webhook, Copy, Loader2, Eye, EyeOff, AlertCircle, Shield, Lock } from 'lucide-react';
+import { ArrowLeft, Edit, Calendar, Clock, Building2, Mail, Phone, Server, Key, Settings, RefreshCw, Webhook, Copy, Loader2, Eye, EyeOff, AlertCircle, Shield, Lock, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { StatusBadge, InvoiceKeyConfigSection, WebhookExpiryBadge } from '@/components/shared';
+import { StatusBadge, InvoiceKeyConfigSection, WebhookExpiryBadge, ResetOnboardingDialog } from '@/components/shared';
 import { BusinessInformationTab } from '@/components/profile/BusinessInformationTab';
 import { toast } from 'sonner';
 import { getAdminApiClient } from '@/lib/api/client';
@@ -128,6 +128,8 @@ export default function TenantDetail() {
   const [showFirsCredentialsModal, setShowFirsCredentialsModal] = useState(false);
   const [firsCredentialsSaving, setFirsCredentialsSaving] = useState(false);
   const [firsCredentialsForm, setFirsCredentialsForm] = useState({ certificate: '', publicKey: '' });
+
+  const [showResetOnboardingModal, setShowResetOnboardingModal] = useState(false);
 
   const [formData, setFormData] = useState({
     businessName: '',
@@ -936,6 +938,25 @@ export default function TenantDetail() {
                 )}
               </CardContent>
             </Card>
+
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <RotateCcw className="h-4 w-4" />
+                  Reset Onboarding
+                </CardTitle>
+                <CardDescription>
+                  Un-stick a tenant by resetting their status to onboarding and clearing the 5 onboarding steps.
+                  Existing FIRS credentials are preserved unless you also choose to clear them below.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="outline" onClick={() => setShowResetOnboardingModal(true)}>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Reset Onboarding
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
@@ -987,6 +1008,14 @@ export default function TenantDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ResetOnboardingDialog
+        open={showResetOnboardingModal}
+        onOpenChange={setShowResetOnboardingModal}
+        tenantId={tenant?.tenantId || ''}
+        businessName={tenant?.businessName}
+        onSuccess={fetchTenant}
+      />
 
       {/* Edit Tenant Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>

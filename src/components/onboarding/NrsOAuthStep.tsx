@@ -3,6 +3,8 @@
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { FriendlyErrorBlock } from '@/components/shared/FriendlyErrorBlock'
+import { humanizeNrsAuthError } from '@/lib/errors/friendly-auth-error'
 import {
   Form,
   FormControl,
@@ -18,7 +20,7 @@ import { formatErpName } from '@/hooks/use-supported-erps'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { APP_ENV } from '@/lib/envData'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, ArrowRight, Building2, CheckCircle2, Eye, EyeOff, FlaskConical, Loader2, Lock, Mail } from 'lucide-react'
+import { ArrowRight, Building2, CheckCircle2, Eye, EyeOff, FlaskConical, Loader2, Lock, Mail } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
@@ -80,7 +82,7 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) {
       if (response.error || response.data.error) {
         const errorMessage = (response.error as any)?.value?.error || response.data.error  || 'NRS authentication failed'
         setError(errorMessage)
-        toast.error(errorMessage)
+        toast.error(humanizeNrsAuthError(errorMessage).headline)
         setIsSubmitting(false)
         return
       }
@@ -104,7 +106,7 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) {
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to authenticate with NRS'
       setError(errorMessage)
-      toast.error(errorMessage)
+      toast.error(humanizeNrsAuthError(errorMessage).headline)
     } finally {
       setIsSubmitting(false)
     }
@@ -184,12 +186,7 @@ export function NrsOAuthStep({ tenantId, onStepComplete }: FirsOAuthStepProps) {
         </div>
       )}
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      {error && <FriendlyErrorBlock error={humanizeNrsAuthError(error)} />}
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

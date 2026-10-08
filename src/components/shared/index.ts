@@ -12,6 +12,7 @@ export { ConnectMapper } from './ConnectMapper';
 export { MappingRow } from './MappingRow';
 export { ValidationIssuesTable, IssuesList } from './ValidationIssuesTable';
 export { ReadOnlyMappingsList } from './ReadOnlyMappingsList';
+export { ResetOnboardingDialog } from './ResetOnboardingDialog';
 export { FriendlyErrorBlock } from './FriendlyErrorBlock';
 export { BackgroundTaskProvider, useBackgroundTask } from './background-task';
 export type { BackgroundTask, BackgroundTaskRunOptions } from './background-task';
