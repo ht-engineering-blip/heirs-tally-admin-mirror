@@ -4,6 +4,7 @@ import {
   Column,
   DataTable,
   FilterOption,
+  ResetOnboardingDialog,
   StatusBadge,
 } from "@/components/shared";
 import {
@@ -41,7 +42,7 @@ import {
 } from "@/components/ui/select";
 import { formatErpName, useSupportedErps } from "@/hooks/use-supported-erps";
 import { getAdminApiClient } from "@/lib/api/client";
-import { Building2, Copy, Edit, Eye, Loader2, Mail, Plus, Power, Trash2 } from "lucide-react";
+import { Building2, Copy, Edit, Eye, Loader2, Mail, Plus, Power, RotateCcw, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -122,6 +123,7 @@ export default function Tenants() {
   const [showActivateDialog, setShowActivateDialog] = useState(false);
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [showResetOnboardingDialog, setShowResetOnboardingDialog] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -649,6 +651,15 @@ export default function Tenants() {
       <DropdownMenuItem onClick={() => openOnboardingModal(tenant)}>
         <Edit className="w-4 h-4 mr-2" />
         Update Onboarding
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onClick={() => {
+          setSelectedTenant(tenant);
+          setShowResetOnboardingDialog(true);
+        }}
+      >
+        <RotateCcw className="w-4 h-4 mr-2" />
+        Reset Onboarding
       </DropdownMenuItem>
       {tenant.status === "onboarding" && (
         <DropdownMenuItem
@@ -1178,6 +1189,17 @@ export default function Tenants() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ResetOnboardingDialog
+        open={showResetOnboardingDialog}
+        onOpenChange={setShowResetOnboardingDialog}
+        tenantId={selectedTenant?.tenantId || ''}
+        businessName={selectedTenant?.businessName}
+        onSuccess={() => {
+          fetchTenants();
+          fetchStats();
+        }}
+      />
 
       {/* Update Onboarding Status Modal */}
       <Dialog open={showOnboardingModal} onOpenChange={setShowOnboardingModal}>
