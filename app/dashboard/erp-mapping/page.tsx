@@ -1,17 +1,21 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import Editor from '@monaco-editor/react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import {
+  ConnectMapper,
+  IssuesList,
+  MappingRow,
+  ReadOnlyMappingsList,
+  ValidationIssuesTable,
+} from '@/components/shared'
+import { SectionLoader } from '@/components/shared/SectionLoader'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
@@ -19,12 +23,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import { usePermissions } from '@/hooks/use-permissions'
+import { useTenant } from '@/hooks/use-tenant'
+import { createTenantApi } from '@/lib/api/tenant-api'
 import {
+  findArrayPaths,
+  flattenObject,
+  isFieldRequired,
+  isGenuineDocumentTypeMatch,
+  MAPPING_DOCUMENT_TYPES,
+  parseApiValidationErrors,
+  resolvePath,
+} from '@/lib/erp-mapping/helpers'
+import { stripJsonComments } from '@/lib/schema/firs-extractor'
+import { cn } from '@/lib/utils'
+import type {
+  ArrayMapping,
+  FieldMapping,
+  GetMappingResult,
+  MappingTemplate,
+  MappingTestResult,
+  NrsSchema,
+  PickerField,
+  ValidationIssue,
+} from '@/types/mapping'
+import Editor from '@monaco-editor/react'
+import {
+  Check,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Check,
-  CheckCircle2,
   Edit,
   Eye,
   FileJson,
@@ -42,39 +73,8 @@ import {
   Workflow,
   XCircle,
 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { useTenant } from '@/hooks/use-tenant'
-import { usePermissions } from '@/hooks/use-permissions'
-import { createTenantApi } from '@/lib/api/tenant-api'
-import { SectionLoader } from '@/components/shared/SectionLoader'
-import { stripJsonComments } from '@/lib/schema/firs-extractor'
-import {
-  ConnectMapper,
-  MappingRow,
-  ValidationIssuesTable,
-  IssuesList,
-  ReadOnlyMappingsList,
-} from '@/components/shared'
-import {
-  findArrayPaths,
-  resolvePath,
-  parseApiValidationErrors,
-  flattenObject,
-  isFieldRequired,
-  MAPPING_DOCUMENT_TYPES,
-  isGenuineDocumentTypeMatch,
-} from '@/lib/erp-mapping/helpers'
-import { cn } from '@/lib/utils'
-import type {
-  FieldMapping,
-  ArrayMapping,
-  MappingTemplate,
-  NrsSchema,
-  MappingTestResult,
-  PickerField,
-  ValidationIssue,
-  GetMappingResult,
-} from '@/types/mapping'
 
 const MAPPING_STEPS = [
   { id: 'data', label: 'Sample Data', description: 'Target schema & sample invoice' },
