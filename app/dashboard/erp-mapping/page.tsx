@@ -26,6 +26,7 @@ import {
   Check,
   CheckCircle2,
   Edit,
+  Eye,
   FileJson,
   FileText,
   Link2,
@@ -175,15 +176,21 @@ export default function ErpMappingPage() {
     setMappingsLoading(true)
     Promise.all(
       MAPPING_DOCUMENT_TYPES.map(async (t) => {
-        const response: any = await api.getMapping(erpSystem, t.value)
-        if (response.error) {
-          if ((response.error as any)?.value?.statusCode !== 404) {
-            toast.error(`Failed to load ${t.label} mapping: ${(response.error as any)?.value?.error || 'Unknown error'}`)
+        try {
+          const response: any = await api.getMapping(erpSystem, t.value)
+          if (response.error) {
+            if ((response.error as any)?.value?.statusCode !== 404) {
+              toast.error(`Failed to load ${t.label} mapping: ${(response.error as any)?.value?.error || 'Unknown error'}`)
+            }
+            return [t.value, null] as const
           }
+          const result: GetMappingResult = response.data?.data
+          return [t.value, isGenuineDocumentTypeMatch(result, t.value) ? result : null] as const
+        } catch (error: any) {
+          // One type's network failure shouldn't block the other 5 from loading.
+          toast.error(`Failed to load ${t.label} mapping: ${error?.message || 'Network error'}`)
           return [t.value, null] as const
         }
-        const result: GetMappingResult = response.data?.data
-        return [t.value, isGenuineDocumentTypeMatch(result, t.value) ? result : null] as const
       })
     ).then((entries) => {
       if (cancelled) return
@@ -195,17 +202,26 @@ export default function ErpMappingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canConfigure, erpSystem])
 
-  // Drills into one document type's mapping — shows its summary if one
-  // exists, otherwise a blank wizard. Resets save/test state left over from
-  // a previously-viewed type.
-  const handleSelectDocType = (type: string) => {
+  // Drills into one document type's mapping. "view" shows its read-only
+  // summary (only meaningful when a template already exists — falls back to
+  // the wizard otherwise, since there's nothing to view yet); "edit" goes
+  // straight into the wizard, prefilled when a template exists. Resets
+  // save/test state AND any in-progress UI state (AI context, expanded
+  // array card, array-mapping draft inputs) left over from a previously-
+  // viewed type — none of it is meaningful once the document type changes.
+  const handleSelectDocType = (type: string, mode: 'view' | 'edit' = 'edit') => {
     const existing = mappingsByType[type]
     setSelectedDocType(type)
     setSavedOnce(false)
+    setCustomPrompt('')
+    setShowCustomPrompt(false)
+    setExpandedArrayIdx(null)
+    setNewArraySource('')
+    setNewArrayTarget('')
     if (existing) {
       applyTemplate(existing)
       setStep('data')
-      setViewMode(true)
+      setViewMode(mode === 'view')
     } else {
       resetWizardState()
       setStep('data')
@@ -549,7 +565,14 @@ export default function ErpMappingPage() {
       if (selectedDocType) {
         setMappingsByType((prev) => ({
           ...prev,
-          [selectedDocType]: { ...(prev[selectedDocType] as GetMappingResult), is_custom: true, template, document_type: selectedDocType },
+          [selectedDocType]: {
+            ...(prev[selectedDocType] as GetMappingResult),
+            is_custom: true,
+            template,
+            document_type: selectedDocType,
+            sample_invoice: parsedSampleInvoice,
+            updated_at: new Date().toISOString(),
+          },
         }))
       }
       setViewMode(true)
@@ -646,11 +669,21 @@ export default function ErpMappingPage() {
                       : 'No mapping saved for this document type yet'}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex flex-wrap gap-2">
+                  {configured && (
+                    <Button
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => handleSelectDocType(t.value, 'view')}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Mapping
+                    </Button>
+                  )}
                   <Button
                     variant={configured ? 'outline' : 'default'}
                     className="rounded-full"
-                    onClick={() => handleSelectDocType(t.value)}
+                    onClick={() => handleSelectDocType(t.value, 'edit')}
                   >
                     {configured ? (
                       <>
