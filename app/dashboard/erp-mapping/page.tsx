@@ -1,17 +1,21 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import Editor from '@monaco-editor/react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import {
+  ConnectMapper,
+  IssuesList,
+  MappingRow,
+  ReadOnlyMappingsList,
+  ValidationIssuesTable,
+} from '@/components/shared'
+import { SectionLoader } from '@/components/shared/SectionLoader'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
@@ -19,14 +23,43 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import { usePermissions } from '@/hooks/use-permissions'
+import { useTenant } from '@/hooks/use-tenant'
+import { createTenantApi } from '@/lib/api/tenant-api'
 import {
+  findArrayPaths,
+  flattenObject,
+  isFieldRequired,
+  isGenuineDocumentTypeMatch,
+  MAPPING_DOCUMENT_TYPES,
+  parseApiValidationErrors,
+  resolvePath,
+} from '@/lib/erp-mapping/helpers'
+import { stripJsonComments } from '@/lib/schema/firs-extractor'
+import { cn } from '@/lib/utils'
+import type {
+  ArrayMapping,
+  FieldMapping,
+  GetMappingResult,
+  MappingTemplate,
+  MappingTestResult,
+  NrsSchema,
+  PickerField,
+  ValidationIssue,
+} from '@/types/mapping'
+import Editor from '@monaco-editor/react'
+import {
+  Check,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Check,
-  CheckCircle2,
   Edit,
+  Eye,
   FileJson,
+  FileText,
   Link2,
   Loader2,
   Lock,
@@ -40,37 +73,8 @@ import {
   Workflow,
   XCircle,
 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { useTenant } from '@/hooks/use-tenant'
-import { usePermissions } from '@/hooks/use-permissions'
-import { createTenantApi } from '@/lib/api/tenant-api'
-import { SectionLoader } from '@/components/shared/SectionLoader'
-import { stripJsonComments } from '@/lib/schema/firs-extractor'
-import {
-  ConnectMapper,
-  MappingRow,
-  ValidationIssuesTable,
-  IssuesList,
-  ReadOnlyMappingsList,
-} from '@/components/shared'
-import {
-  findArrayPaths,
-  resolvePath,
-  parseApiValidationErrors,
-  flattenObject,
-  isFieldRequired,
-} from '@/lib/erp-mapping/helpers'
-import { cn } from '@/lib/utils'
-import type {
-  FieldMapping,
-  ArrayMapping,
-  MappingTemplate,
-  NrsSchema,
-  MappingTestResult,
-  PickerField,
-  ValidationIssue,
-  GetMappingResult,
-} from '@/types/mapping'
 
 const MAPPING_STEPS = [
   { id: 'data', label: 'Sample Data', description: 'Target schema & sample invoice' },
@@ -116,22 +120,29 @@ export default function ErpMappingPage() {
   const [saveErrors, setSaveErrors] = useState<ValidationIssue[] | null>(null)
   const [savedOnce, setSavedOnce] = useState(false)
 
-  const [existingMapping, setExistingMapping] = useState<GetMappingResult | null>(null)
-  const [mappingLookupLoading, setMappingLookupLoading] = useState(false)
-  // true = showing the read-only summary of the active template; false =
-  // showing the edit wizard. Starts false so a first-time (404) tenant lands
-  // straight in the wizard; flips true once an existing template is found,
-  // and again after a successful save.
+  // One slot per document type (Standard Invoice, Credit Note, etc.) — a
+  // tenant can hold a distinct saved template per document shape for the
+  // same ERP instead of one template overwriting another. null = fetched
+  // and confirmed not configured yet; undefined (key absent) = not fetched.
+  const [mappingsByType, setMappingsByType] = useState<Record<string, GetMappingResult | null>>({})
+  const [mappingsLoading, setMappingsLoading] = useState(false)
+  // null = showing the list of document types. Set to a MAPPING_DOCUMENT_TYPES
+  // value when the user drills into one.
+  const [selectedDocType, setSelectedDocType] = useState<string | null>(null)
+  // true = showing the read-only summary of the selected type's active
+  // template; false = showing the edit wizard.
   const [viewMode, setViewMode] = useState(false)
 
   const invoiceEditorRef = useRef<any>(null)
 
+  const selectedDocTypeLabel = MAPPING_DOCUMENT_TYPES.find((t) => t.value === selectedDocType)?.label || ''
+  const activeMapping = selectedDocType ? mappingsByType[selectedDocType] : undefined
+
   // Prefills the mapping editor from the currently-active template — the
   // tenant's own saved override if one exists, otherwise the platform
-  // default for this ERP. Also prefills the sample invoice when the backend
-  // includes it (not live yet — flagged to backend separately — but this
-  // activates automatically the moment GET /mapping/:erp starts returning
-  // `sample_invoice`, no further frontend change needed).
+  // default for this ERP. Also prefills the sample invoice saved alongside
+  // it, when present (confirmed live on GET /mapping/:erp — absent only on
+  // older/global templates saved before the backend returned it).
   const applyTemplate = (result: GetMappingResult) => {
     const { template } = result
     setSelectedNrsVersion(template.nrs_schema_version || '')
@@ -143,37 +154,93 @@ export default function ErpMappingPage() {
     }
   }
 
+  // Resets the wizard to a blank slate — used when drilling into a document
+  // type that has no saved template yet.
+  const resetWizardState = () => {
+    setInvoiceJson('{}')
+    setInvoiceError(null)
+    setSelectedNrsVersion('')
+    setMappingMode(null)
+    setMappingData([])
+    setArrayMappings([])
+    setExtraTargets([])
+    setExtraItemTargets([])
+    setTestResult(null)
+    setTestRequestErrors(null)
+    setSaveErrors(null)
+  }
+
   useEffect(() => {
     if (!canConfigure || !erpSystem) return
     let cancelled = false
-    setMappingLookupLoading(true)
-    api.getMapping(erpSystem).then((response: any) => {
-      if (cancelled) return
-      if (response.error) {
-        if ((response.error as any)?.value?.statusCode !== 404) {
-          toast.error((response.error as any)?.value?.error || 'Failed to load existing mapping')
+    setMappingsLoading(true)
+    Promise.all(
+      MAPPING_DOCUMENT_TYPES.map(async (t) => {
+        try {
+          const response: any = await api.getMapping(erpSystem, t.value)
+          if (response.error) {
+            if ((response.error as any)?.value?.statusCode !== 404) {
+              toast.error(`Failed to load ${t.label} mapping: ${(response.error as any)?.value?.error || 'Unknown error'}`)
+            }
+            return [t.value, null] as const
+          }
+          const result: GetMappingResult = response.data?.data
+          return [t.value, isGenuineDocumentTypeMatch(result, t.value) ? result : null] as const
+        } catch (error: any) {
+          // One type's network failure shouldn't block the other 5 from loading.
+          toast.error(`Failed to load ${t.label} mapping: ${error?.message || 'Network error'}`)
+          return [t.value, null] as const
         }
-        setExistingMapping(null)
-        return
-      }
-      const result: GetMappingResult = response.data?.data
-      if (result?.template) {
-        setExistingMapping(result)
-        applyTemplate(result)
-        setViewMode(true)
-      }
+      })
+    ).then((entries) => {
+      if (cancelled) return
+      setMappingsByType(Object.fromEntries(entries))
     }).finally(() => {
-      if (!cancelled) setMappingLookupLoading(false)
+      if (!cancelled) setMappingsLoading(false)
     })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canConfigure, erpSystem])
 
+  // Drills into one document type's mapping. "view" shows its read-only
+  // summary (only meaningful when a template already exists — falls back to
+  // the wizard otherwise, since there's nothing to view yet); "edit" goes
+  // straight into the wizard, prefilled when a template exists. Resets
+  // save/test state AND any in-progress UI state (AI context, expanded
+  // array card, array-mapping draft inputs) left over from a previously-
+  // viewed type — none of it is meaningful once the document type changes.
+  const handleSelectDocType = (type: string, mode: 'view' | 'edit' = 'edit') => {
+    const existing = mappingsByType[type]
+    setSelectedDocType(type)
+    setSavedOnce(false)
+    setCustomPrompt('')
+    setShowCustomPrompt(false)
+    setExpandedArrayIdx(null)
+    setNewArraySource('')
+    setNewArrayTarget('')
+    if (existing) {
+      applyTemplate(existing)
+      setStep('data')
+      setViewMode(mode === 'view')
+    } else {
+      resetWizardState()
+      setStep('data')
+      setViewMode(false)
+    }
+  }
+
+  // Returns to the list of document types.
+  const handleBackToList = () => {
+    setSelectedDocType(null)
+    setTestResult(null)
+    setTestRequestErrors(null)
+    setSaveErrors(null)
+  }
+
   // Discards any in-progress edits and returns to the read-only summary of
-  // whatever is currently active — used by both "Back to Summary" (cancel)
-  // and by re-entering the page with a template already on file.
+  // the selected type's active template — used by "Cancel" while editing.
   const handleBackToSummary = () => {
-    if (existingMapping) applyTemplate(existingMapping)
+    if (activeMapping) applyTemplate(activeMapping)
     setTestResult(null)
     setTestRequestErrors(null)
     setSaveErrors(null)
@@ -260,8 +327,8 @@ export default function ErpMappingPage() {
   // added by whoever last saved this template) — same logic handleGenerate
   // uses for a freshly AI-generated template.
   useEffect(() => {
-    if (!existingMapping || !selectedSchema) return
-    const { field_mappings = [], array_mappings = [] } = existingMapping.template
+    if (!activeMapping || !selectedSchema) return
+    const { field_mappings = [], array_mappings = [] } = activeMapping.template
 
     const reqFields = new Set(
       (selectedSchema.fields || []).filter((f) => !f.field_path.includes('[*]') && isFieldRequired(f)).map((f) => f.field_path)
@@ -282,7 +349,7 @@ export default function ErpMappingPage() {
       )
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existingMapping, selectedSchema])
+  }, [activeMapping, selectedSchema])
 
   const getItemTargetFields = (targetArrayPath: string): PickerField[] => {
     if (!selectedSchema || !targetArrayPath) return []
@@ -371,6 +438,7 @@ export default function ErpMappingPage() {
         sample_invoice: parsedSampleInvoice,
         nrs_version: selectedNrsVersion,
         ...(customPrompt.trim() ? { custom_prompt: customPrompt.trim() } : {}),
+        ...(selectedDocType ? { document_type: selectedDocType } : {}),
       })
       if (response.error) {
         toast.error((response.error as any)?.value?.error || 'Failed to generate mapping template')
@@ -475,7 +543,12 @@ export default function ErpMappingPage() {
         field_mappings: mappingData,
         array_mappings: arrayMappings,
       }
-      const response = await api.saveMapping({ erp: erpSystem, sample_invoice: parsedSampleInvoice, template })
+      const response = await api.saveMapping({
+        erp: erpSystem,
+        sample_invoice: parsedSampleInvoice,
+        template,
+        ...(selectedDocType ? { document_type: selectedDocType } : {}),
+      })
       if (response.error) {
         const errorValue = (response.error as any)?.value
         const errors = parseApiValidationErrors(errorValue)
@@ -489,9 +562,21 @@ export default function ErpMappingPage() {
       }
       setSaveErrors(null)
       setSavedOnce(true)
-      setExistingMapping((prev) => ({ ...(prev as GetMappingResult), is_custom: true, template }))
+      if (selectedDocType) {
+        setMappingsByType((prev) => ({
+          ...prev,
+          [selectedDocType]: {
+            ...(prev[selectedDocType] as GetMappingResult),
+            is_custom: true,
+            template,
+            document_type: selectedDocType,
+            sample_invoice: parsedSampleInvoice,
+            updated_at: new Date().toISOString(),
+          },
+        }))
+      }
       setViewMode(true)
-      toast.success('ERP mapping saved and activated')
+      toast.success(`${selectedDocTypeLabel} mapping saved and activated`)
     } catch (error: any) {
       toast.error(error?.message || 'Failed to save mapping template')
     } finally {
@@ -526,16 +611,14 @@ export default function ErpMappingPage() {
     )
   }
 
-  if (mappingLookupLoading) {
+  if (mappingsLoading && !selectedDocType) {
     return <SectionLoader message="Loading ERP mapping" />
   }
 
-  // View mode — read-only summary of the currently-active template (your own
-  // saved override, or the platform default), shown instead of the wizard
-  // whenever one exists. This is also where a successful save lands, so the
-  // page visibly changes state instead of just sitting on the same form.
-  if (viewMode && existingMapping) {
-    const { template, is_custom, updated_at } = existingMapping
+  // List view — one card per document type, showing whether each has its
+  // own saved mapping (or is falling back to the platform default) before
+  // drilling into any single one.
+  if (!selectedDocType) {
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="page-header">
@@ -544,6 +627,99 @@ export default function ErpMappingPage() {
               <h1 className="page-title flex items-center gap-3">
                 <Workflow className="w-6 h-6" />
                 ERP Mapping
+              </h1>
+              <p className="page-subtitle">Map your ERP's invoice fields to the NRS schema, per document type</p>
+            </div>
+          </div>
+          {erpSystem && <Badge variant="outline">{erpSystem}</Badge>}
+        </div>
+
+        {!erpSystem && (
+          <Alert variant="destructive">
+            <AlertTitle>No ERP system on file</AlertTitle>
+            <AlertDescription>
+              Your account doesn't have an ERP system configured yet. Set it up under Profile before configuring field mapping.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {MAPPING_DOCUMENT_TYPES.map((t) => {
+            const result = mappingsByType[t.value]
+            const configured = !!result
+            return (
+              <Card key={t.value}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
+                      {t.label}
+                    </CardTitle>
+                    {configured ? (
+                      <Badge className={result!.is_custom ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
+                        {result!.is_custom ? 'Your mapping' : 'Platform default'}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">Not configured</Badge>
+                    )}
+                  </div>
+                  <CardDescription>
+                    {configured
+                      ? `${result!.template.field_mappings?.length || 0} field mappings${result!.updated_at ? ` · updated ${new Date(result!.updated_at).toLocaleDateString()}` : ''}`
+                      : 'No mapping saved for this document type yet'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {configured && (
+                    <Button
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => handleSelectDocType(t.value, 'view')}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Mapping
+                    </Button>
+                  )}
+                  <Button
+                    variant={configured ? 'outline' : 'default'}
+                    className="rounded-full"
+                    onClick={() => handleSelectDocType(t.value, 'edit')}
+                  >
+                    {configured ? (
+                      <>
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit Mapping
+                      </>
+                    ) : (
+                      'Configure'
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // View mode — read-only summary of the selected document type's active
+  // template (your own saved override, or the platform default). This is
+  // also where a successful save lands, so the page visibly changes state
+  // instead of just sitting on the same form.
+  if (viewMode && activeMapping) {
+    const { template, is_custom, updated_at } = activeMapping
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="page-header">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={handleBackToList} className="rounded-full">
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <div>
+              <h1 className="page-title flex items-center gap-3">
+                <Workflow className="w-6 h-6" />
+                {selectedDocTypeLabel}
               </h1>
               <p className="page-subtitle">Map your ERP's invoice fields to the NRS schema</p>
             </div>
@@ -570,10 +746,10 @@ export default function ErpMappingPage() {
           </AlertTitle>
           <AlertDescription>
             {savedOnce
-              ? 'Your last save is live. Click Edit Mapping to keep adjusting — each save replaces the active mapping.'
+              ? 'Your last save is live. Click Edit Mapping to keep adjusting — each save replaces the active mapping for this document type.'
               : is_custom
-                ? `This is the mapping you last saved for ${erpSystem}.${updated_at ? ` Last updated ${new Date(updated_at).toLocaleString()}.` : ''}`
-                : `No mapping saved yet for ${erpSystem} — this is the platform's default template. Edit and save to create your own override.`}
+                ? `This is the mapping you last saved for ${selectedDocTypeLabel} on ${erpSystem}.${updated_at ? ` Last updated ${new Date(updated_at).toLocaleString()}.` : ''}`
+                : `No ${selectedDocTypeLabel} mapping saved yet for ${erpSystem} — this is the platform's default template. Edit and save to create your own override.`}
           </AlertDescription>
         </Alert>
 
@@ -586,17 +762,20 @@ export default function ErpMappingPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="page-header">
         <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={handleBackToList} className="rounded-full">
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
           <div>
             <h1 className="page-title flex items-center gap-3">
               <Workflow className="w-6 h-6" />
-              ERP Mapping
+              {selectedDocTypeLabel}
             </h1>
             <p className="page-subtitle">Map your ERP's invoice fields to the NRS schema</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {erpSystem && <Badge variant="outline">{erpSystem}</Badge>}
-          {existingMapping && (
+          {activeMapping && (
             <Button onClick={handleBackToSummary} variant="ghost" className="rounded-full">
               Cancel
             </Button>
@@ -643,12 +822,14 @@ export default function ErpMappingPage() {
         </Alert>
       )}
 
-      {existingMapping && (
+      {activeMapping && (
         <Alert>
           <CheckCircle2 className="h-4 w-4" />
-          <AlertTitle>{existingMapping.is_custom ? 'Editing your saved mapping' : 'Editing the platform default template'}</AlertTitle>
+          <AlertTitle>{activeMapping.is_custom ? 'Editing your saved mapping' : 'Editing the platform default template'}</AlertTitle>
           <AlertDescription>
-            Paste a sample invoice below to test or adjust it further — the mapping itself is already prefilled.
+            {invoiceJson === '{}'
+              ? 'Paste a sample invoice below to test or adjust it further — the mapping itself is already prefilled.'
+              : 'The sample invoice and mapping are both prefilled below — adjust and re-test as needed.'}
           </AlertDescription>
         </Alert>
       )}
@@ -779,17 +960,18 @@ export default function ErpMappingPage() {
       {step === 'mapping' && (
         erpSourceFields.length === 0 ? (
           mappingData.length > 0 || arrayMappings.length > 0 ? (
-            // A template is already loaded (from Edit Mapping) but there's no
-            // sample invoice in this session yet — GET /mapping/:erp never
-            // returns one, so it has to be re-pasted every time. Show what's
-            // already there instead of hiding it behind the empty state below.
+            // A template is already loaded (from Edit Mapping) but no sample
+            // invoice came back with it this time — usually an older/global
+            // template saved before the backend started returning one. Show
+            // what's already there instead of hiding it behind the empty
+            // state below.
             <div className="space-y-6">
               <Alert>
                 <FileJson className="h-4 w-4" />
                 <AlertTitle>Paste a sample invoice to test or adjust these mappings</AlertTitle>
                 <AlertDescription>
                   The mappings below are already loaded, but connecting new fields, testing, or saving needs a sample invoice —
-                  it isn't stored, so it has to be pasted again each time you edit.
+                  none was saved alongside this template, so paste one to continue.
                 </AlertDescription>
               </Alert>
               <Button variant="outline" onClick={() => setStep('data')} className="rounded-full">

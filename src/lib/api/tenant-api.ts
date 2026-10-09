@@ -90,8 +90,12 @@ export function createTenantApi() {
     // Fetches the currently-active template for this ERP — the tenant's own
     // saved override if one exists, otherwise the platform default
     // (data.is_custom distinguishes the two). 404 means neither exists yet.
-    getMapping: (erp: string) =>
-      (api as any).v1.workflow.transform.mapping({ erp }).get(),
+    // document_type scopes to a specific document shape (e.g. "CREDIT_NOTE")
+    // instead of the default untyped template — no UI sets this yet.
+    getMapping: (erp: string, documentType?: string) =>
+      (api as any).v1.workflow.transform.mapping({ erp }).get({
+        query: documentType ? { document_type: documentType } : {},
+      }),
 
     generateMapping: (payload: {
       erp: string;
@@ -100,12 +104,13 @@ export function createTenantApi() {
       base_template?: any;
       custom_prompt?: string;
       custom_config?: any;
+      document_type?: string;
     }) => (api as any).v1.workflow.transform.mapping.generate.post(payload),
 
     testMapping: (payload: { sample_invoice: any; template: MappingTemplate }) =>
       (api as any).v1.workflow.transform.mapping.test.post(payload),
 
-    saveMapping: (payload: { erp: string; sample_invoice: any; template: MappingTemplate }) =>
+    saveMapping: (payload: { erp: string; sample_invoice: any; template: MappingTemplate; document_type?: string }) =>
       (api as any).v1.workflow.transform.mapping.save.post(payload),
 
     // Unified key-config endpoint covering all NRS document types — replaces
