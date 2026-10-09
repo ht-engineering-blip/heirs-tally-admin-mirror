@@ -1,4 +1,32 @@
-import type { NrsSchemaField, TransformType, ValidationIssue } from '@/types/mapping';
+import type { GetMappingResult, NrsSchemaField, TransformType, ValidationIssue } from '@/types/mapping';
+
+// The backend's MappingDocumentType enum (invoice-type.ts) — a tenant can
+// hold a distinct saved template per document shape for the same ERP
+// instead of one template overwriting another.
+export const MAPPING_DOCUMENT_TYPES: { value: string; label: string }[] = [
+  { value: 'STANDARD_INVOICE', label: 'Standard Invoice' },
+  { value: 'CREDIT_NOTE', label: 'Credit Note' },
+  { value: 'DEBIT_NOTE', label: 'Debit Note' },
+  { value: 'SELF_BILLED_INVOICE', label: 'Self Billed Invoice' },
+  { value: 'FACTORED_INVOICE', label: 'Factored Invoice' },
+  { value: 'STATEMENT_OF_ACCOUNT', label: 'Statement of Account' },
+];
+
+// GET /mapping/:erp?document_type=X falls back to the tenant's legacy
+// untyped template when no template has been saved for that specific type
+// yet (transform.service.ts#getMappingTemplate) — so a bare "it returned
+// something" check would misreport an unconfigured Credit Note as
+// configured, showing the Standard Invoice template under the wrong card.
+// The response's own document_type field reveals whether it was a genuine
+// match or a fallback: a legacy/standard template reads "STANDARD_INVOICE"
+// or null/undefined (Mongoose's schema default), never any other type.
+export function isGenuineDocumentTypeMatch(result: GetMappingResult | null | undefined, requestedType: string): boolean {
+  if (!result) return false;
+  if (requestedType === 'STANDARD_INVOICE') {
+    return !result.document_type || result.document_type === 'STANDARD_INVOICE';
+  }
+  return result.document_type === requestedType;
+}
 
 // The backend's `is_required` flag on NRS schema fields is currently
 // unreliable (observed false even on fields whose validation_rules says
