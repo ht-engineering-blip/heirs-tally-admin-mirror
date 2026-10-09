@@ -128,10 +128,9 @@ export default function ErpMappingPage() {
 
   // Prefills the mapping editor from the currently-active template — the
   // tenant's own saved override if one exists, otherwise the platform
-  // default for this ERP. Also prefills the sample invoice when the backend
-  // includes it (not live yet — flagged to backend separately — but this
-  // activates automatically the moment GET /mapping/:erp starts returning
-  // `sample_invoice`, no further frontend change needed).
+  // default for this ERP. Also prefills the sample invoice saved alongside
+  // it, when present (confirmed live on GET /mapping/:erp — absent only on
+  // older/global templates saved before the backend returned it).
   const applyTemplate = (result: GetMappingResult) => {
     const { template } = result
     setSelectedNrsVersion(template.nrs_schema_version || '')
@@ -648,7 +647,9 @@ export default function ErpMappingPage() {
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>{existingMapping.is_custom ? 'Editing your saved mapping' : 'Editing the platform default template'}</AlertTitle>
           <AlertDescription>
-            Paste a sample invoice below to test or adjust it further — the mapping itself is already prefilled.
+            {invoiceJson === '{}'
+              ? 'Paste a sample invoice below to test or adjust it further — the mapping itself is already prefilled.'
+              : 'The sample invoice and mapping are both prefilled below — adjust and re-test as needed.'}
           </AlertDescription>
         </Alert>
       )}
@@ -779,17 +780,18 @@ export default function ErpMappingPage() {
       {step === 'mapping' && (
         erpSourceFields.length === 0 ? (
           mappingData.length > 0 || arrayMappings.length > 0 ? (
-            // A template is already loaded (from Edit Mapping) but there's no
-            // sample invoice in this session yet — GET /mapping/:erp never
-            // returns one, so it has to be re-pasted every time. Show what's
-            // already there instead of hiding it behind the empty state below.
+            // A template is already loaded (from Edit Mapping) but no sample
+            // invoice came back with it this time — usually an older/global
+            // template saved before the backend started returning one. Show
+            // what's already there instead of hiding it behind the empty
+            // state below.
             <div className="space-y-6">
               <Alert>
                 <FileJson className="h-4 w-4" />
                 <AlertTitle>Paste a sample invoice to test or adjust these mappings</AlertTitle>
                 <AlertDescription>
                   The mappings below are already loaded, but connecting new fields, testing, or saving needs a sample invoice —
-                  it isn't stored, so it has to be pasted again each time you edit.
+                  none was saved alongside this template, so paste one to continue.
                 </AlertDescription>
               </Alert>
               <Button variant="outline" onClick={() => setStep('data')} className="rounded-full">

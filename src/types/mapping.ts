@@ -81,6 +81,12 @@ export interface GetMappingResult {
   schema_id: string;
   name: string;
   erp_source: string;
+  // Which document shape this template applies to (e.g. "STANDARD_INVOICE",
+  // "CREDIT_NOTE") — null/absent means the legacy untyped template, which is
+  // the only kind this app's UI creates or reads today. A tenant can have a
+  // distinct template per document type, but there's no UI for choosing one
+  // yet — leave this unset everywhere until that's actually needed.
+  document_type?: string | null;
   tenant_id: string | null;
   status: 'active' | 'draft' | 'deprecated' | 'archived';
   // true = the tenant's own saved override; false = the platform default.
@@ -88,10 +94,9 @@ export interface GetMappingResult {
   template: MappingTemplate;
   created_at?: string;
   updated_at?: string;
-  // Persisted by the backend (transform.service.ts#saveMappingTemplate,
-  // metadata.sample_invoice) but not yet returned by GET /mapping/:erp —
-  // read defensively so the Sample Invoice editor prefills automatically
-  // once the backend adds it to the response, no frontend change needed.
+  // Persisted at save time (transform.service.ts#saveMappingTemplate,
+  // metadata.sample_invoice) and now returned by GET /mapping/:erp — may
+  // still be absent on older/global templates saved before this shipped.
   sample_invoice?: Record<string, any>;
 }
 
