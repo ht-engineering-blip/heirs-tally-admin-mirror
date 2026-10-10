@@ -80,6 +80,7 @@ export interface Invoice {
   id: string;
   irn: string;
   invoiceNumber: string | null;
+  invoiceType?: string | null;
   type: "inbound" | "outbound";
   customerName?: string | null;
   supplierName?: string;
@@ -239,6 +240,7 @@ export default function TransactionsPage() {
         id: invoice.irn,
         irn: invoice.irn,
         invoiceNumber: invoice.invoiceNumber ?? null,
+        invoiceType: invoice.invoiceType ?? null,
         type: (invoice.type || "outbound") as "inbound" | "outbound",
         status: invoice.status,
         lastJobError: {
@@ -586,7 +588,7 @@ export default function TransactionsPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <p
-                className="font-mono font-medium text-sm truncate max-w-[120px]"
+                className="font-mono font-medium text-sm truncate max-w-[90px]"
                 title={inv.irn}
               >
                 {inv.irn.slice(0, 12)}…
@@ -608,6 +610,19 @@ export default function TransactionsPage() {
           </div>
         </div>
       ),
+    },
+    {
+      key: "invoiceType",
+      header: "Invoice Type",
+      sortable: true,
+      accessor: (inv) =>
+        inv.invoiceType ? (
+          <Badge variant="outline" className="text-xs font-normal">
+            {inv.invoiceType}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">&mdash;</span>
+        ),
     },
     {
       key: "invoiceNumber",
@@ -640,7 +655,7 @@ export default function TransactionsPage() {
       sortable: true,
       accessor: (inv) =>
         inv.customerName ? (
-          <span className="text-sm truncate max-w-[160px] block" title={inv.customerName}>
+          <span className="text-sm truncate max-w-[130px] block" title={inv.customerName}>
             {inv.customerName}
           </span>
         ) : (
@@ -773,7 +788,7 @@ export default function TransactionsPage() {
       accessor: (inv) => {
         if (inv.erp) {
           return (
-            <Badge variant="outline" className="text-xs whitespace-nowrap">
+            <Badge variant="outline" className="text-xs truncate max-w-[90px]" title={inv.erp}>
               {inv.erp}
             </Badge>
           );

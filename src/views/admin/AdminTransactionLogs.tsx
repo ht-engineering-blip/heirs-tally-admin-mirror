@@ -220,6 +220,7 @@ export default function AdminTransactionLogs() {
         id: invoice.irn,
         irn: invoice.irn,
         invoiceNumber: invoice.invoiceNumber ?? null,
+        invoiceType: invoice.invoiceType ?? null,
         type: (invoice.type || "outbound") as "inbound" | "outbound",
         tenantId: invoice.tenantId,
         tenantName: invoice.tenantName,
@@ -554,7 +555,7 @@ export default function AdminTransactionLogs() {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <p
-                className="font-mono font-medium text-sm truncate max-w-[120px]"
+                className="font-mono font-medium text-sm truncate max-w-[90px]"
                 title={inv.irn}
               >
                 {inv.irn.slice(0, 12)}…
@@ -576,6 +577,19 @@ export default function AdminTransactionLogs() {
           </div>
         </div>
       ),
+    },
+    {
+      key: "invoiceType",
+      header: "Invoice Type",
+      sortable: true,
+      accessor: (inv) =>
+        inv.invoiceType ? (
+          <Badge variant="outline" className="text-xs font-normal">
+            {inv.invoiceType}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">&mdash;</span>
+        ),
     },
     {
       key: "invoiceNumber",
@@ -684,10 +698,10 @@ export default function AdminTransactionLogs() {
         if (!name) return <span className="text-muted-foreground text-xs">&mdash;</span>;
         return (
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate max-w-[160px]" title={name}>{name}</p>
+            <p className="text-sm font-medium truncate max-w-[130px]" title={name}>{name}</p>
             {sub && <p className="text-xs text-muted-foreground">TIN: {sub}</p>}
             {inv.tenantName && (
-              <p className="text-xs text-muted-foreground truncate max-w-[160px]">Tenant: {inv.tenantName}</p>
+              <p className="text-xs text-muted-foreground truncate max-w-[130px]">Tenant: {inv.tenantName}</p>
             )}
           </div>
         );
@@ -744,7 +758,7 @@ export default function AdminTransactionLogs() {
         const erp = inv.erpSystem || inv.erp;
         if (erp) {
           return (
-            <Badge variant="outline" className="text-xs whitespace-nowrap">
+            <Badge variant="outline" className="text-xs truncate max-w-[90px]" title={erp}>
               {erp}
             </Badge>
           );
