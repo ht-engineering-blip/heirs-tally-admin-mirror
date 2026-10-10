@@ -1227,18 +1227,40 @@ export default function AdminTransactionLogs() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                     <div>
                       <p className="text-xs text-muted-foreground">IRN</p>
-                      <p className="font-mono text-xs break-all">
-                        {invoiceDetails.invoice?.irn || selectedInvoice?.irn}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-mono text-xs break-all">
+                          {invoiceDetails.invoice?.irn || selectedInvoice?.irn}
+                        </p>
+                        <button
+                          className="text-muted-foreground hover:text-foreground shrink-0"
+                          onClick={() => {
+                            navigator.clipboard.writeText(invoiceDetails.invoice?.irn || selectedInvoice?.irn || "");
+                            toast.success("IRN copied");
+                          }}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                     {invoiceDetails.invoice?.invoiceNumber && (
                       <div>
                         <p className="text-xs text-muted-foreground">
                           Invoice Number
                         </p>
-                        <p className="font-mono text-xs break-all">
-                          {invoiceDetails.invoice.invoiceNumber}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-mono text-xs break-all">
+                            {invoiceDetails.invoice.invoiceNumber}
+                          </p>
+                          <button
+                            className="text-muted-foreground hover:text-foreground shrink-0"
+                            onClick={() => {
+                              navigator.clipboard.writeText(invoiceDetails.invoice.invoiceNumber);
+                              toast.success("Invoice number copied");
+                            }}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                     )}
                     {invoiceDetails.invoice?.customerName && (
