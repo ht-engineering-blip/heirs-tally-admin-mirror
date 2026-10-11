@@ -211,13 +211,21 @@ export default function ErpMappingPage() {
   // viewed type — none of it is meaningful once the document type changes.
   const handleSelectDocType = (type: string, mode: 'view' | 'edit' = 'edit') => {
     const existing = mappingsByType[type]
+    const switchingType = type !== selectedDocType
     setSelectedDocType(type)
     setSavedOnce(false)
-    setCustomPrompt('')
-    setShowCustomPrompt(false)
-    setExpandedArrayIdx(null)
-    setNewArraySource('')
-    setNewArrayTarget('')
+    // Only wipe AI-context/array-draft state when actually switching to a
+    // different document type — these never persist server-side, so
+    // re-entering the SAME type (e.g. list -> Edit Mapping right after a
+    // save) should keep whatever the user just typed, same as before
+    // per-type selection existed.
+    if (switchingType) {
+      setCustomPrompt('')
+      setShowCustomPrompt(false)
+      setExpandedArrayIdx(null)
+      setNewArraySource('')
+      setNewArrayTarget('')
+    }
     if (existing) {
       applyTemplate(existing)
       setStep('data')
@@ -543,9 +551,22 @@ export default function ErpMappingPage() {
         field_mappings: mappingData,
         array_mappings: arrayMappings,
       }
+      // Never let an empty Step 1 box overwrite a sample invoice the backend
+      // already has on file for this type — a tenant's pre-existing,
+      // untyped mapping gets saved under a brand-new document_type-scoped
+      // record the first time it's edited here (upsertERPSchema suffixes
+      // the schema_id with the type), so if Step 1 wasn't re-filled on that
+      // first save, the new record would otherwise end up with no sample
+      // invoice at all, permanently, since every later GET resolves straight
+      // to it instead of falling back to the old untyped record.
+      const hasNewSample = parsedSampleInvoice && Object.keys(parsedSampleInvoice).length > 0
+      const existingSample = activeMapping?.sample_invoice
+      const sampleInvoiceToSave = hasNewSample
+        ? parsedSampleInvoice
+        : (existingSample && Object.keys(existingSample).length > 0 ? existingSample : parsedSampleInvoice)
       const response = await api.saveMapping({
         erp: erpSystem,
-        sample_invoice: parsedSampleInvoice,
+        sample_invoice: sampleInvoiceToSave,
         template,
         ...(selectedDocType ? { document_type: selectedDocType } : {}),
       })
@@ -570,7 +591,7 @@ export default function ErpMappingPage() {
             is_custom: true,
             template,
             document_type: selectedDocType,
-            sample_invoice: parsedSampleInvoice,
+            sample_invoice: sampleInvoiceToSave,
             updated_at: new Date().toISOString(),
           },
         }))
