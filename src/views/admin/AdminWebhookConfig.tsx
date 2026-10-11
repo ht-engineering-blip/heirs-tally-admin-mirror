@@ -108,26 +108,42 @@ const webhookFilters: FilterOption[] = [
   },
 ];
 
-// ===== Helper: fetch event routing for a tenant =====
+// ===== Helper: fetch event routing for every tenant in one paginated call =====
 
-async function fetchTenantEventRouting(api: any, tenantId: string): Promise<EventMapping[]> {
-  try {
-    const response = await (api as any).v1.admin.tenants[tenantId]['event-routing'].get();
-    if (!response.error && response.data?.data?.routes) {
-      return (response.data.data.routes as any[]).map((r: any) => ({
-        routeId: r.routeId,
-        event: typeof r.event === 'object' ? (r.event?.id || '') : (r.event || ''),
-        actions: Array.isArray(r.actions)
-          ? r.actions.map((a: any) => typeof a === 'object' ? (a?.id || '') : a)
-          : [],
-        enabled: r.enabled !== false,
-        description: r.description || '',
-      }));
+function mapEventRoutingRoutes(routes: any[]): EventMapping[] {
+  return (routes || []).map((r: any) => ({
+    routeId: r.routeId,
+    event: typeof r.event === 'object' ? (r.event?.id || '') : (r.event || ''),
+    actions: Array.isArray(r.actions)
+      ? r.actions.map((a: any) => typeof a === 'object' ? (a?.id || '') : a)
+      : [],
+    enabled: r.enabled !== false,
+    description: r.description || '',
+  }));
+}
+
+// GET /admin/event-routing lists every tenant's routing config in one paginated
+// call (limit capped at 100 server-side) — replaces the old approach of firing
+// a GET /admin/tenants/:tenantId/event-routing request per tenant, which meant
+// one request per tenant on every page load.
+async function fetchAllEventRouting(api: any): Promise<Map<string, EventMapping[]>> {
+  const byTenantId = new Map<string, EventMapping[]>();
+  let page = 1;
+  const limit = 100;
+  while (true) {
+    const response: any = await (api as any).v1.admin['event-routing'].get({
+      query: { page: String(page), limit: String(limit) },
+    });
+    if (response.error) break;
+    const entries = (response.data?.data as any[]) ?? [];
+    for (const entry of entries) {
+      byTenantId.set(entry.tenantId, mapEventRoutingRoutes(entry.routes));
     }
-  } catch {
-    // Tenant may not have event routing configured
+    const pagination = response.data?.pagination;
+    if (!pagination || page >= pagination.totalPages) break;
+    page++;
   }
-  return [];
+  return byTenantId;
 }
 
 // ===== Component =====
@@ -176,41 +192,42 @@ export default function AdminWebhookConfig() {
       if (response.error) {
         const errorMessage = (response.error as any)?.value?.error || 'Failed to fetch webhook configurations';
         toast.error(errorMessage);
-      } else if (response.data?.data) {
-        const tenantData = response.data.data as any[];
-        const extractId = (v: any): string | undefined => {
-          if (!v) return undefined;
-          if (typeof v === 'string') return v;
-          if (typeof v === 'object' && v.$oid) return String(v.$oid);
-          return undefined;
-        };
-        const mappedConfigs: WebhookConfigEntry[] = await Promise.all(
-          tenantData
-            .map(async (t: any) => {
-              const config = t.config || {};
-              const metadata = t.metadata || {};
-              const tenantId = extractId(t.tenantId) ?? extractId(t.id) ?? extractId(t._id) ?? '';
-
-              // Fetch event routing from the new API
-              const eventMappings = await fetchTenantEventRouting(api, tenantId);
-
-              return {
-                id: extractId(t.id) ?? extractId(t._id) ?? tenantId,
-                tenantId,
-                tenantName: t.businessName,
-                webhookUrl: config.webhookUrl || metadata.webhookUrl || '',
-                webhookEnabled: config.webhookEnabled ?? metadata.webhookEnabled ?? false,
-                webhookPath: config.webhookPath || metadata.webhookPath || '',
-                eventMappings,
-                tenantStatus: t.status || 'inactive',
-                createdAt: t.createdAt,
-                updatedAt: t.updatedAt,
-              };
-            })
-        );
-
-        setAllConfigs(mappedConfigs);
+        return;
       }
+      if (!response.data?.data) return;
+
+      const tenantData = response.data.data as any[];
+      const extractId = (v: any): string | undefined => {
+        if (!v) return undefined;
+        if (typeof v === 'string') return v;
+        if (typeof v === 'object' && v.$oid) return String(v.$oid);
+        return undefined;
+      };
+
+      // One paginated call covers every tenant's event routing (capped at
+      // 100/page server-side, so this loops a handful of times at most) —
+      // replaces the old per-tenant GET that fired once per tenant on every
+      // load.
+      const eventRoutingByTenantId = await fetchAllEventRouting(api);
+
+      const mappedConfigs: WebhookConfigEntry[] = tenantData.map((t: any) => {
+        const config = t.config || {};
+        const metadata = t.metadata || {};
+        const tenantId = extractId(t.tenantId) ?? extractId(t.id) ?? extractId(t._id) ?? '';
+        return {
+          id: extractId(t.id) ?? extractId(t._id) ?? tenantId,
+          tenantId,
+          tenantName: t.businessName,
+          webhookUrl: config.webhookUrl || metadata.webhookUrl || '',
+          webhookEnabled: config.webhookEnabled ?? metadata.webhookEnabled ?? false,
+          webhookPath: config.webhookPath || metadata.webhookPath || '',
+          eventMappings: eventRoutingByTenantId.get(tenantId) || [],
+          tenantStatus: t.status || 'inactive',
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+        };
+      });
+      setAllConfigs(mappedConfigs);
     } catch (error: any) {
       toast.error(error?.message || 'Failed to load webhook configurations');
     } finally {
