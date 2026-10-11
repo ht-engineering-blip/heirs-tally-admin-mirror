@@ -626,8 +626,47 @@ export default function ErpMappingPage() {
     )
   }
 
+  // Skeleton mirrors the list view's actual card grid below (same labels/
+  // icons, which are static and known immediately) so nothing shifts once
+  // the real configured/not-configured state lands.
   if (mappingsLoading && !selectedDocType) {
-    return <SectionLoader message="Loading ERP mapping" />
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="page-header">
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="page-title flex items-center gap-3">
+                <Workflow className="w-6 h-6" />
+                ERP Mapping
+              </h1>
+              <p className="page-subtitle">Map your ERP's invoice fields to the NRS schema, per document type</p>
+            </div>
+          </div>
+          {erpSystem && <Badge variant="outline">{erpSystem}</Badge>}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {MAPPING_DOCUMENT_TYPES.map((t) => (
+            <Card key={t.value}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    {t.label}
+                  </CardTitle>
+                  <Skeleton className="h-5 w-24 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-48 mt-1" />
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <Skeleton className="h-9 w-28 rounded-full" />
+                <Skeleton className="h-9 w-28 rounded-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   // List view — one card per document type, showing whether each has its
