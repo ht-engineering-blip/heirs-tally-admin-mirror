@@ -34,7 +34,7 @@ import { StatusBadge } from '@/components/shared'
 import { toast } from '@/components/ui/sonner'
 import { usePermissions } from '@/hooks/use-permissions'
 import { createTenantApi } from '@/lib/api/tenant-api'
-import { SectionLoader } from '@/components/shared/SectionLoader'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function TransactionDetailPage() {
   const params = useParams()
@@ -123,8 +123,51 @@ export default function TransactionDetailPage() {
     return s === 'failed' || s === 'rejected'
   }
 
+  // Whether this invoice is inbound/outbound (and so which tabs/fields apply)
+  // isn't known until it loads, so this skeletons the generic shell shared by
+  // both — header + tab bar + the Invoice Information grid on Overview.
   if (isLoading) {
-    return <SectionLoader message="Loading invoice" />
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/transactions')}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <Skeleton className="w-10 h-10 rounded-lg" />
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </div>
+          </div>
+          <Skeleton className="h-6 w-20 rounded-full" />
+        </div>
+
+        <div className="flex gap-1">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 w-28" />
+          ))}
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Invoice Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-4 w-36" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (error || !details) {

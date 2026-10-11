@@ -31,8 +31,8 @@ import { createTenantApi } from '@/lib/api/tenant-api'
 import {
   findArrayPaths,
   flattenObject,
+  humanizeDocumentType,
   isFieldRequired,
-  MAPPING_DOCUMENT_TYPES,
   parseApiValidationErrors,
   resolvePath,
 } from '@/lib/erp-mapping/helpers'
@@ -125,8 +125,9 @@ export default function ErpMappingPage() {
   // and confirmed not configured yet; undefined (key absent) = not fetched.
   const [mappingsByType, setMappingsByType] = useState<Record<string, GetMappingResult | null>>({})
   const [mappingsLoading, setMappingsLoading] = useState(false)
-  // null = showing the list of document types. Set to a MAPPING_DOCUMENT_TYPES
-  // value when the user drills into one.
+  // null = showing the list of document types. Set to one of the
+  // document_type values returned by GET /mapping/:erp/all when the user
+  // drills into one.
   const [selectedDocType, setSelectedDocType] = useState<string | null>(null)
   // true = showing the read-only summary of the selected type's active
   // template; false = showing the edit wizard.
@@ -134,7 +135,7 @@ export default function ErpMappingPage() {
 
   const invoiceEditorRef = useRef<any>(null)
 
-  const selectedDocTypeLabel = MAPPING_DOCUMENT_TYPES.find((t) => t.value === selectedDocType)?.label || ''
+  const selectedDocTypeLabel = selectedDocType ? humanizeDocumentType(selectedDocType) : ''
   const activeMapping = selectedDocType ? mappingsByType[selectedDocType] : undefined
 
   // Prefills the mapping editor from the currently-active template — the
@@ -626,9 +627,10 @@ export default function ErpMappingPage() {
     )
   }
 
-  // Skeleton mirrors the list view's actual card grid below (same labels/
-  // icons, which are static and known immediately) so nothing shifts once
-  // the real configured/not-configured state lands.
+  // Which document types exist is only known once GET /mapping/:erp/all
+  // resolves, so the skeleton can't show real labels — it just renders 6
+  // placeholder slots (today's known type count) with everything skeletoned,
+  // including the title.
   if (mappingsLoading && !selectedDocType) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -646,14 +648,14 @@ export default function ErpMappingPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {MAPPING_DOCUMENT_TYPES.map((t) => (
-            <Card key={t.value}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-base flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-muted-foreground" />
-                    {t.label}
-                  </CardTitle>
+                    <Skeleton className="h-5 w-32" />
+                  </div>
                   <Skeleton className="h-5 w-24 rounded-full" />
                 </div>
                 <Skeleton className="h-4 w-48 mt-1" />
@@ -698,16 +700,16 @@ export default function ErpMappingPage() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {MAPPING_DOCUMENT_TYPES.map((t) => {
-            const result = mappingsByType[t.value]
+          {Object.keys(mappingsByType).map((docType) => {
+            const result = mappingsByType[docType]
             const configured = !!result
             return (
-              <Card key={t.value}>
+              <Card key={docType}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <FileText className="w-4 h-4 text-muted-foreground" />
-                      {t.label}
+                      {humanizeDocumentType(docType)}
                     </CardTitle>
                     {configured ? (
                       <Badge className={result!.is_custom ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
@@ -728,7 +730,7 @@ export default function ErpMappingPage() {
                     <Button
                       variant="outline"
                       className="rounded-full"
-                      onClick={() => handleSelectDocType(t.value, 'view')}
+                      onClick={() => handleSelectDocType(docType, 'view')}
                     >
                       <Eye className="w-4 h-4 mr-2" />
                       View Mapping
@@ -737,7 +739,7 @@ export default function ErpMappingPage() {
                   <Button
                     variant={configured ? 'outline' : 'default'}
                     className="rounded-full"
-                    onClick={() => handleSelectDocType(t.value, 'edit')}
+                    onClick={() => handleSelectDocType(docType, 'edit')}
                   >
                     {configured ? (
                       <>
