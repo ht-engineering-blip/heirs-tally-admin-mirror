@@ -80,6 +80,7 @@ export interface Invoice {
   id: string;
   irn: string;
   invoiceNumber: string | null;
+  invoiceType?: string | null;
   type: "inbound" | "outbound";
   customerName?: string | null;
   supplierName?: string;
@@ -239,6 +240,7 @@ export default function TransactionsPage() {
         id: invoice.irn,
         irn: invoice.irn,
         invoiceNumber: invoice.invoiceNumber ?? null,
+        invoiceType: invoice.invoiceType ?? null,
         type: (invoice.type || "outbound") as "inbound" | "outbound",
         status: invoice.status,
         lastJobError: {
@@ -586,7 +588,7 @@ export default function TransactionsPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <p
-                className="font-mono font-medium text-sm truncate max-w-[120px]"
+                className="font-mono font-medium text-sm truncate max-w-[90px]"
                 title={inv.irn}
               >
                 {inv.irn.slice(0, 12)}…
@@ -608,6 +610,19 @@ export default function TransactionsPage() {
           </div>
         </div>
       ),
+    },
+    {
+      key: "invoiceType",
+      header: "Invoice Type",
+      sortable: true,
+      accessor: (inv) =>
+        inv.invoiceType ? (
+          <Badge variant="outline" className="text-xs font-normal">
+            {inv.invoiceType}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">&mdash;</span>
+        ),
     },
     {
       key: "invoiceNumber",
@@ -640,7 +655,7 @@ export default function TransactionsPage() {
       sortable: true,
       accessor: (inv) =>
         inv.customerName ? (
-          <span className="text-sm truncate max-w-[160px] block" title={inv.customerName}>
+          <span className="text-sm truncate max-w-[130px] block" title={inv.customerName}>
             {inv.customerName}
           </span>
         ) : (
@@ -773,7 +788,7 @@ export default function TransactionsPage() {
       accessor: (inv) => {
         if (inv.erp) {
           return (
-            <Badge variant="outline" className="text-xs whitespace-nowrap">
+            <Badge variant="outline" className="text-xs truncate max-w-[90px]" title={inv.erp}>
               {inv.erp}
             </Badge>
           );
@@ -1227,18 +1242,40 @@ export default function TransactionsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                     <div>
                       <p className="text-xs text-muted-foreground">IRN</p>
-                      <p className="font-mono text-xs break-all">
-                        {invoiceDetails.invoice?.irn || selectedInvoice?.irn}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-mono text-xs break-all">
+                          {invoiceDetails.invoice?.irn || selectedInvoice?.irn}
+                        </p>
+                        <button
+                          className="text-muted-foreground hover:text-foreground shrink-0"
+                          onClick={() => {
+                            navigator.clipboard.writeText(invoiceDetails.invoice?.irn || selectedInvoice?.irn || "");
+                            toast.success("IRN copied");
+                          }}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                     {invoiceDetails.invoice?.invoiceNumber && (
                       <div>
                         <p className="text-xs text-muted-foreground">
                           Invoice Number
                         </p>
-                        <p className="font-mono text-xs break-all">
-                          {invoiceDetails.invoice.invoiceNumber}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-mono text-xs break-all">
+                            {invoiceDetails.invoice.invoiceNumber}
+                          </p>
+                          <button
+                            className="text-muted-foreground hover:text-foreground shrink-0"
+                            onClick={() => {
+                              navigator.clipboard.writeText(invoiceDetails.invoice.invoiceNumber);
+                              toast.success("Invoice number copied");
+                            }}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                     )}
                     {invoiceDetails.invoice?.customerName && (
