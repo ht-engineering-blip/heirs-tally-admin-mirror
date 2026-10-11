@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Eye, Edit, Trash2, Power, Building2, Webhook, CheckCircle2, XCircle, Copy, Loader2, EyeOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { DataTable, Column, FilterOption, StatusBadge, WebhookExpiryBadge, EventMappingEditor, getEventLabel, getWorkflowLabel, type EventMapping } from '@/components/shared';
@@ -85,6 +85,10 @@ const AUTH_MODE_OPTIONS = [
 
 // ===== Filters =====
 
+// The "Webhook Status" (enabled/disabled) filter was removed here — the
+// admin tenants list endpoint (listTenantsQueryValidator) has no
+// webhookEnabled query param, so it can't be applied server-side. Re-add it
+// once backend supports filtering tenants by that field.
 const webhookFilters: FilterOption[] = [
   {
     key: 'status',
@@ -95,15 +99,6 @@ const webhookFilters: FilterOption[] = [
       { value: 'pending', label: 'Pending' },
       { value: 'suspended', label: 'Suspended' },
       { value: 'inactive', label: 'Inactive' },
-    ],
-  },
-  {
-    key: 'enabled',
-    label: 'Webhook Status',
-    options: [
-      { value: 'all', label: 'All' },
-      { value: 'enabled', label: 'Enabled' },
-      { value: 'disabled', label: 'Disabled' },
     ],
   },
 ];
@@ -146,6 +141,43 @@ async function fetchAllEventRouting(api: any): Promise<Map<string, EventMapping[
   return byTenantId;
 }
 
+function extractTenantId(v: any): string | undefined {
+  if (!v) return undefined;
+  if (typeof v === 'string') return v;
+  if (typeof v === 'object' && v.$oid) return String(v.$oid);
+  return undefined;
+}
+
+function mapTenantToConfig(t: any, eventRoutingByTenantId: Map<string, EventMapping[]>): WebhookConfigEntry {
+  const config = t.config || {};
+  const metadata = t.metadata || {};
+  const tenantId = extractTenantId(t.tenantId) ?? extractTenantId(t.id) ?? extractTenantId(t._id) ?? '';
+  return {
+    id: extractTenantId(t.id) ?? extractTenantId(t._id) ?? tenantId,
+    tenantId,
+    tenantName: t.businessName,
+    webhookUrl: config.webhookUrl || metadata.webhookUrl || '',
+    webhookEnabled: config.webhookEnabled ?? metadata.webhookEnabled ?? false,
+    webhookPath: config.webhookPath || metadata.webhookPath || '',
+    eventMappings: eventRoutingByTenantId.get(tenantId) || [],
+    tenantStatus: t.status || 'inactive',
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+  };
+}
+
+// Only these map to real top-level tenant fields the backend can sort by
+// (listTenantsQueryValidator's sortBy is a free string forwarded straight to
+// the query, not validated against a fixed list — so a column like
+// webhookUrl/webhookEnabled/eventMappings would silently sort by a
+// nonexistent field rather than erroring). tenantName maps to the tenant's
+// actual field name, businessName.
+const SORTABLE_COLUMN_TO_FIELD: Record<string, string> = {
+  tenantName: 'businessName',
+  tenantStatus: 'status',
+  createdAt: 'createdAt',
+};
+
 // ===== Component =====
 
 export default function AdminWebhookConfig() {
@@ -155,9 +187,16 @@ export default function AdminWebhookConfig() {
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [columnSort, setColumnSort] = useState<{ key: string; order: 'asc' | 'desc' } | null>(null);
+  // Platform-wide counts for the stat cards — a separate, unfiltered,
+  // unpaginated fetch (same reasoning as Tenants.tsx's fetchStats) so the
+  // cards don't fluctuate with the table's own page/filter/search state now
+  // that the table itself only ever holds one page of tenants.
+  const [statsConfigs, setStatsConfigs] = useState<WebhookConfigEntry[]>([]);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Modal states
   const [showViewModal, setShowViewModal] = useState(false);
@@ -185,8 +224,16 @@ export default function AdminWebhookConfig() {
   const fetchConfigs = async () => {
     setIsLoading(true);
     try {
+      const sortField = columnSort ? SORTABLE_COLUMN_TO_FIELD[columnSort.key] : undefined;
       const response = await api.v1.tenants.get({
-        query: { limit: 1000 },
+        query: {
+          page,
+          limit: pageSize,
+          ...(filters.status && filters.status !== 'all' ? { status: filters.status as any } : {}),
+          ...(searchQuery ? { search: searchQuery } : {}),
+          sortBy: sortField ?? 'createdAt',
+          sortOrder: columnSort?.order ?? 'desc',
+        } as any,
       });
 
       if (response.error) {
@@ -197,37 +244,16 @@ export default function AdminWebhookConfig() {
       if (!response.data?.data) return;
 
       const tenantData = response.data.data as any[];
-      const extractId = (v: any): string | undefined => {
-        if (!v) return undefined;
-        if (typeof v === 'string') return v;
-        if (typeof v === 'object' && v.$oid) return String(v.$oid);
-        return undefined;
-      };
 
       // One paginated call covers every tenant's event routing (capped at
       // 100/page server-side, so this loops a handful of times at most) —
-      // replaces the old per-tenant GET that fired once per tenant on every
-      // load.
+      // there's no way to narrow it to just this page's tenants, since the
+      // endpoint only accepts a single tenantId, not a batch.
       const eventRoutingByTenantId = await fetchAllEventRouting(api);
 
-      const mappedConfigs: WebhookConfigEntry[] = tenantData.map((t: any) => {
-        const config = t.config || {};
-        const metadata = t.metadata || {};
-        const tenantId = extractId(t.tenantId) ?? extractId(t.id) ?? extractId(t._id) ?? '';
-        return {
-          id: extractId(t.id) ?? extractId(t._id) ?? tenantId,
-          tenantId,
-          tenantName: t.businessName,
-          webhookUrl: config.webhookUrl || metadata.webhookUrl || '',
-          webhookEnabled: config.webhookEnabled ?? metadata.webhookEnabled ?? false,
-          webhookPath: config.webhookPath || metadata.webhookPath || '',
-          eventMappings: eventRoutingByTenantId.get(tenantId) || [],
-          tenantStatus: t.status || 'inactive',
-          createdAt: t.createdAt,
-          updatedAt: t.updatedAt,
-        };
-      });
-      setAllConfigs(mappedConfigs);
+      setAllConfigs(tenantData.map((t) => mapTenantToConfig(t, eventRoutingByTenantId)));
+      const pagination = (response.data as any)?.pagination;
+      setTotal(pagination?.total ?? tenantData.length);
     } catch (error: any) {
       toast.error(error?.message || 'Failed to load webhook configurations');
     } finally {
@@ -235,11 +261,29 @@ export default function AdminWebhookConfig() {
     }
   };
 
+  // Platform-wide stat cards — deliberately NOT scoped to the current
+  // page/filter/search, and doesn't need event routing data at all (none of
+  // the 4 cards depend on it). See the statsConfigs state declaration for why
+  // this is a separate fetch from the table's own paginated one.
+  const fetchStats = async () => {
+    try {
+      const response = await api.v1.tenants.get({ query: { limit: 1000 } });
+      if (!response.error && response.data?.data) {
+        const tenantData = response.data.data as any[];
+        setStatsConfigs(tenantData.map((t) => mapTenantToConfig(t, new Map())));
+      }
+    } catch {
+      // Stats are supplementary — a failed fetch here shouldn't block the table.
+    }
+  };
+
   useEffect(() => {
     fetchConfigs();
-  }, []);
+  }, [page, pageSize, searchQuery, filters.status, columnSort]);
 
-  useEffect(() => { setPage(1); }, [searchQuery, filters]);
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   // ===== Handlers =====
 
@@ -465,72 +509,6 @@ export default function AdminWebhookConfig() {
     setColumnSort({ key, order });
   };
 
-  const filteredConfigs = useMemo(() => {
-    let result = [...allConfigs];
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((c) =>
-        c.tenantName?.toLowerCase().includes(q) ||
-        c.tenantId?.toLowerCase().includes(q) ||
-        c.webhookUrl?.toLowerCase().includes(q)
-      );
-    }
-
-    if (filters.status && filters.status !== 'all') {
-      result = result.filter((c) => {
-        const displayStatus = c.tenantStatus === 'onboarding' ? 'active' : c.tenantStatus;
-        return displayStatus === filters.status;
-      });
-    }
-
-    if (filters.enabled && filters.enabled !== 'all') {
-      result = result.filter((c) =>
-        filters.enabled === 'enabled' ? c.webhookEnabled : !c.webhookEnabled
-      );
-    }
-
-    if (columnSort) {
-      const { key, order } = columnSort;
-      result.sort((a, b) => {
-        let aVal: any = a[key as keyof WebhookConfigEntry];
-        let bVal: any = b[key as keyof WebhookConfigEntry];
-        if (key === 'createdAt' || key === 'updatedAt') {
-          aVal = new Date(aVal || 0).getTime();
-          bVal = new Date(bVal || 0).getTime();
-        } else if (key === 'eventMappings') {
-          aVal = (a.eventMappings || []).length;
-          bVal = (b.eventMappings || []).length;
-        } else if (typeof aVal === 'string') {
-          aVal = aVal.toLowerCase();
-          bVal = (bVal || '').toLowerCase();
-        } else if (typeof aVal === 'boolean') {
-          aVal = aVal ? 1 : 0;
-          bVal = bVal ? 1 : 0;
-        }
-        if (aVal < bVal) return order === 'asc' ? -1 : 1;
-        if (aVal > bVal) return order === 'asc' ? 1 : -1;
-        return 0;
-      });
-    } else {
-      const statusPriority = (status: string) => {
-        if (status === 'active' || status === 'onboarding') return 0;
-        if (status === 'inactive') return 1;
-        if (status === 'suspended') return 2;
-        return 3;
-      };
-      result.sort((a, b) => {
-        const priorityDiff = statusPriority(a.tenantStatus) - statusPriority(b.tenantStatus);
-        if (priorityDiff !== 0) return priorityDiff;
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
-      });
-    }
-
-    return result;
-  }, [allConfigs, searchQuery, filters, columnSort]);
-
   // ===== Columns =====
 
   const columns: Column<WebhookConfigEntry>[] = [
@@ -555,7 +533,8 @@ export default function AdminWebhookConfig() {
     {
       key: 'webhookUrl',
       header: 'Webhook URL',
-      sortable: true,
+      // Not a top-level tenant field — not sortable server-side.
+      sortable: false,
       accessor: (config) => (
         <code className="text-xs bg-muted px-2 py-1 rounded max-w-[200px] truncate block">
           {config.webhookUrl || config.webhookPath || 'N/A'}
@@ -565,7 +544,8 @@ export default function AdminWebhookConfig() {
     {
       key: 'webhookEnabled',
       header: 'Webhook Status',
-      sortable: true,
+      // Not a top-level tenant field — not sortable server-side.
+      sortable: false,
       accessor: (config) => (
         <div className="flex items-center gap-2">
           {config.webhookEnabled ? (
@@ -585,7 +565,10 @@ export default function AdminWebhookConfig() {
     {
       key: 'eventMappings',
       header: 'Event Routes',
-      sortable: true,
+      // Derived from a separate bulk fetch, not a tenant field the backend
+      // can sort by — re-enable once GET /admin/event-routing (or the
+      // tenants list) supports sorting by route count.
+      sortable: false,
       accessor: (config) => (
         <Badge variant="outline" className="text-xs">
           {config.eventMappings.length} route{config.eventMappings.length !== 1 ? 's' : ''}
@@ -669,10 +652,10 @@ export default function AdminWebhookConfig() {
   // ===== Stats =====
 
   const stats = {
-    total: allConfigs.length,
-    enabled: allConfigs.filter(c => c.webhookEnabled).length,
-    disabled: allConfigs.filter(c => !c.webhookEnabled).length,
-    active: allConfigs.filter(c => c.tenantStatus === 'active' || c.tenantStatus === 'onboarding').length,
+    total: statsConfigs.length,
+    enabled: statsConfigs.filter(c => c.webhookEnabled).length,
+    disabled: statsConfigs.filter(c => !c.webhookEnabled).length,
+    active: statsConfigs.filter(c => c.tenantStatus === 'active' || c.tenantStatus === 'onboarding').length,
   };
 
   // ===== Render =====
@@ -746,7 +729,7 @@ export default function AdminWebhookConfig() {
 
         {/* Data Table */}
         <DataTable
-          data={filteredConfigs.slice((page - 1) * pageSize, page * pageSize)}
+          data={allConfigs}
           columns={columns}
           searchPlaceholder="Search by tenant name or ID..."
           filters={webhookFilters}
@@ -755,10 +738,16 @@ export default function AdminWebhookConfig() {
           isLoading={isLoading}
           currentPage={page}
           pageSize={pageSize}
-          totalItems={filteredConfigs.length}
+          totalItems={total}
           onPageChange={setPage}
           onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
-          onSearch={(q) => { setSearchQuery(q); setPage(1); }}
+          onSearch={(q) => {
+            if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+            searchDebounceRef.current = setTimeout(() => {
+              setSearchQuery(q);
+              setPage(1);
+            }, 400);
+          }}
           onFilterChange={(f) => { setFilters(f); setPage(1); }}
           onSort={handleSort}
           emptyMessage="No tenants found."

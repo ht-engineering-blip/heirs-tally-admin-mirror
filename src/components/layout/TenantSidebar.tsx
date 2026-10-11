@@ -298,6 +298,8 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
                         isCollapsed={isCollapsed && !isMobile}
                         isMobile={isMobile}
                         onToggle={() => toggleExpanded(item.href)}
+                        children={item.children}
+                        isChildActive={(childHref) => isRouteActive(childHref, true)}
                       />
 
                       {/* Children Items */}
