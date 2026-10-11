@@ -14,6 +14,7 @@ import {
   FileText,
   Package,
   Loader2,
+  Copy,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,6 +49,11 @@ export default function TransactionDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [showResendDialog, setShowResendDialog] = useState(false)
   const [resending, setResending] = useState(false)
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success(`${label} copied`)
+  }
 
   useEffect(() => {
     if (!irn) return
@@ -163,9 +169,22 @@ export default function TransactionDetailPage() {
                   )}
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold">
-                    {invoice.invoiceNumber || invoice.irn || irn}
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-2xl font-bold">
+                      {invoice.invoiceNumber || invoice.irn || irn}
+                    </h1>
+                    <button
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() =>
+                        copyToClipboard(
+                          invoice.invoiceNumber || invoice.irn || irn,
+                          invoice.invoiceNumber ? 'Invoice number' : 'IRN',
+                        )
+                      }
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
                   <p className="text-muted-foreground capitalize">{invoiceType} Invoice</p>
                 </div>
               </div>
@@ -233,7 +252,21 @@ export default function TransactionDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <DetailField label="IRN" value={invoice.irn || irn} mono />
+                  <DetailField
+                    label="IRN"
+                    value={
+                      <div className="flex items-center gap-1.5">
+                        <span className="break-all">{invoice.irn || irn}</span>
+                        <button
+                          className="text-muted-foreground hover:text-foreground shrink-0"
+                          onClick={() => copyToClipboard(invoice.irn || irn, 'IRN')}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
+                    }
+                    mono
+                  />
                   <DetailField label="Status" value={<StatusBadge status={status} />} />
                   <DetailField
                     label="Total Amount"

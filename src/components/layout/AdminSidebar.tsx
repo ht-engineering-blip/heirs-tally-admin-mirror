@@ -333,6 +333,8 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                           isCollapsed={isCollapsed && !isMobile}
                           isMobile={isMobile}
                           onToggle={() => toggleExpanded(item.href)}
+                          children={item.children}
+                          isChildActive={(childHref) => isRouteActive(childHref, true)}
                         />
 
                         {/* Children Items */}
@@ -510,6 +512,8 @@ interface NavLinkWithChildrenProps {
   isCollapsed: boolean
   isMobile: boolean
   onToggle: () => void
+  children?: NavItem[]
+  isChildActive?: (href: string) => boolean
 }
 
 export function NavLinkWithChildren({
@@ -523,6 +527,8 @@ export function NavLinkWithChildren({
   isCollapsed,
   isMobile,
   onToggle,
+  children,
+  isChildActive,
 }: NavLinkWithChildrenProps) {
   const handleChevronClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -570,6 +576,52 @@ export function NavLinkWithChildren({
   )
 
   const showTooltip = isCollapsed && !isMobile
+
+  // Collapsed + has children: a plain tooltip can't reach the children at
+  // all (the expand chevron is hidden while collapsed), so they'd be
+  // completely inaccessible without first expanding the whole sidebar.
+  // Show a hover flyout with the parent link plus every child instead.
+  if (showTooltip && hasChildren && children && children.length > 0) {
+    return (
+      <div className="relative group">
+        {linkContent}
+        <div
+          className={cn(
+            'absolute left-full top-0 ml-2 min-w-[190px] rounded-lg border bg-popover text-popover-foreground shadow-md py-1.5 z-50',
+            'opacity-0 invisible -translate-x-1 pointer-events-none transition-all duration-150',
+            'group-hover:opacity-100 group-hover:visible group-hover:translate-x-0 group-hover:pointer-events-auto'
+          )}
+        >
+          <Link
+            href={href}
+            className="block px-3 py-1.5 text-sm font-medium hover:bg-sidebar-accent/50 transition-colors"
+          >
+            {label}
+          </Link>
+          <div className="my-1 border-t border-border" />
+          {children.map((child) => {
+            const ChildIcon = child.icon
+            const active = isChildActive?.(child.href)
+            return (
+              <Link
+                key={child.href}
+                href={child.href}
+                className={cn(
+                  'flex items-center gap-2 px-3 py-1.5 text-sm transition-colors',
+                  active
+                    ? 'text-primary font-medium'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50'
+                )}
+              >
+                <ChildIcon className="w-3.5 h-3.5" />
+                {child.title}
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   if (showTooltip) {
     return (
