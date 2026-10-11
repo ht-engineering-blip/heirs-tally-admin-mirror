@@ -90,12 +90,18 @@ export function createTenantApi() {
     // Fetches the currently-active template for this ERP — the tenant's own
     // saved override if one exists, otherwise the platform default
     // (data.is_custom distinguishes the two). 404 means neither exists yet.
-    // document_type scopes to a specific document shape (e.g. "CREDIT_NOTE")
-    // instead of the default untyped template — no UI sets this yet.
+    // document_type scopes to a specific document shape (e.g. "CREDIT_NOTE").
     getMapping: (erp: string, documentType?: string) =>
       (api as any).v1.workflow.transform.mapping({ erp }).get({
         query: documentType ? { document_type: documentType } : {},
       }),
+
+    // Bulk variant of getMapping — one call returns all MAPPING_DOCUMENT_TYPES
+    // for this ERP (data.mappings[]), each tagged with document_type and a
+    // configured boolean instead of a per-type 404. Replaces the 6 parallel
+    // getMapping calls the ERP Mapping list page used to make on load.
+    getAllMappings: (erp: string) =>
+      (api as any).v1.workflow.transform.mapping({ erp }).all.get(),
 
     generateMapping: (payload: {
       erp: string;

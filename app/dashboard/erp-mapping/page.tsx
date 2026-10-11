@@ -32,7 +32,6 @@ import {
   findArrayPaths,
   flattenObject,
   isFieldRequired,
-  isGenuineDocumentTypeMatch,
   MAPPING_DOCUMENT_TYPES,
   parseApiValidationErrors,
   resolvePath,
@@ -174,32 +173,27 @@ export default function ErpMappingPage() {
     if (!canConfigure || !erpSystem) return
     let cancelled = false
     setMappingsLoading(true)
-    Promise.all(
-      MAPPING_DOCUMENT_TYPES.map(async (t) => {
-        try {
-          const response: any = await api.getMapping(erpSystem, t.value)
-          if (response.error) {
-            if ((response.error as any)?.value?.statusCode !== 404) {
-              toast.error(`Failed to load ${t.label} mapping: ${(response.error as any)?.value?.error || 'Unknown error'}`)
-            }
-            return [t.value, null] as const
-          }
-          const result: GetMappingResult = response.data?.data
-          return [t.value, isGenuineDocumentTypeMatch(result, t.value) ? result : null] as const
-        } catch (error: any) {
-          // One type's network failure shouldn't block the other 5 from loading.
-          toast.error(`Failed to load ${t.label} mapping: ${error?.message || 'Network error'}`)
-          return [t.value, null] as const
+    ;(async () => {
+      try {
+        const response: any = await api.getAllMappings(erpSystem)
+        if (cancelled) return
+        if (response.error) {
+          toast.error((response.error as any)?.value?.error || 'Failed to load ERP mappings')
+          setMappingsByType({})
+          return
         }
-      })
-    ).then((entries) => {
-      if (cancelled) return
-      setMappingsByType(Object.fromEntries(entries))
-    }).finally(() => {
-      if (!cancelled) setMappingsLoading(false)
-    })
+        const mappings: GetMappingResult[] = response.data?.data?.mappings || []
+        const entries = mappings.map((entry) => [entry.document_type, entry.configured ? entry : null] as const)
+        setMappingsByType(Object.fromEntries(entries))
+      } catch (error: any) {
+        if (cancelled) return
+        toast.error(error?.message || 'Failed to load ERP mappings')
+        setMappingsByType({})
+      } finally {
+        if (!cancelled) setMappingsLoading(false)
+      }
+    })()
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canConfigure, erpSystem])
 
   // Drills into one document type's mapping. "view" shows its read-only
