@@ -15,7 +15,7 @@ import {
   OnboardingComplete,
 } from '@/components/onboarding'
 import type { OnboardingStep } from '@/components/onboarding'
-import { SectionLoader } from '@/components/shared/SectionLoader'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const STEP_KEYS = ['firs_oauth', 'firs_credentials', 'business_profile', 'webhook_generate'] as const
 type StepKey = typeof STEP_KEYS[number]
@@ -127,8 +127,50 @@ export default function OnboardingPage() {
     }
   }
 
+  // Which step is active (and whether onboarding is even still in progress)
+  // isn't known until tenant data loads, so this skeletons the page shell
+  // (progress card + active-step card) rather than a specific step's form.
   if (isLoading) {
-    return <SectionLoader message="Loading onboarding" />
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <ClipboardCheck className="h-6 w-6" />
+            Account Onboarding
+          </h1>
+          <p className="text-muted-foreground">
+            Complete the steps below to activate your e-invoicing account.
+          </p>
+        </div>
+
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Progress</span>
+              <Skeleton className="h-4 w-10" />
+            </div>
+            <Skeleton className="h-2 w-full rounded-full" />
+            <div className="flex items-center justify-between gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-8 rounded-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-64" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (error) {

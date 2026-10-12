@@ -76,7 +76,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { SectionLoader } from "@/components/shared/SectionLoader";
+import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/use-permissions";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useTenant } from "@/hooks/use-tenant";
@@ -1056,8 +1056,56 @@ export default function WebhookSettingsPage() {
     },
   ];
 
+  // Skeletons the Configuration tab (the default landing tab) rather than
+  // the full tab set, since tab switching isn't meaningful until the
+  // config itself has loaded.
   if (loadingConfig) {
-    return <SectionLoader message="Loading webhook" />;
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="page-header">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Webhook Settings</h1>
+            <p className="text-sm text-muted-foreground">
+              Configure webhooks to receive events from external systems and
+              route them to workflows
+            </p>
+          </div>
+        </div>
+
+        <div className="flex h-auto w-full flex-wrap gap-1">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 w-28" />
+          ))}
+        </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Webhook className="w-5 h-5 text-primary" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-4 w-64" />
+                </div>
+              </div>
+              <Skeleton className="h-6 w-11 rounded-full" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

@@ -75,18 +75,22 @@ export interface MappingSaveResult {
   message: string;
 }
 
-// Returned by GET /workflow/transform/mapping/:erp — the currently-active
-// template for that ERP, tenant-scoped when called with tenant auth.
+// Returned by GET /workflow/transform/mapping/:erp (single type) and, as
+// array entries under data.mappings, by GET /workflow/transform/mapping/:erp/all
+// (all MAPPING_DOCUMENT_TYPES in one call) — tenant-scoped when called with
+// tenant auth.
 export interface GetMappingResult {
   schema_id: string;
   name: string;
   erp_source: string;
   // Which document shape this template applies to (e.g. "STANDARD_INVOICE",
-  // "CREDIT_NOTE") — null/absent means the legacy untyped template, which is
-  // the only kind this app's UI creates or reads today. A tenant can have a
-  // distinct template per document type, but there's no UI for choosing one
-  // yet — leave this unset everywhere until that's actually needed.
+  // "CREDIT_NOTE") — null/absent means the legacy untyped template. A tenant
+  // can hold a distinct saved template per document type for the same ERP.
   document_type?: string | null;
+  // Only present on /all entries — true if this document type has a saved
+  // template (own or platform default); false means no template fields are
+  // included at all for that entry, not even a fallback.
+  configured?: boolean;
   tenant_id: string | null;
   status: 'active' | 'draft' | 'deprecated' | 'archived';
   // true = the tenant's own saved override; false = the platform default.
@@ -94,9 +98,9 @@ export interface GetMappingResult {
   template: MappingTemplate;
   created_at?: string;
   updated_at?: string;
-  // Persisted at save time (transform.service.ts#saveMappingTemplate,
-  // metadata.sample_invoice) and now returned by GET /mapping/:erp — may
-  // still be absent on older/global templates saved before this shipped.
+  // NOT returned by the backend despite being persisted at save time
+  // (confirmed against the live contract) — kept optional here only so the
+  // local save-time cache update in erp-mapping/page.tsx can still carry it.
   sample_invoice?: Record<string, any>;
 }
 

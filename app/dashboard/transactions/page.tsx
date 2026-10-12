@@ -1293,9 +1293,20 @@ export default function TransactionsPage() {
                         <p className="text-xs text-muted-foreground">
                           ERP Invoice ID
                         </p>
-                        <p className="font-mono text-xs break-all">
-                          {invoiceDetails.invoice.erpInvoiceId}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-mono text-xs break-all">
+                            {invoiceDetails.invoice.erpInvoiceId}
+                          </p>
+                          <button
+                            className="text-muted-foreground hover:text-foreground shrink-0"
+                            onClick={() => {
+                              navigator.clipboard.writeText(invoiceDetails.invoice.erpInvoiceId);
+                              toast.success("ERP Invoice ID copied");
+                            }}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                     )}
                     <div>
