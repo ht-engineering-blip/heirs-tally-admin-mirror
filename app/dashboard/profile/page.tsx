@@ -21,7 +21,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Textarea } from '@/components/ui/textarea'
 import { Loader2, Building2, AlertCircle, CheckCircle, Pencil, X, Shield, Eye, EyeOff, Copy, Mail } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
-import { SectionLoader } from '@/components/shared/SectionLoader'
+import { Skeleton } from '@/components/ui/skeleton'
 import { BusinessInformationTab } from '@/components/profile/BusinessInformationTab'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useTenant } from '@/hooks/use-tenant'
@@ -108,8 +108,48 @@ export default function ProfilePage() {
     }
   }
 
+  // Skeletons the page shell (header + tab bar + Business Information tab's
+  // shape) — BusinessInformationTab has its own internal skeleton for once
+  // it mounts and fetches its config, so this only needs to cover the time
+  // before tenant data (which gates the whole page) is available.
   if (isLoading) {
-    return <SectionLoader message="Loading profile" />
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <Building2 className="h-5 w-5 sm:h-6 sm:w-6" />
+              Business Profile
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              View and manage your business information.
+            </p>
+          </div>
+          <Skeleton className="h-6 w-16 rounded-full" />
+        </div>
+
+        <div className="flex h-auto w-full flex-wrap gap-1">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 w-32" />
+          ))}
+        </div>
+
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-56" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (tenantError) {

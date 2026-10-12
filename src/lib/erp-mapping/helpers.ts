@@ -1,16 +1,16 @@
 import type { GetMappingResult, NrsSchemaField, TransformType, ValidationIssue } from '@/types/mapping';
 
-// The backend's MappingDocumentType enum (invoice-type.ts) — a tenant can
-// hold a distinct saved template per document shape for the same ERP
-// instead of one template overwriting another.
-export const MAPPING_DOCUMENT_TYPES: { value: string; label: string }[] = [
-  { value: 'STANDARD_INVOICE', label: 'Standard Invoice' },
-  { value: 'CREDIT_NOTE', label: 'Credit Note' },
-  { value: 'DEBIT_NOTE', label: 'Debit Note' },
-  { value: 'SELF_BILLED_INVOICE', label: 'Self Billed Invoice' },
-  { value: 'FACTORED_INVOICE', label: 'Factored Invoice' },
-  { value: 'STATEMENT_OF_ACCOUNT', label: 'Statement of Account' },
-];
+// Turns a backend document_type value (e.g. "STANDARD_INVOICE") into a
+// display label ("Standard Invoice") without maintaining a frontend list of
+// the known types — whichever types GET /mapping/:erp/all actually returns
+// drive the cards, so a new type the backend adds shows up automatically.
+export function humanizeDocumentType(value: string): string {
+  return value
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
 
 // GET /mapping/:erp?document_type=X falls back to the tenant's legacy
 // untyped template when no template has been saved for that specific type

@@ -31,9 +31,8 @@ import { createTenantApi } from '@/lib/api/tenant-api'
 import {
   findArrayPaths,
   flattenObject,
+  humanizeDocumentType,
   isFieldRequired,
-  isGenuineDocumentTypeMatch,
-  MAPPING_DOCUMENT_TYPES,
   parseApiValidationErrors,
   resolvePath,
 } from '@/lib/erp-mapping/helpers'
@@ -126,8 +125,9 @@ export default function ErpMappingPage() {
   // and confirmed not configured yet; undefined (key absent) = not fetched.
   const [mappingsByType, setMappingsByType] = useState<Record<string, GetMappingResult | null>>({})
   const [mappingsLoading, setMappingsLoading] = useState(false)
-  // null = showing the list of document types. Set to a MAPPING_DOCUMENT_TYPES
-  // value when the user drills into one.
+  // null = showing the list of document types. Set to one of the
+  // document_type values returned by GET /mapping/:erp/all when the user
+  // drills into one.
   const [selectedDocType, setSelectedDocType] = useState<string | null>(null)
   // true = showing the read-only summary of the selected type's active
   // template; false = showing the edit wizard.
@@ -135,7 +135,7 @@ export default function ErpMappingPage() {
 
   const invoiceEditorRef = useRef<any>(null)
 
-  const selectedDocTypeLabel = MAPPING_DOCUMENT_TYPES.find((t) => t.value === selectedDocType)?.label || ''
+  const selectedDocTypeLabel = selectedDocType ? humanizeDocumentType(selectedDocType) : ''
   const activeMapping = selectedDocType ? mappingsByType[selectedDocType] : undefined
 
   // Prefills the mapping editor from the currently-active template — the
@@ -174,32 +174,27 @@ export default function ErpMappingPage() {
     if (!canConfigure || !erpSystem) return
     let cancelled = false
     setMappingsLoading(true)
-    Promise.all(
-      MAPPING_DOCUMENT_TYPES.map(async (t) => {
-        try {
-          const response: any = await api.getMapping(erpSystem, t.value)
-          if (response.error) {
-            if ((response.error as any)?.value?.statusCode !== 404) {
-              toast.error(`Failed to load ${t.label} mapping: ${(response.error as any)?.value?.error || 'Unknown error'}`)
-            }
-            return [t.value, null] as const
-          }
-          const result: GetMappingResult = response.data?.data
-          return [t.value, isGenuineDocumentTypeMatch(result, t.value) ? result : null] as const
-        } catch (error: any) {
-          // One type's network failure shouldn't block the other 5 from loading.
-          toast.error(`Failed to load ${t.label} mapping: ${error?.message || 'Network error'}`)
-          return [t.value, null] as const
+    ;(async () => {
+      try {
+        const response: any = await api.getAllMappings(erpSystem)
+        if (cancelled) return
+        if (response.error) {
+          toast.error((response.error as any)?.value?.error || 'Failed to load ERP mappings')
+          setMappingsByType({})
+          return
         }
-      })
-    ).then((entries) => {
-      if (cancelled) return
-      setMappingsByType(Object.fromEntries(entries))
-    }).finally(() => {
-      if (!cancelled) setMappingsLoading(false)
-    })
+        const mappings: GetMappingResult[] = response.data?.data?.mappings || []
+        const entries = mappings.map((entry) => [entry.document_type, entry.configured ? entry : null] as const)
+        setMappingsByType(Object.fromEntries(entries))
+      } catch (error: any) {
+        if (cancelled) return
+        toast.error(error?.message || 'Failed to load ERP mappings')
+        setMappingsByType({})
+      } finally {
+        if (!cancelled) setMappingsLoading(false)
+      }
+    })()
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canConfigure, erpSystem])
 
   // Drills into one document type's mapping. "view" shows its read-only
@@ -211,13 +206,21 @@ export default function ErpMappingPage() {
   // viewed type — none of it is meaningful once the document type changes.
   const handleSelectDocType = (type: string, mode: 'view' | 'edit' = 'edit') => {
     const existing = mappingsByType[type]
+    const switchingType = type !== selectedDocType
     setSelectedDocType(type)
     setSavedOnce(false)
-    setCustomPrompt('')
-    setShowCustomPrompt(false)
-    setExpandedArrayIdx(null)
-    setNewArraySource('')
-    setNewArrayTarget('')
+    // Only wipe AI-context/array-draft state when actually switching to a
+    // different document type — these never persist server-side, so
+    // re-entering the SAME type (e.g. list -> Edit Mapping right after a
+    // save) should keep whatever the user just typed, same as before
+    // per-type selection existed.
+    if (switchingType) {
+      setCustomPrompt('')
+      setShowCustomPrompt(false)
+      setExpandedArrayIdx(null)
+      setNewArraySource('')
+      setNewArrayTarget('')
+    }
     if (existing) {
       applyTemplate(existing)
       setStep('data')
@@ -543,9 +546,22 @@ export default function ErpMappingPage() {
         field_mappings: mappingData,
         array_mappings: arrayMappings,
       }
+      // Never let an empty Step 1 box overwrite a sample invoice the backend
+      // already has on file for this type — a tenant's pre-existing,
+      // untyped mapping gets saved under a brand-new document_type-scoped
+      // record the first time it's edited here (upsertERPSchema suffixes
+      // the schema_id with the type), so if Step 1 wasn't re-filled on that
+      // first save, the new record would otherwise end up with no sample
+      // invoice at all, permanently, since every later GET resolves straight
+      // to it instead of falling back to the old untyped record.
+      const hasNewSample = parsedSampleInvoice && Object.keys(parsedSampleInvoice).length > 0
+      const existingSample = activeMapping?.sample_invoice
+      const sampleInvoiceToSave = hasNewSample
+        ? parsedSampleInvoice
+        : (existingSample && Object.keys(existingSample).length > 0 ? existingSample : parsedSampleInvoice)
       const response = await api.saveMapping({
         erp: erpSystem,
-        sample_invoice: parsedSampleInvoice,
+        sample_invoice: sampleInvoiceToSave,
         template,
         ...(selectedDocType ? { document_type: selectedDocType } : {}),
       })
@@ -570,7 +586,7 @@ export default function ErpMappingPage() {
             is_custom: true,
             template,
             document_type: selectedDocType,
-            sample_invoice: parsedSampleInvoice,
+            sample_invoice: sampleInvoiceToSave,
             updated_at: new Date().toISOString(),
           },
         }))
@@ -611,8 +627,48 @@ export default function ErpMappingPage() {
     )
   }
 
+  // Which document types exist is only known once GET /mapping/:erp/all
+  // resolves, so the skeleton can't show real labels — it just renders 6
+  // placeholder slots (today's known type count) with everything skeletoned,
+  // including the title.
   if (mappingsLoading && !selectedDocType) {
-    return <SectionLoader message="Loading ERP mapping" />
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="page-header">
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="page-title flex items-center gap-3">
+                <Workflow className="w-6 h-6" />
+                ERP Mapping
+              </h1>
+              <p className="page-subtitle">Map your ERP's invoice fields to the NRS schema, per document type</p>
+            </div>
+          </div>
+          {erpSystem && <Badge variant="outline">{erpSystem}</Badge>}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <Skeleton className="h-5 w-32" />
+                  </div>
+                  <Skeleton className="h-5 w-24 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-48 mt-1" />
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <Skeleton className="h-9 w-28 rounded-full" />
+                <Skeleton className="h-9 w-28 rounded-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   // List view — one card per document type, showing whether each has its
@@ -644,16 +700,16 @@ export default function ErpMappingPage() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {MAPPING_DOCUMENT_TYPES.map((t) => {
-            const result = mappingsByType[t.value]
+          {Object.keys(mappingsByType).map((docType) => {
+            const result = mappingsByType[docType]
             const configured = !!result
             return (
-              <Card key={t.value}>
+              <Card key={docType}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <FileText className="w-4 h-4 text-muted-foreground" />
-                      {t.label}
+                      {humanizeDocumentType(docType)}
                     </CardTitle>
                     {configured ? (
                       <Badge className={result!.is_custom ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
@@ -674,7 +730,7 @@ export default function ErpMappingPage() {
                     <Button
                       variant="outline"
                       className="rounded-full"
-                      onClick={() => handleSelectDocType(t.value, 'view')}
+                      onClick={() => handleSelectDocType(docType, 'view')}
                     >
                       <Eye className="w-4 h-4 mr-2" />
                       View Mapping
@@ -683,7 +739,7 @@ export default function ErpMappingPage() {
                   <Button
                     variant={configured ? 'outline' : 'default'}
                     className="rounded-full"
-                    onClick={() => handleSelectDocType(t.value, 'edit')}
+                    onClick={() => handleSelectDocType(docType, 'edit')}
                   >
                     {configured ? (
                       <>

@@ -10,6 +10,7 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { useTenant } from '@/hooks/use-tenant'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { SectionLoader } from '@/components/shared/SectionLoader'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ErpSyncForm, ErpSyncDefaultValues, ErpSyncPayload } from '@/components/shared/ErpSyncForm'
 
 export default function ErpSyncPage() {
@@ -105,8 +106,56 @@ export default function ErpSyncPage() {
     }
   }
 
-  if (tenantLoading || isLoadingConfig) {
+  if (tenantLoading) {
     return <SectionLoader message="Loading ERP sync" />
+  }
+
+  // Skeletons the "existing config" card shape (the richer of the two
+  // possible end states) — once the real config loads, it either fills in
+  // or swaps to the empty state if nothing's configured yet.
+  if (isLoadingConfig) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <Plug className="h-5 w-5 sm:h-6 sm:w-6" />
+              ERP Sync Configuration
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Configure how your ERP system syncs with the e-invoicing platform.
+            </p>
+          </div>
+          <Skeleton className="h-6 w-28" />
+        </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-4 w-56" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-6 w-16 rounded-full" />
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-8 w-14" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="py-2 space-y-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-4 w-full max-w-[200px]" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
