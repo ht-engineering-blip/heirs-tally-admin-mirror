@@ -126,7 +126,7 @@ export function createTenantApi() {
 
     updateKeyConfig: (
       tenantId: string,
-      payload: { keyType: InvoiceKeyType; idKey: string; referenceIdKey?: string },
+      payload: { keyType: InvoiceKeyType; idKey: string; referenceIdKey?: string; invoiceNumberKey?: string },
     ) => (api as any).v1.tenants({ tenantId })['key-config'].put(payload),
 
     updatePaymentStatus: (irn: string, data: {

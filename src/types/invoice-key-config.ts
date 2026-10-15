@@ -13,4 +13,5 @@ export interface KeyConfigEntry {
   eventType?: string;
   idKey: string;
   referenceIdKey?: string;
+  invoiceNumberKey?: string;
 }

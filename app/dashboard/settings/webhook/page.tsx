@@ -1587,6 +1587,7 @@ export default function WebhookSettingsPage() {
                       tenantId={tenantId}
                       keyType="standard_invoice"
                       title="Standard Invoice"
+                      invoiceNumberKeyPlaceholder="e.g. invoice.documentNumber"
                       disabled={!canUpdate}
                       fetchConfig={(tid, kt) => createTenantApi().getKeyConfig(tid, kt)}
                       saveConfig={(tid, payload) => createTenantApi().updateKeyConfig(tid, payload)}
@@ -1601,12 +1602,13 @@ export default function WebhookSettingsPage() {
                       hasReferenceKey
                       referenceKeyPlaceholder="e.g. creditNote.originalInvoiceId"
                       referenceKeyHelpText="Dot-notation path to the original invoice's ID, used to validate this credit note against it"
+                      invoiceNumberKeyPlaceholder="e.g. creditNote.creditNoteNumber"
                       disabled={!canUpdate}
                       fetchConfig={(tid, kt) => createTenantApi().getKeyConfig(tid, kt)}
                       saveConfig={(tid, payload) => createTenantApi().updateKeyConfig(tid, payload)}
                     />
 
-                    <div className="space-y-3 pt-4 border-t">
+                    <div className="pt-4 border-t space-y-3">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-muted-foreground">
                           Debit Note
@@ -1616,24 +1618,23 @@ export default function WebhookSettingsPage() {
                           Coming soon
                         </Badge>
                       </div>
-                      <div className="space-y-2 opacity-60">
-                        <Label className="text-xs text-muted-foreground">
-                          Invoice ID Key
-                        </Label>
-                        <Input
+                      {/* Wired to the real config so values already on file are
+                          visible, but forced disabled — debit note processing
+                          isn't live yet regardless of what's configured here. */}
+                      <div className="opacity-60 pointer-events-none">
+                        <InvoiceKeyConfigSection
+                          className="space-y-3"
+                          tenantId={tenantId}
+                          keyType="debit_note"
+                          title=""
+                          idKeyPlaceholder="e.g. debitNote.documentId"
+                          hasReferenceKey
+                          referenceKeyPlaceholder="e.g. debitNote.originalInvoiceId"
+                          referenceKeyHelpText="Dot-notation path to the original invoice's ID, used to validate this debit note against it"
+                          invoiceNumberKeyPlaceholder="e.g. debitNote.debitNoteNumber"
                           disabled
-                          placeholder="e.g. debitNote.documentId"
-                          className="font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-2 opacity-60">
-                        <Label className="text-xs text-muted-foreground">
-                          Reference ID Key
-                        </Label>
-                        <Input
-                          disabled
-                          placeholder="e.g. debitNote.originalInvoiceId"
-                          className="font-mono text-xs"
+                          fetchConfig={(tid, kt) => createTenantApi().getKeyConfig(tid, kt)}
+                          saveConfig={(tid, payload) => createTenantApi().updateKeyConfig(tid, payload)}
                         />
                       </div>
                     </div>

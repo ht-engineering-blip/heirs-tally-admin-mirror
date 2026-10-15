@@ -31,11 +31,13 @@ interface InvoiceKeyConfigSectionProps {
   hasReferenceKey?: boolean
   referenceKeyPlaceholder?: string
   referenceKeyHelpText?: string
+  invoiceNumberKeyPlaceholder?: string
+  invoiceNumberKeyHelpText?: string
   disabled?: boolean
   fetchConfig: (tenantId: string, keyType: InvoiceKeyType) => Promise<KeyConfigResponse>
   saveConfig: (
     tenantId: string,
-    payload: { keyType: InvoiceKeyType; idKey: string; referenceIdKey?: string }
+    payload: { keyType: InvoiceKeyType; idKey: string; referenceIdKey?: string; invoiceNumberKey?: string }
   ) => Promise<KeyConfigResponse>
   className?: string
 }
@@ -54,6 +56,8 @@ export function InvoiceKeyConfigSection({
   hasReferenceKey,
   referenceKeyPlaceholder,
   referenceKeyHelpText,
+  invoiceNumberKeyPlaceholder,
+  invoiceNumberKeyHelpText,
   disabled,
   fetchConfig,
   saveConfig,
@@ -61,7 +65,11 @@ export function InvoiceKeyConfigSection({
 }: InvoiceKeyConfigSectionProps) {
   const [idKey, setIdKey] = useState('')
   const [referenceIdKey, setReferenceIdKey] = useState('')
+  const [invoiceNumberKey, setInvoiceNumberKey] = useState('')
   const [loading, setLoading] = useState(true)
+  // title is allowed to be empty (e.g. when a parent already renders its own
+  // label right above this section) — toasts still need something readable.
+  const toastTitle = title || 'this document type'
 
   useEffect(() => {
     let cancelled = false
@@ -72,14 +80,15 @@ export function InvoiceKeyConfigSection({
         const res = await fetchConfig(tenantId, keyType)
         if (cancelled) return
         if (res.error) {
-          toast.error((res.error as any)?.value?.error || `Failed to load ${title} key configuration`)
+          toast.error((res.error as any)?.value?.error || `Failed to load ${toastTitle} key configuration`)
         } else if (res.data?.data) {
           setIdKey(res.data.data.idKey || '')
           setReferenceIdKey(res.data.data.referenceIdKey || '')
+          setInvoiceNumberKey(res.data.data.invoiceNumberKey || '')
         }
       } catch (err: any) {
         if (!cancelled) {
-          toast.error(err?.message || `Failed to load ${title} key configuration`)
+          toast.error(err?.message || `Failed to load ${toastTitle} key configuration`)
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -92,43 +101,46 @@ export function InvoiceKeyConfigSection({
     }
   }, [tenantId, keyType])
 
-  // idKey is always required by the backend, even when only the reference
-  // key changed — so every save sends both current values together.
-  const save = async (nextIdKey: string, nextReferenceIdKey: string) => {
+  // idKey is always required by the backend, even when only one of the other
+  // fields changed — so every save sends all three current values together.
+  const save = async (nextIdKey: string, nextReferenceIdKey: string, nextInvoiceNumberKey: string) => {
     const res = await saveConfig(tenantId, {
       keyType,
       idKey: nextIdKey,
       ...(hasReferenceKey ? { referenceIdKey: nextReferenceIdKey } : {}),
+      invoiceNumberKey: nextInvoiceNumberKey,
     })
     if (res.error) {
-      throw new Error((res.error as any)?.value?.error || `Failed to update ${title} key configuration`)
+      throw new Error((res.error as any)?.value?.error || `Failed to update ${toastTitle} key configuration`)
     }
     if (res.data?.data) {
       setIdKey(res.data.data.idKey || '')
       setReferenceIdKey(res.data.data.referenceIdKey || '')
+      setInvoiceNumberKey(res.data.data.invoiceNumberKey || '')
     }
   }
 
   if (loading) {
     return (
       <div className={className}>
-        <p className="text-sm font-medium">{title}</p>
+        {title && <p className="text-sm font-medium">{title}</p>}
         <FieldSkeleton />
         {hasReferenceKey && <FieldSkeleton />}
+        <FieldSkeleton />
       </div>
     )
   }
 
   return (
     <div className={className}>
-      <p className="text-sm font-medium">{title}</p>
+      {title && <p className="text-sm font-medium">{title}</p>}
       <InvoiceIdKeyEditor
         initialValue={idKey}
         placeholder={idKeyPlaceholder}
         helpText={idKeyHelpText}
-        successMessage={`${title} ID key updated`}
+        successMessage={`${toastTitle} ID key updated`}
         disabled={disabled}
-        onSave={(key) => save(key, referenceIdKey)}
+        onSave={(key) => save(key, referenceIdKey, invoiceNumberKey)}
         onSaved={(key) => setIdKey(key)}
       />
       {hasReferenceKey && (
@@ -137,12 +149,25 @@ export function InvoiceKeyConfigSection({
           label="Reference ID Key"
           placeholder={referenceKeyPlaceholder}
           helpText={referenceKeyHelpText}
-          successMessage={`${title} reference ID key updated`}
+          successMessage={`${toastTitle} reference ID key updated`}
           disabled={disabled}
-          onSave={(key) => save(idKey, key)}
+          onSave={(key) => save(idKey, key, invoiceNumberKey)}
           onSaved={(key) => setReferenceIdKey(key)}
         />
       )}
+      <InvoiceIdKeyEditor
+        initialValue={invoiceNumberKey}
+        label="Invoice Number Key"
+        placeholder={invoiceNumberKeyPlaceholder}
+        helpText={
+          invoiceNumberKeyHelpText ||
+          'Dot-notation path to the human-readable invoice number in the webhook payload — takes priority over the AI-learned mapping template'
+        }
+        successMessage={`${toastTitle} invoice number key updated`}
+        disabled={disabled}
+        onSave={(key) => save(idKey, referenceIdKey, key)}
+        onSaved={(key) => setInvoiceNumberKey(key)}
+      />
     </div>
   )
 }
