@@ -25,6 +25,7 @@ interface WebhookData {
 export function WebhookGenerateStep({ tenantId, onStepComplete }: WebhookGenerateStepProps) {
   const [error, setError] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isCompleting, setIsCompleting] = useState(false)
   const [webhookData, setWebhookData] = useState<WebhookData | null>(null)
 
   const handleGenerate = async () => {
@@ -39,7 +40,6 @@ export function WebhookGenerateStep({ tenantId, onStepComplete }: WebhookGenerat
         const errorMessage = (response.error as any)?.value?.error || 'Failed to generate webhook URL'
         setError(errorMessage)
         toast.error(errorMessage)
-        setIsGenerating(false)
         return
       }
 
@@ -47,14 +47,29 @@ export function WebhookGenerateStep({ tenantId, onStepComplete }: WebhookGenerat
       if (!responseData?.webhookUrl) {
         setError('Unexpected response')
         toast.error('Unexpected response')
-        setIsGenerating(false)
         return
       }
 
       setWebhookData(responseData)
       toast.success('Webhook URL generated!')
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Failed to generate webhook URL'
+      setError(errorMessage)
+      toast.error(errorMessage)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
 
-      // Mark onboarding as complete
+  // Deliberately separate from handleGenerate — onboarding only completes
+  // (and the account goes active) once the user confirms they've saved the
+  // secret, not the instant it's generated, since it's never shown again.
+  const handleCompleteOnboarding = async () => {
+    setIsCompleting(true)
+    setError(null)
+
+    try {
+      const tenantApi = createTenantApi()
       const activationResponse = await tenantApi.completeOnboading(tenantId, {
         status: 'active',
       })
@@ -62,17 +77,16 @@ export function WebhookGenerateStep({ tenantId, onStepComplete }: WebhookGenerat
         const activationError = (activationResponse.error as any)?.value?.error || 'Failed to activate account'
         setError(activationError)
         toast.error(activationError)
-        setIsGenerating(false)
         return
       }
 
-      onStepComplete()
+      await onStepComplete()
     } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to generate webhook URL'
+      const errorMessage = err?.message || 'Failed to complete onboarding'
       setError(errorMessage)
       toast.error(errorMessage)
     } finally {
-      setIsGenerating(false)
+      setIsCompleting(false)
     }
   }
 
@@ -143,6 +157,27 @@ export function WebhookGenerateStep({ tenantId, onStepComplete }: WebhookGenerat
             )}
           </CardContent>
         </Card>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <Button onClick={handleCompleteOnboarding} className="w-full" disabled={isCompleting}>
+          {isCompleting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Completing onboarding...
+            </>
+          ) : (
+            <>
+              Complete Onboarding
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </>
+          )}
+        </Button>
       </div>
     )
   }
