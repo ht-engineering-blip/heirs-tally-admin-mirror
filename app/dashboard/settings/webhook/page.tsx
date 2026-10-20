@@ -187,6 +187,12 @@ interface WebhookEvent {
   createdAt: string;
   // populated on row click from detail endpoint
   payload?: any;
+  // The NRS/FIRS-shaped invoice produced by the mapping template, resolved
+  // server-side by IRN against the outbound invoice's own metadata — a
+  // separate field from `payload` (the raw ERP payload), not a copy of it or
+  // nested inside it. Null when no outbound invoice/transform exists yet for
+  // this event's IRN (e.g. inbound events, or the transform hasn't run yet).
+  transformedPayload?: any;
   metadata?: any;
   jobErrors?: { step: number; action: string; error: string; failedAt: string }[];
   failureReason?: string;
@@ -525,6 +531,7 @@ export default function WebhookSettingsPage() {
             ? {
                 ...prev,
                 payload: detail?.payload,
+                transformedPayload: detail?.transformedPayload,
                 metadata: detail?.metadata,
                 jobErrors: detail?.jobErrors,
                 failureReason: detail?.failureReason,
@@ -2388,6 +2395,31 @@ export default function WebhookSettingsPage() {
                       Map this Payload
                     </Button>
                   </div>
+                </div>
+              )}
+
+              {/* The transformed (NRS/FIRS-shaped) invoice — a separate field
+                  from the raw payload above, resolved server-side by IRN, not
+                  something derivable from `payload` itself. */}
+              {selectedEvent.transformedPayload && (
+                <div className="space-y-2 min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Transformed Invoice
+                  </p>
+                  <JsonBlock data={selectedEvent.transformedPayload} className="max-h-[200px]" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setViewingJson({
+                        title: "Transformed Invoice",
+                        data: selectedEvent.transformedPayload,
+                      })
+                    }
+                  >
+                    <Eye className="w-3 h-3 mr-2" />
+                    View Full Transformed Invoice
+                  </Button>
                 </div>
               )}
 
