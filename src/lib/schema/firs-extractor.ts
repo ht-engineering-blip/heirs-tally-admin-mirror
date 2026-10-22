@@ -213,15 +213,43 @@ class JsonWithCommentsExtractor {
         cleanLine = line.substring(0, lineCommentIndex).trim();
       }
 
-      // Update current path based on indentation and braces
-      this.updateCurrentPath(cleanLine, currentPath);
+      // A multi-line object/array's own `//optional` comment almost always
+      // sits on its CLOSING `}`/`],` line, not on the `"key": {`/`[` line
+      // that opens it — extractFieldName finds nothing on a bare closing
+      // bracket, so that comment used to be silently dropped, and the whole
+      // field (plus everything under it) came back missing from
+      // field_documentation entirely. Attribute it back to the field being
+      // closed instead, using currentPath as it stands right before the pop
+      // below. Guarded to only fire when currentPath's own top is a real
+      // (named) field — not a placeholder for an anonymous array-item
+      // object — so a comment on an individual array item's closing brace
+      // (e.g. "second value in array is always optional") doesn't get
+      // misattributed to the array field itself.
+      const trimmedClean = cleanLine.trim();
+      const isClosingLine = /^[}\]],?$/.test(trimmedClean);
+      const topIsNamedField = currentPath.length > 0 && currentPath[currentPath.length - 1] !== '';
 
-      // Extract field name if this line contains a field
-      const fieldName = this.extractFieldName(cleanLine);
-      if (fieldName && comment) {
-        const fullPath = [...currentPath, fieldName].join('.');
-        fieldComments.set(fullPath, comment);
+      if (isClosingLine) {
+        if (comment && topIsNamedField) {
+          const fullPath = currentPath.filter(Boolean).join('.');
+          if (fullPath) {
+            fieldComments.set(fullPath, comment);
+          }
+        }
+      } else {
+        // Extract field name if this line contains a field
+        const fieldName = this.extractFieldName(cleanLine);
+        if (fieldName && comment) {
+          const fullPath = [...currentPath, fieldName].filter(Boolean).join('.');
+          fieldComments.set(fullPath, comment);
+        }
       }
+
+      // Update current path based on braces — after the comment handling
+      // above, since a closing line needs currentPath as it stood BEFORE
+      // the pop, and an opening line with its own inline comment (rare)
+      // needs it as it stood BEFORE the push.
+      this.updateCurrentPath(cleanLine, currentPath);
 
       if (cleanLine.trim()) {
         cleanLines.push(cleanLine);
@@ -256,28 +284,21 @@ class JsonWithCommentsExtractor {
   }
 
   /**
-   * Update current JSON path based on line content
+   * Update current JSON path based on line content. Tracks into both object
+   * ({) and array ([) blocks — pushing the field name that opened a named
+   * block, or an empty-string placeholder for an anonymous array-item
+   * object/array (e.g. each `{` inside `"billing_reference": [ {...}, {...} ]`)
+   * so every open has a matching pop and depth never drifts. Placeholders
+   * are stripped out (via .filter(Boolean)) wherever a path is built into a
+   * string, so they never show up in an actual field path.
    */
   private updateCurrentPath(line: string, currentPath: string[]): void {
     const trimmed = line.trim();
-    
-    // Check for array items
-    const arrayItemMatch = trimmed.match(/^\d+:|\d+,$/);
-    if (arrayItemMatch) {
-      const lastSegment = currentPath[currentPath.length - 1];
-      if (lastSegment && !lastSegment.includes('[')) {
-        currentPath[currentPath.length - 1] = `${lastSegment}[]`;
-      }
-      return;
-    }
 
-    // Check for object start/end
-    if (trimmed.endsWith('{')) {
+    if (trimmed.endsWith('{') || trimmed.endsWith('[')) {
       const fieldName = this.extractFieldName(line);
-      if (fieldName) {
-        currentPath.push(fieldName);
-      }
-    } else if (trimmed.endsWith('}') || trimmed.endsWith('},')) {
+      currentPath.push(fieldName || '');
+    } else if (/^[}\]],?$/.test(trimmed)) {
       currentPath.pop();
     }
   }

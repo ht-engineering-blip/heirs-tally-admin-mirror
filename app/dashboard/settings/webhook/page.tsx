@@ -56,7 +56,6 @@ import {
   CheckCircle2,
   ChevronDown,
   Copy,
-  Eye,
   FileJson,
   Key,
   Link2,
@@ -187,6 +186,12 @@ interface WebhookEvent {
   createdAt: string;
   // populated on row click from detail endpoint
   payload?: any;
+  // The NRS/FIRS-shaped invoice produced by the mapping template, resolved
+  // server-side by IRN against the outbound invoice's own metadata — a
+  // separate field from `payload` (the raw ERP payload), not a copy of it or
+  // nested inside it. Null when no outbound invoice/transform exists yet for
+  // this event's IRN (e.g. inbound events, or the transform hasn't run yet).
+  transformedPayload?: any;
   metadata?: any;
   jobErrors?: { step: number; action: string; error: string; failedAt: string }[];
   failureReason?: string;
@@ -347,10 +352,6 @@ export default function WebhookSettingsPage() {
   const historyLoadedRef = useRef(false);
   const historySearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<WebhookEvent | null>(null);
-  const [viewingJson, setViewingJson] = useState<{
-    title: string;
-    data: any;
-  } | null>(null);
 
   // Listener state
   const [isListening, setIsListening] = useState(false);
@@ -525,6 +526,7 @@ export default function WebhookSettingsPage() {
             ? {
                 ...prev,
                 payload: detail?.payload,
+                transformedPayload: detail?.transformedPayload,
                 metadata: detail?.metadata,
                 jobErrors: detail?.jobErrors,
                 failureReason: detail?.failureReason,
@@ -2227,41 +2229,12 @@ export default function WebhookSettingsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* JSON Viewer Dialog */}
-      <Dialog open={!!viewingJson} onOpenChange={() => setViewingJson(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
-          <DialogHeader>
-            <div className="flex items-center justify-between pr-6">
-              <DialogTitle>{viewingJson?.title}</DialogTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(stringifyJson(viewingJson?.data));
-                  toast.success("Copied to clipboard");
-                }}
-              >
-                <Copy className="w-3 h-3 mr-2" />
-                Copy
-              </Button>
-            </div>
-          </DialogHeader>
-          <ScrollArea className="h-[calc(85vh-8rem)] mt-2">
-            {viewingJson?.title === "Metadata" ? (
-              <KeyValueTable data={viewingJson?.data} />
-            ) : (
-              <JsonBlock data={viewingJson?.data} className="max-h-none" />
-            )}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-
       {/* Event Detail Dialog */}
       <Dialog
         open={!!selectedEvent}
         onOpenChange={() => setSelectedEvent(null)}
       >
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto overflow-x-hidden">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>Webhook Event Details</DialogTitle>
             <DialogDescription>
@@ -2354,63 +2327,102 @@ export default function WebhookSettingsPage() {
                 </div>
               )}
 
-              {selectedEvent.payload && (
-                <div className="space-y-2 min-w-0">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Payload
-                  </p>
-                  <JsonBlock data={selectedEvent.payload} className="max-h-[200px]" />
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        setViewingJson({
-                          title: "Payload",
-                          data: selectedEvent.payload,
-                        })
-                      }
-                    >
-                      <Eye className="w-3 h-3 mr-2" />
-                      View Full Payload
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setReceivedPayload(selectedEvent.payload);
-                        setSelectedEvent(null);
-                        setActiveTab("test");
-                        handleOpenMapper();
-                      }}
-                    >
-                      <Link2 className="w-3 h-3 mr-2" />
-                      Map this Payload
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {(() => {
+                const payloadTabs = [
+                  selectedEvent.payload && { value: "payload", label: "Payload" },
+                  selectedEvent.transformedPayload && { value: "transformed", label: "Transformed Invoice" },
+                  selectedEvent.metadata && { value: "metadata", label: "Metadata" },
+                ].filter(Boolean) as { value: string; label: string }[];
 
-              {selectedEvent.metadata && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Metadata
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setViewingJson({
-                        title: "Metadata",
-                        data: selectedEvent.metadata,
-                      })
-                    }
-                  >
-                    <Eye className="w-3 h-3 mr-2" />
-                    View Metadata
-                  </Button>
-                </div>
-              )}
+                if (payloadTabs.length === 0) return null;
+
+                return (
+                  <Tabs key={selectedEvent.eventId} defaultValue={payloadTabs[0].value} className="min-w-0">
+                    <TabsList className="h-auto flex-wrap justify-start gap-1">
+                      {payloadTabs.map((t) => (
+                        <TabsTrigger key={t.value} value={t.value} className="text-xs">
+                          {t.label}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+
+                    {selectedEvent.payload && (
+                      <TabsContent value="payload" className="space-y-2 mt-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(stringifyJson(selectedEvent.payload));
+                              toast.success("Copied to clipboard");
+                            }}
+                          >
+                            <Copy className="w-3 h-3 mr-2" />
+                            Copy
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setReceivedPayload(selectedEvent.payload);
+                              setSelectedEvent(null);
+                              setActiveTab("test");
+                              handleOpenMapper();
+                            }}
+                          >
+                            <Link2 className="w-3 h-3 mr-2" />
+                            Map this Payload
+                          </Button>
+                        </div>
+                        <JsonBlock data={selectedEvent.payload} className="max-h-[360px]" />
+                      </TabsContent>
+                    )}
+
+                    {/* The transformed (NRS/FIRS-shaped) invoice — a separate
+                        field from the raw payload above, resolved server-side
+                        by IRN, not something derivable from `payload` itself. */}
+                    {selectedEvent.transformedPayload && (
+                      <TabsContent value="transformed" className="space-y-2 mt-3">
+                        <div className="flex items-center justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(stringifyJson(selectedEvent.transformedPayload));
+                              toast.success("Copied to clipboard");
+                            }}
+                          >
+                            <Copy className="w-3 h-3 mr-2" />
+                            Copy
+                          </Button>
+                        </div>
+                        <JsonBlock data={selectedEvent.transformedPayload} className="max-h-[360px]" />
+                      </TabsContent>
+                    )}
+
+                    {selectedEvent.metadata && (
+                      <TabsContent value="metadata" className="space-y-2 mt-3">
+                        <div className="flex items-center justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(stringifyJson(selectedEvent.metadata));
+                              toast.success("Copied to clipboard");
+                            }}
+                          >
+                            <Copy className="w-3 h-3 mr-2" />
+                            Copy
+                          </Button>
+                        </div>
+                        <ScrollArea className="max-h-[360px]">
+                          <KeyValueTable data={selectedEvent.metadata} />
+                        </ScrollArea>
+                      </TabsContent>
+                    )}
+                  </Tabs>
+                );
+              })()}
             </div>
           )}
         </DialogContent>
