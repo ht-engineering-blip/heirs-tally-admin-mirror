@@ -46,6 +46,10 @@ export interface NavItem {
   badge?: string
   permission?: string
   children?: NavItem[]
+  // True for links that leave the app (e.g. an external support portal) —
+  // opens in a new tab instead of client-side routing, and never shows as
+  // the "active" route.
+  external?: boolean
 }
 
 const systemNavItems: NavItem[] = [
@@ -461,12 +465,15 @@ interface NavLinkProps {
   isMobile: boolean
   onClick?: () => void
   isChild?: boolean
+  external?: boolean
 }
 
-export function NavLink({ href, icon: Icon, label, badge, isActive, isCollapsed, isMobile, onClick, isChild }: NavLinkProps) {
+export function NavLink({ href, icon: Icon, label, badge, isActive, isCollapsed, isMobile, onClick, isChild, external }: NavLinkProps) {
   const linkContent = (
     <Link
       href={href}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noopener noreferrer' : undefined}
       className={cn(
         'nav-item',
         isChild ? 'nav-item-child' : '',

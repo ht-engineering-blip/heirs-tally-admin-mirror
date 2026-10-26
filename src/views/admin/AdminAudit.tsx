@@ -21,7 +21,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Column, DataTable, JsonBlock, KeyValueTable } from '@/components/shared'
+import { Column, DataTable, extractLinks, JsonBlock, KeyValueTable } from '@/components/shared'
 import { Loader2, ShieldCheck, ShieldAlert, ArrowLeft } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -638,6 +638,33 @@ export default function AdminAudit() {
                   <KeyValueTable data={selectedLog.metadata} className="max-h-[200px] overflow-y-auto" />
                 </div>
               )}
+
+              {/* Metadata can carry raw HTML (e.g. an email-body field with
+                  an <a href> tag) where the link is easy to miss inside the
+                  markup above — pull every URL found anywhere in it out
+                  into its own guaranteed-clickable list. */}
+              {(() => {
+                const metadataLinks = selectedLog.metadata ? extractLinks(selectedLog.metadata) : [];
+                if (metadataLinks.length === 0) return null;
+                return (
+                  <div className="space-y-1.5 min-w-0">
+                    <Label className="text-xs text-muted-foreground">Links</Label>
+                    <div className="space-y-1 rounded-lg border p-3">
+                      {metadataLinks.map((link) => (
+                        <a
+                          key={link}
+                          href={link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-xs text-primary underline underline-offset-2 hover:text-primary/80 break-all"
+                        >
+                          {link}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {selectedResource?.resourceType && selectedResource?.resourceId && (
                 <Button variant="outline" size="sm" onClick={handleViewResourceTrail} disabled={resourceTrailLoading}>

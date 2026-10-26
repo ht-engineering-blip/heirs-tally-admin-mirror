@@ -18,7 +18,8 @@ import { usePersistedTab } from '@/hooks/use-persisted-tab'
 import { createTenantApi } from '@/lib/api/tenant-api'
 import { truncateErrorMessage } from '@/lib/utils'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, FileText, Loader2, Lock, Mail } from 'lucide-react'
+import { Logo } from '@/components/shared/Logo'
+import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react'
 import Cookies from 'js-cookie'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
@@ -173,9 +174,13 @@ function LoginPage() {
       <Card className="w-full max-w-md mx-auto shadow-card">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
-              <FileText className="w-6 h-6 text-primary-foreground" />
-            </div>
+            <Logo
+              asLink={false}
+              alt="Heirs E-Invoicing"
+              width={48}
+              height={48}
+              imageClassName="w-12 h-12 rounded-full"
+            />
           </div>
           <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
           <CardDescription>
