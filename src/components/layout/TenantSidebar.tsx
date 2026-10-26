@@ -23,6 +23,7 @@ import {
   FileText,
   KeyIcon,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   RefreshCcw,
   Settings,
@@ -36,6 +37,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { NavItem, NavLink, NavLinkWithChildren } from './AdminSidebar'
+import { SUPPORT_LOGIN_URL } from '@/lib/envData'
 
 /* interface NavItem {
   title: string
@@ -149,7 +151,13 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
         { title: 'API Keys', href: '/dashboard/settings/api-keys', icon: KeyIcon, permission: 'settings:read' },
         { title: 'Webhook', href: '/dashboard/settings/webhook', icon: WebhookIcon, permission: 'settings:read' },
       ],
-    }
+    },
+    // The support portal URL can change independently of a deploy, so it's
+    // env-driven rather than hardcoded — hidden entirely rather than linking
+    // nowhere when it isn't configured.
+    ...(SUPPORT_LOGIN_URL
+      ? [{ title: 'Support', href: SUPPORT_LOGIN_URL, icon: LifeBuoy, external: true }]
+      : []),
     /*  { title: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'settings:read' }, */
   ]
 
@@ -335,6 +343,7 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
                   isCollapsed={isCollapsed && !isMobile}
                   isMobile={isMobile}
                   onClick={handleNavClick}
+                  external={item.external}
                 />
               })}
 
