@@ -31,6 +31,35 @@ export function stringifyJson(data: unknown): string {
   return typeof normalized === 'string' ? normalized : JSON.stringify(normalized, undefined, 2)
 }
 
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+}
+
+/**
+ * Decodes HTML entities (&amp;, &#61;, &#x3D;, etc.) back to their literal
+ * characters. A link extracted from raw HTML (e.g. a verify-email template
+ * stored in metadata) is only valid once decoded — HTML authoring escapes
+ * everything inside it, so an href's query string shows up as
+ * "?token=1&amp;email=2" (or even "&#x3D;" for "=", depending on how it was
+ * escaped), which the browser can't resolve as-is. Prefers the browser's own
+ * HTML parser (the complete, standard way to do this, and the one that
+ * handles every named entity without a hand-maintained table) and falls
+ * back to a small manual decoder — named entities plus numeric/hex
+ * references — when `document` isn't available.
+ */
+function decodeHtmlEntities(text: string): string {
+  if (typeof document !== 'undefined') {
+    const textarea = document.createElement('textarea')
+    textarea.innerHTML = text
+    return textarea.value
+  }
+
+  return text
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&([a-zA-Z]+);/g, (match, name) => NAMED_HTML_ENTITIES[name] ?? match)
+}
+
 /**
  * Recursively walks any value — object, array, or a string that may itself
  * be raw HTML (e.g. an email-body field with an `<a href="...">` tag) or
@@ -52,7 +81,8 @@ export function extractLinks(data: unknown): string[] {
         walk(normalized)
         return
       }
-      const matches = normalized.match(URL_REGEX)
+      const decoded = decodeHtmlEntities(normalized)
+      const matches = decoded.match(URL_REGEX)
       if (matches) {
         for (const match of matches) {
           found.add(match.replace(TRAILING_PUNCTUATION_REGEX, ''))
