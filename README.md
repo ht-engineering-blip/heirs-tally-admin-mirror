@@ -9,7 +9,7 @@ The platform bridges a business's internal ERP system (Tally, SAP, NetSuite, etc
 ## Portals
 
 - **Super Admin** (`/admin`) — platform management: tenant onboarding, ERP configuration and field mapping, webhook oversight, transaction auditing
-- **Tenant Dashboard** (`/dashboard`) — self-service: webhook setup, ERP sync, ERP field mapping, invoice ID key configuration, API keys, team management
+- **Tenant Dashboard** (`/dashboard`) — self-service: webhook setup, ERP sync, ERP field mapping, invoice ID key configuration, API keys, team management.
 
 ## Tech Stack
 
@@ -18,7 +18,7 @@ The platform bridges a business's internal ERP system (Tally, SAP, NetSuite, etc
 - **API Client:** Eden Treaty (`@elysiajs/eden`) with typed server types
 - **UI:** Radix UI + Tailwind CSS + shadcn/ui components
 - **State:** TanStack Query v5
-- **Forms:** React Hook Form + Zod
+- **Forms:** React Hook Form + Zod as it should be.
 
 ## Getting Started
 
