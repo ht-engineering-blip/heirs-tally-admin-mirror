@@ -106,6 +106,50 @@ export function extractLinks(data: unknown): string[] {
 }
 
 /**
+ * Recursively walks any value — object, array, or a string that may itself
+ * be raw HTML (e.g. an email-body field with an `<a href="...">` tag) or
+ * serialized JSON — and pulls out every http(s) URL found anywhere inside
+ * it, deduped and in first-seen order. Used to surface a standalone,
+ * guaranteed-clickable Links list alongside a metadata/payload block whose
+ * own rendering (JsonBlock/KeyValueTable) already inline-linkifies but can
+ * be easy to miss inside a large blob of raw markup.
+ */
+export function extractLinks(data: unknown): string[] {
+  const found = new Set<string>()
+
+  const walk = (value: unknown): void => {
+    if (value === null || value === undefined) return
+
+    if (typeof value === 'string') {
+      const normalized = normalize(value)
+      if (typeof normalized !== 'string') {
+        walk(normalized)
+        return
+      }
+      const matches = normalized.match(URL_REGEX)
+      if (matches) {
+        for (const match of matches) {
+          found.add(match.replace(TRAILING_PUNCTUATION_REGEX, ''))
+        }
+      }
+      return
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach(walk)
+      return
+    }
+
+    if (typeof value === 'object') {
+      Object.values(value as Record<string, unknown>).forEach(walk)
+    }
+  }
+
+  walk(data)
+  return Array.from(found)
+}
+
+/**
  * Splits pretty-printed JSON text on URLs and renders them as real links.
  * URL_REGEX has one capturing group, so String.split places the captured
  * matches at odd indices and surrounding text at even ones — using that
