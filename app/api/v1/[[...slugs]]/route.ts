@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia'
 import adminRoutes from './routes/admin.routes'
 import tenantRoutes from './routes/tenant.routes'
+import platformAdminRoutes from './routes/platform-admin.routes'
 import { openapi } from '@elysiajs/openapi'
 const app = new Elysia({ prefix: '/api/v1' })
 .get('/', () => {
@@ -50,7 +51,8 @@ const app = new Elysia({ prefix: '/api/v1' })
     })
 )
 .use(tenantRoutes)
-.use(adminRoutes);
+.use(adminRoutes)
+.use(platformAdminRoutes);
 
 export const GET = app.fetch 
 export const POST = app.fetch 

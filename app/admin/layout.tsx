@@ -14,23 +14,26 @@ interface AdminLayoutProps {
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const { isAuthenticated, isLoading, isSuperAdmin, user } = useSession()
+  const { isAuthenticated, isLoading, isSuperAdmin, isPlatformAdmin, user } = useSession()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const isMobile = useIsMobile()
 
-  // Redirect to login if not authenticated or not super admin
+  // Redirect to login if not authenticated, or to their own dashboard if
+  // authenticated as a role that has no business under /admin at all.
+  // Platform admins are further restricted to /admin/monitoring specifically
+  // by middleware (isRouteAccessible) — this layout only decides who gets in
+  // the door, not which pages behind it they can reach.
   useEffect(() => {
     if (!isLoading) {
       if (!isAuthenticated) {
         router.push('/auth/super-admin/login')
-      } else if (!isSuperAdmin) {
-        // Redirect non-super-admin users to their dashboard
+      } else if (!isSuperAdmin && !isPlatformAdmin) {
         router.push('/dashboard')
       }
     }
-  }, [isAuthenticated, isLoading, isSuperAdmin, router])
+  }, [isAuthenticated, isLoading, isSuperAdmin, isPlatformAdmin, router])
 
   // Auto-collapse on mobile
   useEffect(() => {
@@ -46,8 +49,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     return <FullScreenLoader />
   }
 
-  // Don't render admin content if not authenticated or not super admin
-  if (!isAuthenticated || !isSuperAdmin) {
+  // Don't render admin content if not authenticated, or authenticated as a
+  // role with no access to anything under /admin
+  if (!isAuthenticated || (!isSuperAdmin && !isPlatformAdmin)) {
     return null
   }
 
@@ -65,7 +69,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           onMenuClick={() => setSidebarOpen(true)}
           isCollapsed={sidebarCollapsed}
           onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          logoutCallbackUrl="/auth/super-admin/login"
+          logoutCallbackUrl={isPlatformAdmin ? '/auth/platform-admin/login' : '/auth/super-admin/login'}
         />
         <div className={cn('p-8', isMobile && 'pt-4')}>{children}</div>
       </main>

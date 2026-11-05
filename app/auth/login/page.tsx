@@ -176,10 +176,12 @@ function LoginPage() {
           <div className="flex justify-center mb-4">
             <Logo
               asLink={false}
-              alt="Heirs E-Invoicing"
+              alt="Heirs E-Invoicing Admin"
               width={48}
               height={48}
               imageClassName="w-12 h-12 rounded-full"
+              showText
+              title="Heirs E-Invoicing Admin"
             />
           </div>
           <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>

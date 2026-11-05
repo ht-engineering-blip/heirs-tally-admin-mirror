@@ -15,5 +15,6 @@ export function useSession() {
     isSuperAdmin: session?.user?.role === 'SUPER_ADMIN',
     isBusinessAdmin: session?.user?.role === 'BUSINESS_ADMIN',
     isBusinessTeamMember: session?.user?.role === 'BUSINESS_TEAM_MEMBER',
+    isPlatformAdmin: session?.user?.role === 'PLATFORM_ADMIN',
   }
 }

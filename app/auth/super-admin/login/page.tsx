@@ -76,10 +76,12 @@ export default function SuperAdminLoginPage() {
     <Card className="w-full max-w-md shadow-card">
       <CardHeader className="space-y-1 text-center">
         <div className="flex justify-center mb-4">
-        <Logo 
+        <Logo
               href="/"
-              alt="Heirs Tally"
+              alt="Heirs E-Invoicing Admin"
               linkClassName="text-base font-semibold tracking-tight text-foreground/70"
+              showText
+              title="Heirs E-Invoicing Admin"
             />
         </div>
         <CardTitle className="text-2xl font-bold">Login</CardTitle>

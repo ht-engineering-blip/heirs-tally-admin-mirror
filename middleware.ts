@@ -6,7 +6,7 @@ export default auth((request) => {
   const { pathname } = request.nextUrl
 
   const session = request.auth
-  const userRole = session?.user?.role as 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER' | undefined
+  const userRole = session?.user?.role as 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER' | 'PLATFORM_ADMIN' | undefined
 
   // Handle root path - redirect to appropriate dashboard
   if (pathname === '/') {
