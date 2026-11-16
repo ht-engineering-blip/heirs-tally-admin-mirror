@@ -292,5 +292,13 @@ export function createTenantApi() {
       metadata?: Record<string, any>;
     }) =>
       api.v1.tenants({ tenantId }).patch(data),
+
+    // Workflow-failure alert recipients — who gets emailed when this
+    // tenant's invoice processing fails (docs/platform-admin-and-monitoring-api-contract.md §4).
+    getWorkflowFailureRecipients: (tenantId: string) =>
+      (api as any).v1.tenants({ tenantId })['workflow-failure-recipients'].get(),
+
+    updateWorkflowFailureRecipients: (tenantId: string, recipients: string[]) =>
+      (api as any).v1.tenants({ tenantId })['workflow-failure-recipients'].put({ recipients }),
   }
 }

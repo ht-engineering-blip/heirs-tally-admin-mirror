@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -215,25 +214,18 @@ export default function AdminPlatformAdmins() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Accounts</CardTitle>
-          <CardDescription>{total} account{total === 1 ? '' : 's'}</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <DataTable
-            data={items}
-            columns={columns}
-            isLoading={isLoading}
-            currentPage={page}
-            pageSize={PAGE_SIZE}
-            totalItems={total}
-            onPageChange={setPage}
-            onRowClick={openEdit}
-            emptyMessage="No platform admin accounts yet"
-          />
-        </CardContent>
-      </Card>
+      <DataTable
+        data={items}
+        columns={columns}
+        searchPlaceholder="Search accounts by name or email..."
+        isLoading={isLoading}
+        currentPage={page}
+        pageSize={PAGE_SIZE}
+        totalItems={total}
+        onPageChange={setPage}
+        onRowClick={openEdit}
+        emptyMessage="No platform admin accounts yet"
+      />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">

@@ -272,7 +272,7 @@
   
   /* Page header */
   .page-header {
-    @apply flex items-center justify-between mb-8;
+    @apply flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8;
   }
   
   .page-title {

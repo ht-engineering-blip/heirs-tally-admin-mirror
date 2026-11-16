@@ -45,16 +45,16 @@ export function createPlatformAdminAccountsApi() {
       platformAdminAccountsFetch<{
         success: true
         data: { items: PlatformAdminSummary[]; total: number; page: number; limit: number }
-      }>('/v1/platform-users', {}, { page, limit }),
+      }>('/v1/admin/platform-users', {}, { page, limit }),
 
     create: (payload: CreatePlatformAdminPayload) =>
-      platformAdminAccountsFetch<{ success: true; data: PlatformAdminSummary }>('/v1/platform-users', {
+      platformAdminAccountsFetch<{ success: true; data: PlatformAdminSummary }>('/v1/admin/platform-users', {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
 
     update: (userId: string, payload: UpdatePlatformAdminPayload) =>
-      platformAdminAccountsFetch<{ success: true; data: PlatformAdminSummary }>(`/v1/platform-users/${userId}`, {
+      platformAdminAccountsFetch<{ success: true; data: PlatformAdminSummary }>(`/v1/admin/platform-users/${userId}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),

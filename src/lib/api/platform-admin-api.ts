@@ -45,5 +45,17 @@ export function createPlatformAdminApi() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }),
+
+    forgotPassword: (email: string) =>
+      platformAdminFetch<{ success: true; data: { success: true; message: string } }>(
+        '/v1/auth/platform-admin/forgot-password',
+        { method: 'POST', body: JSON.stringify({ email }) }
+      ),
+
+    resetPassword: (token: string, password: string) =>
+      platformAdminFetch<{ success: true; data: { success: true; message: string } }>(
+        '/v1/auth/platform-admin/reset-password',
+        { method: 'POST', body: JSON.stringify({ token, password }) }
+      ),
   }
 }

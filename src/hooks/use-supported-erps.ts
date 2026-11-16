@@ -38,12 +38,16 @@ export function formatErpName(name: string): string {
 
 export function useSupportedErps(options: UseSupportedErpsOptions = {}) {
   const { includeAll = false } = options
-  const { isAuthenticated, isSuperAdmin } = useSession()
+  const { isAuthenticated, isSuperAdmin, isPlatformAdmin } = useSession()
 
   const query = useQuery({
     queryKey: SUPPORTED_ERPS_QUERY_KEY,
     queryFn: fetchSupportedErps,
-    enabled: isAuthenticated && isSuperAdmin,
+    // The underlying endpoint goes through the /api/v1/admin proxy, which
+    // attaches the shared admin key server-side regardless of role — so
+    // this is readable by platform admins too (e.g. the monitoring filters),
+    // not just super admins.
+    enabled: isAuthenticated && (isSuperAdmin || isPlatformAdmin),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   })

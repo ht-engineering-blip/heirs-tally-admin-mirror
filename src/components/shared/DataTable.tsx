@@ -43,8 +43,15 @@ import { useState } from 'react';
 
 export interface Column<T> {
   key: string;
-  header: string;
+  header: React.ReactNode;
   accessor: (item: T) => React.ReactNode;
+  /** Plain-text value for this column when exporting to CSV. Falls back to
+   * the accessor's output if omitted, but that only works when the accessor
+   * returns a plain string/number rather than JSX. */
+  exportValue?: (item: T) => string | number;
+  /** Plain-text column label for the CSV header row, when `header` is JSX
+   * (e.g. a label plus an info tooltip) rather than a plain string. */
+  exportHeader?: string;
   sortable?: boolean;
   width?: string;
   className?: string;
@@ -188,6 +195,29 @@ export function DataTable<T extends { id: string }>({
 
   const hasActiveFilters = Object.keys(activeFilters).length > 0 || search.length > 0;
 
+  // Exports what's currently rendered (this page, after search/filters) —
+  // not every row across all pages, since that would need fetching every
+  // page from the server first.
+  const handleExport = () => {
+    const escapeCell = (value: string) =>
+      /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+    const headerRow = columns.map((c) => escapeCell(c.exportHeader ?? (typeof c.header === 'string' ? c.header : c.key)));
+    const rows = displayData.map((item) =>
+      columns.map((c) => {
+        const raw = c.exportValue ? c.exportValue(item) : c.accessor(item);
+        return escapeCell(typeof raw === 'string' || typeof raw === 'number' ? String(raw) : '');
+      })
+    );
+    const csv = [headerRow, ...rows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `export-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -234,7 +264,7 @@ export function DataTable<T extends { id: string }>({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={displayData.length === 0}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -254,7 +284,7 @@ export function DataTable<T extends { id: string }>({
       )}
 
       {/* Table */}
-      <div className="rounded-xl shadow-card overflow-hidden bg-card">
+      <div className="rounded-xl shadow-card overflow-x-auto bg-card">
         <Table>
           <TableHeader>
             <TableRow className="data-table-header">

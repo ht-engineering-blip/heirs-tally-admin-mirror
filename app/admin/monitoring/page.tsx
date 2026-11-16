@@ -1,5 +1,5 @@
-import AdminMonitoring from '@/views/admin/AdminMonitoring'
+import { redirect } from 'next/navigation'
 
 export default function MonitoringPage() {
-  return <AdminMonitoring />
+  redirect('/admin/monitoring/overview')
 }

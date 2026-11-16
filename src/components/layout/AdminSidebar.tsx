@@ -109,6 +109,9 @@ const auditNavItem: NavItem = {
   permission: 'audit:read',
 }
 
+// Overview/Company/Failures/Health live as in-page tabs (MonitoringSubNav)
+// rather than sidebar sub-items, so this is a single link, not a parent with
+// children — no extra page navigation to get between them.
 const monitoringNavItem: NavItem = {
   title: 'Monitoring',
   href: '/admin/monitoring',
@@ -146,7 +149,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
     const newExpanded = new Set<string>()
 
     // Check if any tenant child route is active
-    tenantNavItems.forEach((item) => {
+    ;[...tenantNavItems].forEach((item) => {
       if (item.children) {
         // Check if pathname exactly matches the parent href
         const isParentExactMatch = pathname === item.href
@@ -199,9 +202,9 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
 
   const filteredSystemNavItems = filterNavItems(systemNavItems)
   const filteredTenantNavItems = filterNavItems(tenantNavItems)
+  const showMonitoring = hasPermission('monitoring:read')
   const showSandbox = hasPermission('sandbox:test')
   const showAudit = hasPermission('audit:read')
-  const showMonitoring = hasPermission('monitoring:read')
   const showPlatformAdmins = hasPermission('platform-admins:manage')
 
   const sidebarWidth = isMobile
@@ -310,7 +313,8 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                 </>
               )}
 
-              {/* Monitoring */}
+              {/* Monitoring — a single link; Overview/Company/Failures/Health
+                  are in-page tabs (MonitoringSubNav), not sidebar sub-items. */}
               {showMonitoring && (
                 <>
                   <Separator className="my-4" />
@@ -323,7 +327,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                     href={monitoringNavItem.href}
                     icon={monitoringNavItem.icon}
                     label={monitoringNavItem.title}
-                    isActive={isRouteActive(monitoringNavItem.href) || !!pathname?.startsWith(monitoringNavItem.href + '/')}
+                    isActive={pathname?.startsWith(monitoringNavItem.href) ?? false}
                     isCollapsed={isCollapsed && !isMobile}
                     isMobile={isMobile}
                     onClick={handleNavClick}
