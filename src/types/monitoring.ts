@@ -31,7 +31,19 @@ export interface MonitoringFunnel {
   /** Current open-failure gauge, not scoped to the period filter. */
   failed: number
   rectified: number
+  /** Invoices whose workflowState.delivered is true and aren't currently failed. */
+  succeeded: number
   retries: number
+}
+
+/** The furthest workflow stage a non-failed invoice has reached. Only
+ * 'delivered' is terminal — the rest are still in flight, not successes. */
+export type MonitoringSuccessStage = 'delivered' | 'transmitted' | 'signed' | 'validated' | 'transformed' | 'not_started'
+
+export interface MonitoringSuccessStageRow {
+  stage: MonitoringSuccessStage
+  count: number
+  terminal: boolean
 }
 
 export interface MonitoringFilters {
@@ -53,10 +65,11 @@ export interface MonitoringOverview {
   }
   funnel: MonitoringFunnel
   topFailureReasons: Array<{ category: string; count: number }>
+  topSuccessStages: MonitoringSuccessStageRow[]
   /** Current open failures per tenant, not period-scoped. */
   tenantLeaderboard: Array<{ tenantId: string; openFailures: number }>
   documentTypes: Array<{ documentType: string; count: number }>
-  dailyTrend: Array<{ date: string; transmitted: number; validated: number; failed: number }>
+  dailyTrend: Array<{ date: string; transmitted: number; validated: number; failed: number; succeeded: number }>
   retries: {
     invoiceValidationAttempts: number
     webhookDeliveryRetries: number
@@ -69,6 +82,8 @@ export interface MonitoringOverview {
     rectified: string
     retries: string
     environment: string
+    succeeded?: string
+    successStages?: string
   }
 }
 
@@ -91,6 +106,7 @@ export interface MonitoringCompany {
   period: { from: string; to: string }
   funnel: MonitoringFunnel
   failureReasons: Array<{ category: string; count: number }>
+  successStages: MonitoringSuccessStageRow[]
   // Always all 6 document types, one row each — different vocabulary from
   // the `documentType` query filter, never feed these back into it.
   documentTypeConfiguration: Array<{
@@ -99,7 +115,7 @@ export interface MonitoringCompany {
     source: 'tenant' | 'default' | 'missing'
     status: 'active' | 'draft' | 'deprecated' | 'archived' | null
   }>
-  dailyTrend: Array<{ date: string; transmitted: number; validated: number; failed: number }>
+  dailyTrend: Array<{ date: string; transmitted: number; validated: number; failed: number; succeeded: number }>
   onboardingToFirstSuccess: {
     firstTransmittedAt: string | null
     firstSuccessAt: string | null
@@ -214,4 +230,93 @@ export interface MonitoringAlertsResponse {
     source: string
     delivery: string
   }
+}
+
+// GET /v1/monitoring/invoices/:irn — shown in the Failure Explorer detail modal.
+export interface OutboundInvoiceDetail {
+  invoice: {
+    irn: string
+    erpInvoiceId?: string
+    source: string
+    tenantId: string
+    status: string
+    paymentStatus?: string
+    paymentDetails?: unknown
+    workflowState?: {
+      transformed?: boolean
+      validated?: boolean
+      signed?: boolean
+      transmitted?: boolean
+      delivered?: boolean
+    }
+    lastJobError?: {
+      action?: string
+      error?: string
+      failureCategory?: string
+      failedAt?: string
+    }
+    qrCode?: string
+    erpSystem?: string
+    validationAttempts?: number
+    validationErrors?: unknown[]
+    metadata?: unknown
+    invoiceNumber?: string
+    customerName?: string
+    invoiceTypeCode: string
+    invoiceType: string
+    createdAt: string
+    updatedAt: string
+  }
+  webhookEvents: Array<{
+    eventId: string
+    eventType: string
+    status: string
+    payload: unknown
+    jobErrors: unknown[]
+    jobSteps: unknown[]
+    transformedPayload: unknown | null
+    invoiceTypeCode: string
+    invoiceType: string
+    routing?: unknown
+    receivedAt: string
+    deliveredAt?: string
+    failedAt?: string
+    failureReason?: string
+  }>
+  statusHistory: Array<{
+    step: string
+    status: string
+    eventId: string
+    eventType?: string
+    jobChainId?: string
+    agendaJobId?: string | null
+    at: string
+    error: string | null
+    transformedPayload: unknown | null
+    invoiceTypeCode: string
+    invoiceType: string
+  }>
+}
+
+// Shared async-export job shape, returned by both the convenience export
+// routes (/workflow/invoices/export, /monitoring/failures/export) and the
+// generic /export/jobs endpoints.
+export type ExportJobStatus = 'queued' | 'processing' | 'completed' | 'failed'
+
+export interface ExportJobSummary {
+  exportId: string
+  resource: string
+  columns: string[]
+  period: { from: string; to: string }
+  tenantId: string | null
+  filters: Record<string, string> | null
+  status: ExportJobStatus
+  rowCount: number
+  byteSize: number
+  fileName: string | null
+  error: string | null
+  downloadUrl: string | null
+  startedAt: string | null
+  completedAt: string | null
+  createdAt: string
 }

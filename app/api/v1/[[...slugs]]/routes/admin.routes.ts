@@ -29,9 +29,22 @@ const adminRoutes = new Elysia({ prefix: '/admin' })
         body,
       })
 
+      const contentType = response.headers.get('content-type') || ''
+
+      // A deliberately non-JSON success response (e.g. the export download
+      // route's text/csv body) — forward it byte-for-byte with its own
+      // content-type/disposition instead of trying to JSON.parse it.
+      if (!contentType.includes('application/json')) {
+        const body = await response.text()
+        const headers: Record<string, string> = { 'Content-Type': contentType || 'application/octet-stream' }
+        const disposition = response.headers.get('content-disposition')
+        if (disposition) headers['Content-Disposition'] = disposition
+        return new Response(body, { status: response.status, headers })
+      }
+
       // Get the response text first to handle both JSON and non-JSON responses
       const responseText = await response.text()
-      
+
       // Try to parse as JSON, but if it fails the upstream returned something
       // non-JSON (e.g. an HTML gateway error page) — don't forward that raw
       // body to the client, it can be huge and unreadable in an Alert/toast.
@@ -42,7 +55,7 @@ const adminRoutes = new Elysia({ prefix: '/admin' })
         console.error('Non-JSON response from upstream:', responseText.slice(0, 500))
         data = { error: 'The server is currently unreachable. Please try again later.' }
       }
-      
+
       // Return the API response as-is, preserving status code and error structure
       return new Response(JSON.stringify(data), {
         status: response.status,

@@ -25,6 +25,7 @@ import {
   type MonitoringAlert,
   type MonitoringFunnel,
   type MonitoringOverview,
+  type MonitoringSuccessStageRow,
   type NrsDocumentTypeCode,
 } from '@/types/monitoring'
 import { format } from 'date-fns'
@@ -300,6 +301,7 @@ export function FilterBar({
 
 export function FunnelTiles({ funnel, note }: { funnel: MonitoringFunnel; note?: string }) {
   const failedShare = funnel.transmitted > 0 ? funnel.failed / funnel.transmitted : 0
+  const succeededShare = funnel.transmitted > 0 ? funnel.succeeded / funnel.transmitted : 0
   const tiles: { label: string; value: number; hint?: string }[] = [
     { label: 'Transmitted', value: funnel.transmitted },
     { label: 'Validated', value: funnel.validated },
@@ -307,7 +309,19 @@ export function FunnelTiles({ funnel, note }: { funnel: MonitoringFunnel; note?:
     { label: 'Retries', value: funnel.retries },
   ]
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+      <Card className="border-success/30 bg-success/5">
+        <CardContent className="p-4">
+          <p className="text-xs text-success/80 flex items-center gap-1 font-medium">
+            Succeeded
+            <DataCoverageNote text="An invoice counts as succeeded once workflowState.delivered is true and it is not currently failed — the last required stage of the outbound chain." />
+          </p>
+          <p className="text-2xl font-semibold font-mono mt-1 text-success">{funnel.succeeded.toLocaleString()}</p>
+          {funnel.transmitted > 0 && (
+            <p className="text-xs text-success/70 mt-0.5">{formatPercent(succeededShare)} of transmitted</p>
+          )}
+        </CardContent>
+      </Card>
       <Card className="border-destructive/30 bg-destructive/5">
         <CardContent className="p-4">
           <p className="text-xs text-destructive/80 flex items-center gap-1 font-medium">
@@ -343,8 +357,8 @@ export function FunnelTiles({ funnel, note }: { funnel: MonitoringFunnel; note?:
  * is in flight). */
 export function FunnelTilesSkeleton() {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-      {Array.from({ length: 5 }).map((_, i) => (
+    <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+      {Array.from({ length: 6 }).map((_, i) => (
         <Card key={i}>
           <CardContent className="p-4 space-y-2">
             <Skeleton className="h-3 w-20" />
@@ -568,13 +582,14 @@ export function AlertsBanner({ alerts, isLoading }: { alerts: MonitoringAlert[];
 
 const TREND_SERIES = [
   { key: 'transmitted' as const, label: 'Transmitted', color: 'hsl(var(--primary))' },
-  { key: 'validated' as const, label: 'Validated', color: 'hsl(var(--success))' },
+  { key: 'validated' as const, label: 'Validated', color: 'hsl(var(--warning))' },
+  { key: 'succeeded' as const, label: 'Succeeded', color: 'hsl(var(--success))' },
   { key: 'failed' as const, label: 'Failed', color: 'hsl(var(--destructive))' },
 ]
 
 /** Lightweight inline SVG line chart for the overview's daily trend — no
- * charting library pulled in for three lines and a hover tooltip. */
-export function DailyTrendChart({ data }: { data: Array<{ date: string; transmitted: number; validated: number; failed: number }> }) {
+ * charting library pulled in for four lines and a hover tooltip. */
+export function DailyTrendChart({ data }: { data: Array<{ date: string; transmitted: number; validated: number; failed: number; succeeded: number }> }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   const width = 720
@@ -584,7 +599,7 @@ export function DailyTrendChart({ data }: { data: Array<{ date: string; transmit
   const plotHeight = height - padding.top - padding.bottom
 
   const maxValue = useMemo(
-    () => Math.max(1, ...data.flatMap((d) => [d.transmitted, d.validated, d.failed])),
+    () => Math.max(1, ...data.flatMap((d) => [d.transmitted, d.validated, d.failed, d.succeeded])),
     [data]
   )
 
@@ -604,7 +619,7 @@ export function DailyTrendChart({ data }: { data: Array<{ date: string; transmit
   const xFor = (i: number) => padding.left + (data.length === 1 ? plotWidth / 2 : (i / (data.length - 1)) * plotWidth)
   const yFor = (v: number) => padding.top + plotHeight - (v / maxValue) * plotHeight
 
-  const pathFor = (key: 'transmitted' | 'validated' | 'failed') =>
+  const pathFor = (key: 'transmitted' | 'validated' | 'failed' | 'succeeded') =>
     data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i).toFixed(1)} ${yFor(d[key]).toFixed(1)}`).join(' ')
 
   // Only label a handful of x-axis ticks so dense ranges don't overlap.
@@ -739,14 +754,59 @@ export function DailyTrendChart({ data }: { data: Array<{ date: string; transmit
   )
 }
 
-/** The overview's four small breakdown cards (failure reasons, document
- * types, tenant leaderboard, retries) merged into one tabbed card — same
- * data, one view at a time instead of four fighting for attention at once. */
+const SUCCESS_STAGE_LABELS: Record<string, string> = {
+  delivered: 'Delivered (success)',
+  transmitted: 'Transmitted',
+  signed: 'Signed',
+  validated: 'Validated',
+  transformed: 'Transformed',
+  not_started: 'Not started',
+}
+
+/** Renders a `MonitoringSuccessStageRow[]` list — shared between the
+ * overview's Breakdown tab and the Company drill-down's own success-stage
+ * card, so the two never drift in how they label/order stages. */
+export function SuccessStageList({ stages }: { stages: MonitoringSuccessStageRow[] }) {
+  if (stages.length === 0) {
+    return (
+      <div className="py-8 flex items-center justify-center min-h-[120px]">
+        <EmptyState
+          icon={CheckCircle2}
+          title="No successes in this period"
+          description="Invoices that reach a workflow stage in the selected range will appear here."
+          compact
+        />
+      </div>
+    )
+  }
+  return (
+    <div className={cn(BREAKDOWN_LIST_HEIGHT, 'space-y-2 pr-1')}>
+      <div className="flex items-center justify-between text-xs font-semibold text-foreground px-0.5">
+        <span>Stage</span>
+        <span>Count</span>
+      </div>
+      {stages.map((row) => (
+        <div key={row.stage} className="flex items-center justify-between text-sm py-1 border-b last:border-b-0">
+          <span className="flex items-center gap-1.5">
+            {SUCCESS_STAGE_LABELS[row.stage] ?? row.stage}
+            {row.terminal && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Terminal</Badge>}
+          </span>
+          <span className="font-mono font-semibold text-success">{row.count}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** The overview's small breakdown cards (failure reasons, success stages,
+ * document types, tenant leaderboard, retries) merged into one tabbed card —
+ * same data, one view at a time instead of several fighting for attention
+ * at once. */
 export function BreakdownCard({
   data,
   onViewTenant,
 }: {
-  data: Pick<MonitoringOverview, 'topFailureReasons' | 'documentTypes' | 'tenantLeaderboard' | 'retries'>
+  data: Pick<MonitoringOverview, 'topFailureReasons' | 'topSuccessStages' | 'documentTypes' | 'tenantLeaderboard' | 'retries'>
   onViewTenant: (tenantId: string) => void
 }) {
   return (
@@ -758,6 +818,7 @@ export function BreakdownCard({
         <Tabs defaultValue="reasons">
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="reasons">Failure reasons</TabsTrigger>
+            <TabsTrigger value="successStages">Success stages</TabsTrigger>
             <TabsTrigger value="docTypes">Document types</TabsTrigger>
             <TabsTrigger value="leaderboard">Tenant leaderboard</TabsTrigger>
             <TabsTrigger value="retries">Retries</TabsTrigger>
@@ -790,6 +851,14 @@ export function BreakdownCard({
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="successStages">
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
+              The furthest workflow stage non-failed invoices in this period reached.
+              <DataCoverageNote text="Only 'Delivered' is terminal; the rest are still in flight, not successes. Failed invoices are excluded, so this never double-counts against the failure breakdown." />
+            </p>
+            <SuccessStageList stages={data.topSuccessStages} />
           </TabsContent>
 
           <TabsContent value="docTypes">

@@ -53,6 +53,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { usePermissions } from "@/hooks/use-permissions";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { createTenantApi } from "@/lib/api/tenant-api";
+import { defaultExportRange, pollAndDownloadExport } from "@/lib/api/export-api";
 import { cn } from "@/lib/utils";
 import { FriendlyErrorBlock } from "@/components/shared";
 import { humanizeInvoiceError, humanizeValidationErrorEntry } from "@/lib/errors/friendly-invoice-error";
@@ -206,6 +207,25 @@ export default function TransactionsPage() {
     paymentReference: "",
     rejectionReason: "",
   });
+
+  const handleExport = useCallback(async () => {
+    try {
+      const api = createTenantApi();
+      const { from, to } = defaultExportRange();
+      const queued = await api.queueInvoiceExport({
+        from,
+        to,
+        ...(activeTab !== "all" && { type: activeTab }),
+        ...(filters.status && filters.status !== "all" && { status: filters.status }),
+        ...(searchQuery && { search: searchQuery }),
+      });
+      toast.info("Preparing export…");
+      await pollAndDownloadExport(api.exportFlow, queued.data.exportId);
+      toast.success("Export ready — download started");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to export transactions");
+    }
+  }, [activeTab, filters, searchQuery]);
 
   const fetchInvoices = useCallback(async () => {
     abortRef.current?.abort();
@@ -1056,6 +1076,7 @@ export default function TransactionsPage() {
           totalItems={total}
           pageSize={pageSize}
           onPageChange={setPage}
+          onExport={handleExport}
           onPageSizeChange={(size) => {
             setPageSize(size);
             setPage(1);

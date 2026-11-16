@@ -53,6 +53,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { getAdminApiClient } from "@/lib/api/client";
+import { createExportFlow, defaultExportRange, pollAndDownloadExport } from "@/lib/api/export-api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
@@ -80,6 +81,8 @@ import {
 } from "../../../app/dashboard/transactions/page";
 
 const PAGE_SIZE = 10;
+
+const exportFlow = createExportFlow("/api/v1/admin");
 
 const WORKFLOW_STEP_MAP = [
   { stateKey: "transformed", apiValue: "transform", label: "Transform" },
@@ -186,6 +189,24 @@ export default function AdminTransactionLogs() {
     paymentReference: "",
     rejectionReason: "",
   });
+
+  const handleExport = useCallback(async () => {
+    try {
+      const { from, to } = defaultExportRange();
+      const queued = await exportFlow.queue("/v1/workflow/invoices/export", {
+        from,
+        to,
+        ...(activeTab !== "all" && { type: activeTab }),
+        ...(filters.status && filters.status !== "all" && { status: filters.status }),
+        ...(searchQuery && { search: searchQuery }),
+      });
+      toast.info("Preparing export…");
+      await pollAndDownloadExport(exportFlow, queued.data.exportId);
+      toast.success("Export ready — download started");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to export transactions");
+    }
+  }, [activeTab, filters, searchQuery]);
 
   const fetchInvoices = useCallback(async () => {
     abortRef.current?.abort();
@@ -1120,6 +1141,7 @@ export default function AdminTransactionLogs() {
           totalItems={total}
           pageSize={pageSize}
           onPageChange={setPage}
+          onExport={handleExport}
           onPageSizeChange={(size) => {
             setPageSize(size);
             setPage(1);

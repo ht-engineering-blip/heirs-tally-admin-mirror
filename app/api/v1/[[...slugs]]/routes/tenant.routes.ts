@@ -79,6 +79,19 @@ const tenantRoutes = new Elysia({ prefix: '/tenants' })
         body,
       })
 
+      const contentType = response.headers.get('content-type') || ''
+
+      // A deliberately non-JSON success response (e.g. the export download
+      // route's text/csv body) — forward it byte-for-byte with its own
+      // content-type/disposition instead of trying to JSON.parse it.
+      if (!contentType.includes('application/json')) {
+        const rawBody = await response.text()
+        const headers: Record<string, string> = { 'Content-Type': contentType || 'application/octet-stream' }
+        const disposition = response.headers.get('content-disposition')
+        if (disposition) headers['Content-Disposition'] = disposition
+        return new Response(rawBody, { status: response.status, headers })
+      }
+
       const responseText = await response.text()
 
       let data: any

@@ -1,11 +1,16 @@
 import type {
+  ExportJobSummary,
   MonitoringAlertsResponse,
   MonitoringCompany,
   MonitoringFailuresResponse,
   MonitoringFilters,
   MonitoringHealth,
   MonitoringOverview,
+  OutboundInvoiceDetail,
 } from '@/types/monitoring'
+import { createExportFlow } from './export-api'
+
+const MONITORING_BASE_PATH = '/api/v1/admin'
 
 // Monitoring data is read through the existing /api/v1/admin proxy: its
 // static x-admin-key already bypasses the backend's module-permission check
@@ -31,6 +36,8 @@ async function monitoringFetch<T>(path: string, params?: Record<string, any>): P
 }
 
 export function createMonitoringApi() {
+  const exportFlow = createExportFlow(MONITORING_BASE_PATH)
+
   return {
     getOverview: (filters: MonitoringFilters) =>
       monitoringFetch<{ success: true; data: MonitoringOverview }>('/v1/monitoring/overview', filters),
@@ -53,5 +60,16 @@ export function createMonitoringApi() {
       apiP95Milliseconds?: number
       crossTenantFailureCount?: number
     }) => monitoringFetch<{ success: true; data: MonitoringAlertsResponse }>('/v1/monitoring/alerts', params),
+
+    getInvoiceDetail: (irn: string) =>
+      monitoringFetch<{ success: true; data: OutboundInvoiceDetail }>(`/v1/monitoring/invoices/${encodeURIComponent(irn)}`),
+
+    /** Queues a full-result-set export of the Failure Explorer's current
+     * filters (same params as getFailures, minus page/limit) — returns a
+     * job summary to poll via exportFlow, not the file itself. */
+    queueFailuresExport: (filters: MonitoringFilters): Promise<{ success: true; data: ExportJobSummary }> =>
+      exportFlow.queue('/v1/monitoring/failures/export', filters),
+
+    exportFlow,
   }
 }

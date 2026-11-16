@@ -2,15 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { Column, DataTable } from '@/components/shared/DataTable'
 import { DataCoverageNote } from '@/components/shared/DataCoverageNote'
 import { createMonitoringApi } from '@/lib/api/monitoring-api'
+import { pollAndDownloadExport } from '@/lib/api/export-api'
 import {
   NRS_DOCUMENT_TYPE_LABELS,
   type FailureCategory,
   type MonitoringFailureRow,
   type NrsDocumentTypeCode,
+  type OutboundInvoiceDetail,
 } from '@/types/monitoring'
+import { Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   FAILURE_PAGE_SIZE,
@@ -20,6 +24,7 @@ import {
   resolveDateRange,
   useMonitoringFilters,
 } from './shared'
+import { InvoiceDetailModal } from './InvoiceDetailModal'
 
 const api = createMonitoringApi()
 
@@ -32,6 +37,50 @@ export default function MonitoringFailures() {
   const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const isFirstFetch = useRef(true)
+
+  const [selectedIrn, setSelectedIrn] = useState<string | null>(null)
+  const [detail, setDetail] = useState<OutboundInvoiceDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+
+  const fetchDetail = useCallback(async (irn: string) => {
+    setDetailLoading(true)
+    setDetailError(null)
+    try {
+      const res = await api.getInvoiceDetail(irn)
+      setDetail(res.data)
+    } catch (error: any) {
+      setDetailError(error?.message || 'Failed to load invoice detail')
+    } finally {
+      setDetailLoading(false)
+    }
+  }, [])
+
+  const handleViewDetail = (irn: string) => {
+    setSelectedIrn(irn)
+    setDetail(null)
+    setDetailError(null)
+    fetchDetail(irn)
+  }
+
+  const handleExport = async () => {
+    try {
+      const { from, to } = resolveDateRange(filters)
+      const { data: job } = await api.queueFailuresExport({
+        from,
+        to,
+        tenantId: filters.tenantId || undefined,
+        erpSystem: filters.erpSystem || undefined,
+        documentType: filters.documentType !== 'all' ? filters.documentType : undefined,
+        failureCategory: filters.failureCategory !== 'all' ? (filters.failureCategory as FailureCategory) : undefined,
+      })
+      toast.info('Preparing export…')
+      await pollAndDownloadExport(api.exportFlow, job.exportId)
+      toast.success('Export ready — download started')
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to export failures')
+    }
+  }
 
   const fetchFailures = useCallback(async () => {
     setIsLoading(true)
@@ -143,6 +192,13 @@ export default function MonitoringFailures() {
     },
   ]
 
+  const rowActions = (row: FailureRow) => (
+    <DropdownMenuItem onClick={() => handleViewDetail(row.irn)}>
+      <Eye className="w-4 h-4 mr-2" />
+      View Details
+    </DropdownMenuItem>
+  )
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="page-header">
@@ -160,12 +216,24 @@ export default function MonitoringFailures() {
       <DataTable
         data={rows}
         columns={columns}
+        rowActions={rowActions}
+        onRowClick={(row) => handleViewDetail(row.irn)}
         isLoading={isLoading}
         currentPage={page}
         pageSize={FAILURE_PAGE_SIZE}
         totalItems={total}
         onPageChange={setPage}
+        onExport={handleExport}
         emptyMessage="No failures match these filters"
+      />
+
+      <InvoiceDetailModal
+        irn={selectedIrn}
+        onClose={() => setSelectedIrn(null)}
+        isLoading={detailLoading}
+        error={detailError}
+        detail={detail}
+        onRetry={() => selectedIrn && fetchDetail(selectedIrn)}
       />
     </div>
   )

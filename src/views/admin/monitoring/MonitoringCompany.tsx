@@ -12,7 +12,7 @@ import type { MonitoringCompany as MonitoringCompanyData } from '@/types/monitor
 import { CheckCircle2, SearchX } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { CompanySkeleton, FunnelTiles, MonitoringSubNav, formatDate, formatDuration, toIso } from './shared'
+import { CompanySkeleton, FunnelTiles, MonitoringSubNav, SuccessStageList, formatDate, formatDuration, toIso } from './shared'
 
 const api = createMonitoringApi()
 
@@ -118,7 +118,7 @@ export default function MonitoringCompany() {
 
           <FunnelTiles funnel={data.funnel} />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Failure reasons</CardTitle>
@@ -141,6 +141,15 @@ export default function MonitoringCompany() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Success stages</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SuccessStageList stages={data.successStages} />
               </CardContent>
             </Card>
 
