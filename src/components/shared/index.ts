@@ -1,4 +1,5 @@
 export { DataTable, type Column, type FilterOption } from './DataTable';
+export { FilterPopover } from './FilterPopover';
 export { extractLinks, JsonBlock, KeyValueTable, stringifyJson } from './JsonBlock';
 export { StatusBadge } from './StatusBadge';
 export { WebhookExpiryBadge } from './WebhookExpiryBadge';
@@ -14,5 +15,6 @@ export { ValidationIssuesTable, IssuesList } from './ValidationIssuesTable';
 export { ReadOnlyMappingsList } from './ReadOnlyMappingsList';
 export { ResetOnboardingDialog } from './ResetOnboardingDialog';
 export { FriendlyErrorBlock } from './FriendlyErrorBlock';
+export { EmailListInput } from './EmailListInput';
 export { BackgroundTaskProvider, useBackgroundTask } from './background-task';
 export type { BackgroundTask, BackgroundTaskRunOptions } from './background-task';

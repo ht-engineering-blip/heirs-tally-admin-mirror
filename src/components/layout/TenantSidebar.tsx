@@ -22,6 +22,7 @@ import {
   ClipboardCheck,
   FileText,
   KeyIcon,
+  MailWarning,
   LayoutDashboard,
   LifeBuoy,
   LogOut,
@@ -150,6 +151,7 @@ export function TenantSidebar({ isOpen = true, onClose, isCollapsed, onCollapse 
       children: [
         { title: 'API Keys', href: '/dashboard/settings/api-keys', icon: KeyIcon, permission: 'settings:read' },
         { title: 'Webhook', href: '/dashboard/settings/webhook', icon: WebhookIcon, permission: 'settings:read' },
+        { title: 'Alert Recipients', href: '/dashboard/settings/alert-recipients', icon: MailWarning, permission: 'settings:read' },
       ],
     },
     // The support portal URL can change independently of a deploy, so it's

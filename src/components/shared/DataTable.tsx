@@ -35,6 +35,7 @@ import {
   ChevronsRight,
   Download,
   Filter,
+  Loader2,
   MoreHorizontal,
   Search,
   X,
@@ -43,8 +44,15 @@ import { useState } from 'react';
 
 export interface Column<T> {
   key: string;
-  header: string;
+  header: React.ReactNode;
   accessor: (item: T) => React.ReactNode;
+  /** Plain-text value for this column when exporting to CSV. Falls back to
+   * the accessor's output if omitted, but that only works when the accessor
+   * returns a plain string/number rather than JSX. */
+  exportValue?: (item: T) => string | number;
+  /** Plain-text column label for the CSV header row, when `header` is JSX
+   * (e.g. a label plus an info tooltip) rather than a plain string. */
+  exportHeader?: string;
   sortable?: boolean;
   width?: string;
   className?: string;
@@ -77,6 +85,12 @@ interface DataTableProps<T> {
   isLoading?: boolean;
   emptyMessage?: string;
   rowClassName?: (item: T) => string;
+  /** Overrides the built-in "export the current page as CSV" behavior with
+   * a full-result-set export (e.g. an async backend export job) for tables
+   * that have one — the caller closes over its own current filter state so
+   * the export matches what's on screen. The button shows a spinner while
+   * this promise is pending. */
+  onExport?: () => Promise<void>;
 }
 
 export function DataTable<T extends { id: string }>({
@@ -99,6 +113,7 @@ export function DataTable<T extends { id: string }>({
   isLoading = false,
   emptyMessage = 'No data found',
   rowClassName,
+  onExport,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
@@ -107,6 +122,7 @@ export function DataTable<T extends { id: string }>({
   const [pageSizeState, setPageSizeState] = useState(pageSize);
   // Internal page for client-side (uncontrolled) mode — used when onPageChange is not provided.
   const [internalPage, setInternalPage] = useState(1);
+  const [isExporting, setIsExporting] = useState(false);
 
   const isControlled = !!onPageChange;
   const effectivePage = isControlled ? currentPage : internalPage;
@@ -188,6 +204,38 @@ export function DataTable<T extends { id: string }>({
 
   const hasActiveFilters = Object.keys(activeFilters).length > 0 || search.length > 0;
 
+  // Falls back to exporting only what's currently rendered (this page, after
+  // search/filters) when the caller has no real full-result-set export
+  // endpoint wired up via `onExport`.
+  const handleExport = async () => {
+    if (onExport) {
+      setIsExporting(true);
+      try {
+        await onExport();
+      } finally {
+        setIsExporting(false);
+      }
+      return;
+    }
+    const escapeCell = (value: string) =>
+      /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+    const headerRow = columns.map((c) => escapeCell(c.exportHeader ?? (typeof c.header === 'string' ? c.header : c.key)));
+    const rows = displayData.map((item) =>
+      columns.map((c) => {
+        const raw = c.exportValue ? c.exportValue(item) : c.accessor(item);
+        return escapeCell(typeof raw === 'string' || typeof raw === 'number' ? String(raw) : '');
+      })
+    );
+    const csv = [headerRow, ...rows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `export-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -234,9 +282,18 @@ export function DataTable<T extends { id: string }>({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Export
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={isExporting || (!onExport && displayData.length === 0)}
+          >
+            {isExporting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            {isExporting ? 'Exporting…' : 'Export'}
           </Button>
         </div>
       </div>
@@ -254,7 +311,7 @@ export function DataTable<T extends { id: string }>({
       )}
 
       {/* Table */}
-      <div className="rounded-xl shadow-card overflow-hidden bg-card">
+      <div className="rounded-xl shadow-card overflow-x-auto bg-card">
         <Table>
           <TableHeader>
             <TableRow className="data-table-header">

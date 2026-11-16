@@ -3,7 +3,7 @@
  * Defines dashboard routes for each user role
  */
 
-export type UserRole = 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER'
+export type UserRole = 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER' | 'PLATFORM_ADMIN'
 
 /**
  * Get the dashboard route for a given user role
@@ -16,6 +16,10 @@ export function getDashboardRoute(role: UserRole | undefined): string {
       return '/dashboard'
     case 'BUSINESS_TEAM_MEMBER':
       return '/dashboard'
+    case 'PLATFORM_ADMIN':
+      // Platform admins only ever hold the "monitoring" module today —
+      // there's no general /admin landing page they can see.
+      return '/admin/monitoring'
     default:
       return '/auth/login'
   }
@@ -46,8 +50,12 @@ export function isRouteAccessible(route: string, role: UserRole | undefined): bo
              route.startsWith('/transactions')
     case 'BUSINESS_TEAM_MEMBER':
       // Team members can only access dashboard and limited tenant routes
-      return route.startsWith('/dashboard') || 
+      return route.startsWith('/dashboard') ||
              route.startsWith('/tenants/transactions')
+    case 'PLATFORM_ADMIN':
+      // Platform admins only get the monitoring dashboard, never the rest
+      // of /admin (tenant management, audit logs, account provisioning, etc.)
+      return route.startsWith('/admin/monitoring')
     default:
       return false
   }
@@ -63,6 +71,8 @@ export function getLoginRoute(role: UserRole | undefined): string {
     case 'BUSINESS_ADMIN':
     case 'BUSINESS_TEAM_MEMBER':
       return '/auth/login'
+    case 'PLATFORM_ADMIN':
+      return '/auth/platform-admin/login'
     default:
       return '/auth/super-admin/login'
   }

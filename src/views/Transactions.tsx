@@ -5,7 +5,6 @@ import { formatDistanceToNow } from 'date-fns';
 import {
   Eye,
   RefreshCw,
-  Download,
   ArrowUpRight,
   ArrowDownLeft,
   AlertCircle,
@@ -229,10 +228,6 @@ export default function Transactions() {
           Retry
         </DropdownMenuItem>
       )}
-      <DropdownMenuItem>
-        <Download className="w-4 h-4 mr-2" />
-        Download
-      </DropdownMenuItem>
     </>
   );
 

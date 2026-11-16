@@ -38,6 +38,10 @@ export const authOptions: NextAuthConfig = {
           label: 'Member Role',
           type: 'text',
         },
+        modulePermissions: {
+          label: 'Module Permissions',
+          type: 'text',
+        },
       },
       async authorize(credentials): Promise<User | JWT | null> {
         // Handle login key (for super admin)
@@ -54,9 +58,9 @@ export const authOptions: NextAuthConfig = {
           }
         }
 
-        // Handle token-based authentication (for tenant/team members).
-        // The backend JWT is stored in the access_token browser cookie — not in
-        // the session — so credentials only carry identity fields here.
+        // Handle token-based authentication (for tenant/team members, and for
+        // platform admins). The backend JWT is stored in a browser cookie —
+        // not in the session — so credentials only carry identity fields here.
         if (credentials?.email) {
           return {
             id: credentials.email as string,
@@ -65,6 +69,9 @@ export const authOptions: NextAuthConfig = {
             role: credentials.role as User['role'] || 'BUSINESS_TEAM_MEMBER',
             tenantId: credentials.tenantId as string || undefined,
             memberRole: credentials.memberRole as string || undefined,
+            modulePermissions: credentials.modulePermissions
+              ? JSON.parse(credentials.modulePermissions as string)
+              : undefined,
           }
         }
 
@@ -93,6 +100,9 @@ export const authOptions: NextAuthConfig = {
         if ((user as any).memberRole) {
           token.memberRole = (user as any).memberRole
         }
+        if ((user as any).modulePermissions) {
+          token.modulePermissions = (user as any).modulePermissions
+        }
       }
       return token
     },
@@ -104,6 +114,7 @@ export const authOptions: NextAuthConfig = {
         session.user.email = token.email || undefined
         session.user.tenantId = token.tenantId || undefined
         session.user.memberRole = token.memberRole || undefined
+        session.user.modulePermissions = token.modulePermissions || undefined
       }
       return session
     },

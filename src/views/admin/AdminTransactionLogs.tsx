@@ -53,6 +53,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { getAdminApiClient } from "@/lib/api/client";
+import { createExportFlow, defaultExportRange, pollAndDownloadExport } from "@/lib/api/export-api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
@@ -80,6 +81,8 @@ import {
 } from "../../../app/dashboard/transactions/page";
 
 const PAGE_SIZE = 10;
+
+const exportFlow = createExportFlow("/api/v1/admin");
 
 const WORKFLOW_STEP_MAP = [
   { stateKey: "transformed", apiValue: "transform", label: "Transform" },
@@ -167,6 +170,8 @@ export default function AdminTransactionLogs() {
   const [showRetryDialog, setShowRetryDialog] = useState(false);
   const [retryStep, setRetryStep] = useState<string>("validate");
   const [retrying, setRetrying] = useState(false);
+  const [showRepairDialog, setShowRepairDialog] = useState(false);
+  const [repairing, setRepairing] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -184,6 +189,24 @@ export default function AdminTransactionLogs() {
     paymentReference: "",
     rejectionReason: "",
   });
+
+  const handleExport = useCallback(async () => {
+    try {
+      const { from, to } = defaultExportRange();
+      const queued = await exportFlow.queue("/v1/workflow/invoices/export", {
+        from,
+        to,
+        ...(activeTab !== "all" && { type: activeTab }),
+        ...(filters.status && filters.status !== "all" && { status: filters.status }),
+        ...(searchQuery && { search: searchQuery }),
+      });
+      toast.info("Preparing export…");
+      await pollAndDownloadExport(exportFlow, queued.data.exportId);
+      toast.success("Export ready — download started");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to export transactions");
+    }
+  }, [activeTab, filters, searchQuery]);
 
   const fetchInvoices = useCallback(async () => {
     abortRef.current?.abort();
@@ -423,6 +446,54 @@ export default function AdminTransactionLogs() {
     }
   };
 
+  // The exact confirmation sentence the backend's repair-service-id endpoint
+  // requires (a t.Literal — any other value is a 400). Shown to the user to
+  // confirm, never typed by them, per §5 of the contract doc.
+  const REPAIR_CONFIRMATION = "I CONFIRM THIS INVOICE WAS NOT RECEIVED BY NRS";
+
+  const handleRepairServiceId = async () => {
+    if (!selectedInvoice || selectedInvoice.type !== "outbound") return;
+    setRepairing(true);
+    try {
+      const api = getAdminApiClient();
+      const response = await (api as any).v1.workflow.invoices
+        .outbound({ irn: selectedInvoice.irn })
+        ["repair-service-id"].post({ confirmation: REPAIR_CONFIRMATION });
+      if (response.error) {
+        toast.error(
+          (response.error as any)?.value?.error || "Failed to repair invoice service ID",
+        );
+        return;
+      }
+      const correctedIrn = response.data?.data?.correctedIrn;
+      if (correctedIrn) {
+        // The repair only rekeys the IRN — it doesn't retry the workflow
+        // itself (§5 of the contract doc), so chain straight into a
+        // retry-from-step on the corrected IRN to actually resume processing.
+        const retryResponse = await api.v1.workflow.invoices
+          .outbound({ irn: correctedIrn })
+          ["retry-from-step"].post({ fromStep: "transform" });
+        if (retryResponse.error) {
+          toast.error(
+            (retryResponse.error as any)?.value?.error ||
+              "IRN repaired, but the retry failed to start — retry manually from the corrected IRN",
+          );
+        } else {
+          toast.success("Invoice IRN repaired and workflow retry started");
+        }
+      } else {
+        toast.success("Invoice IRN repaired");
+      }
+      setShowRepairDialog(false);
+      setSelectedInvoice(null);
+      setRefreshTrigger((n) => n + 1);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to repair invoice service ID");
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   const handleUpdatePaymentStatus = async () => {
     if (!selectedInvoice) return;
     setUpdatingPaymentStatus(true);
@@ -522,6 +593,25 @@ export default function AdminTransactionLogs() {
   const isFailed = (status: string) => {
     const s = (status || "").toLowerCase();
     return s === "failed" || s === "rejected" || s === "transmission_failed";
+  };
+
+  // Client-side mirror of the server's eligibility rule for repair-service-id
+  // (§5 of the contract doc) — the button only shows when this looks
+  // plausible; the server re-checks all of it (and the tenant's FIRS service
+  // ID configuration, which isn't visible here) and 409s if not actually
+  // eligible, e.g. the invoice's state changed since this was fetched.
+  const isServiceIdRepairEligible = (inv: Invoice | null, details?: any) => {
+    if (!inv || inv.type !== "outbound") return false;
+    const status = details?.invoice?.status ?? inv.status ?? "";
+    const workflowState = details?.invoice?.workflowState ?? inv.workflowState ?? {};
+    const irn = details?.invoice?.irn ?? inv.irn ?? "";
+    return (
+      status === "FAILED" &&
+      workflowState?.transmitted === false &&
+      workflowState?.delivered === false &&
+      typeof irn === "string" &&
+      irn.includes("00000000")
+    );
   };
 
   const hasJobError = (inv: Invoice) => {
@@ -1051,6 +1141,7 @@ export default function AdminTransactionLogs() {
           totalItems={total}
           pageSize={pageSize}
           onPageChange={setPage}
+          onExport={handleExport}
           onPageSizeChange={(size) => {
             setPageSize(size);
             setPage(1);
@@ -1678,6 +1769,19 @@ export default function AdminTransactionLogs() {
                       Retry from Step
                     </Button>
                   )}
+                {isServiceIdRepairEligible(selectedInvoice, invoiceDetails) && (
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setShowRepairDialog(true);
+                    }}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Repair Service ID
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   className="w-full sm:w-auto"
@@ -1741,6 +1845,52 @@ export default function AdminTransactionLogs() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Repair Service ID Confirmation Dialog */}
+      <AlertDialog
+        open={showRepairDialog}
+        onOpenChange={(open) => {
+          setShowRepairDialog(open);
+          if (!open) setSelectedInvoice(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Repair Invoice Service ID</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Invoice{" "}
+                  <strong className="break-all">
+                    {selectedInvoice?.invoiceNumber || selectedInvoice?.irn}
+                  </strong>{" "}
+                  was generated with the default FIRS service-ID placeholder and is permanently
+                  stuck failed. This will rekey its IRN with the tenant&apos;s real FIRS service
+                  ID and immediately resume processing from the transform step.
+                </p>
+                <p className="font-medium text-foreground">
+                  Only proceed if this invoice was NOT received by NRS. By confirming, you attest:
+                </p>
+                <p className="px-3 py-2 rounded-md bg-muted font-mono text-xs">
+                  {REPAIR_CONFIRMATION}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSelectedInvoice(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRepairServiceId}
+              className="bg-warning text-warning-foreground hover:bg-warning/90"
+              disabled={repairing}
+            >
+              {repairing ? "Repairing..." : "I Confirm — Repair Service ID"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Resend Confirmation Dialog */}
       <AlertDialog open={showResendDialog} onOpenChange={setShowResendDialog}>

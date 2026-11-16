@@ -29,6 +29,8 @@ export type Permission =
   | 'transactions:read'
   | 'transactions:resend'
   | 'audit:read'
+  | 'monitoring:read'
+  | 'platform-admins:manage'
 
 const SUPER_ADMIN_PERMISSIONS: Permission[] = [
   'system:configure',
@@ -57,6 +59,8 @@ const SUPER_ADMIN_PERMISSIONS: Permission[] = [
   'transactions:read',
   'transactions:resend',
   'audit:read',
+  'monitoring:read',
+  'platform-admins:manage',
 ]
 
 const BUSINESS_ADMIN_PERMISSIONS: Permission[] = [
@@ -121,7 +125,21 @@ const TEAM_VIEWER_PERMISSIONS: Permission[] = [
   'transactions:read',
 ]
 
-function getPermissionsForRole(role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER' | undefined): Permission[] {
+// A platform admin's permissions aren't a fixed role-wide list — they come
+// from the backend-granted modulePermissions on their own account (currently
+// only "monitoring" exists). Map each module to the permission it unlocks.
+const PLATFORM_ADMIN_MODULE_PERMISSIONS: Record<string, Permission> = {
+  monitoring: 'monitoring:read',
+}
+
+function getPlatformAdminPermissions(modulePermissions: string[] | undefined): Permission[] {
+  if (!modulePermissions) return []
+  return modulePermissions
+    .map((module) => PLATFORM_ADMIN_MODULE_PERMISSIONS[module])
+    .filter((permission): permission is Permission => Boolean(permission))
+}
+
+function getPermissionsForRole(role: 'SUPER_ADMIN' | 'BUSINESS_ADMIN' | 'BUSINESS_TEAM_MEMBER' | 'PLATFORM_ADMIN' | undefined): Permission[] {
   if (!role) return []
 
   switch (role) {
@@ -154,7 +172,9 @@ export function usePermissions() {
   const permissions =
     user?.role === 'BUSINESS_TEAM_MEMBER'
       ? getTeamMemberPermissions((user as any).memberRole)
-      : getPermissionsForRole(user?.role)
+      : user?.role === 'PLATFORM_ADMIN'
+        ? getPlatformAdminPermissions((user as any).modulePermissions)
+        : getPermissionsForRole(user?.role)
 
   const hasPermission = (permission: Permission): boolean => {
     return permissions.includes(permission)

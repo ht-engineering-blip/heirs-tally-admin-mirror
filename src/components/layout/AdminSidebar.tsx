@@ -19,6 +19,7 @@ import {
   Key,
   TestTube,
   Activity,
+  UserCog,
   KeyIcon,
   CogIcon,
   ListChecksIcon,
@@ -108,6 +109,26 @@ const auditNavItem: NavItem = {
   permission: 'audit:read',
 }
 
+// Overview/Company/Failures/Health live as in-page tabs (MonitoringSubNav)
+// rather than sidebar sub-items, so this is a single link, not a parent with
+// children — no extra page navigation to get between them.
+const monitoringNavItem: NavItem = {
+  title: 'Monitoring',
+  href: '/admin/monitoring',
+  icon: Activity,
+  permission: 'monitoring:read',
+}
+
+// Account provisioning for platform-admin users — gated behind the shared
+// admin key infrastructure, not a role a platform admin can ever hold
+// themselves (see docs/platform-admin-and-monitoring-api-contract.md §2).
+const platformAdminsNavItem: NavItem = {
+  title: 'Platform Admins',
+  href: '/admin/platform-admins',
+  icon: UserCog,
+  permission: 'platform-admins:manage',
+}
+
 interface AdminSidebarProps {
   isOpen?: boolean
   onClose?: () => void
@@ -118,7 +139,7 @@ interface AdminSidebarProps {
 export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }: AdminSidebarProps) {
   const pathname = usePathname()
   const isMobile = useIsMobile()
-  const { user } = useSession()
+  const { user, isPlatformAdmin } = useSession()
   const { hasPermission } = usePermissions()
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const handleNavClick = isMobile ? onClose : undefined
@@ -128,7 +149,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
     const newExpanded = new Set<string>()
 
     // Check if any tenant child route is active
-    tenantNavItems.forEach((item) => {
+    ;[...tenantNavItems].forEach((item) => {
       if (item.children) {
         // Check if pathname exactly matches the parent href
         const isParentExactMatch = pathname === item.href
@@ -181,8 +202,10 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
 
   const filteredSystemNavItems = filterNavItems(systemNavItems)
   const filteredTenantNavItems = filterNavItems(tenantNavItems)
+  const showMonitoring = hasPermission('monitoring:read')
   const showSandbox = hasPermission('sandbox:test')
   const showAudit = hasPermission('audit:read')
+  const showPlatformAdmins = hasPermission('platform-admins:manage')
 
   const sidebarWidth = isMobile
     ? 'w-[260px]'
@@ -254,11 +277,11 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
             )}
             <div className={cn('flex items-center gap-3', isMobile && isOpen && 'ml-3')}>
               <Logo
-                href="/admin/dashboard"
+                href={isPlatformAdmin ? '/admin/monitoring' : '/admin/dashboard'}
                 alt="Heirs E-Invoicing"
                 showText={!isCollapsed || isMobile}
                 title="Heirs E-Invoicing Admin"
-                subtitle="Super Admin"
+                subtitle={isPlatformAdmin ? 'Platform Admin' : 'Super Admin'}
               />
             </div>
           </div>
@@ -268,21 +291,49 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
         <nav className="flex-1 py-4 px-3 overflow-y-auto overflow-x-hidden min-h-0">
           <TooltipProvider>
             <div className="space-y-1">
-              {/* Dashboard */}
-              {(!isCollapsed || isMobile) && (
-                <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Main
-                </p>
+              {/* Dashboard — platform admins never have access to /admin
+                  itself, only /admin/monitoring, so skip this entirely for
+                  them rather than show a link that just bounces back. */}
+              {!isPlatformAdmin && (
+                <>
+                  {(!isCollapsed || isMobile) && (
+                    <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Main
+                    </p>
+                  )}
+                  <NavLink
+                    href="/admin"
+                    icon={LayoutDashboard}
+                    label="Dashboard"
+                    isActive={pathname === '/admin'}
+                    isCollapsed={isCollapsed && !isMobile}
+                    isMobile={isMobile}
+                    onClick={handleNavClick}
+                  />
+                </>
               )}
-              <NavLink
-                href="/admin"
-                icon={LayoutDashboard}
-                label="Dashboard"
-                isActive={pathname === '/admin'}
-                isCollapsed={isCollapsed && !isMobile}
-                isMobile={isMobile}
-                onClick={handleNavClick}
-              />
+
+              {/* Monitoring — a single link; Overview/Company/Failures/Health
+                  are in-page tabs (MonitoringSubNav), not sidebar sub-items. */}
+              {showMonitoring && (
+                <>
+                  <Separator className="my-4" />
+                  {(!isCollapsed || isMobile) && (
+                    <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Monitoring
+                    </p>
+                  )}
+                  <NavLink
+                    href={monitoringNavItem.href}
+                    icon={monitoringNavItem.icon}
+                    label={monitoringNavItem.title}
+                    isActive={pathname?.startsWith(monitoringNavItem.href) ?? false}
+                    isCollapsed={isCollapsed && !isMobile}
+                    isMobile={isMobile}
+                    onClick={handleNavClick}
+                  />
+                </>
+              )}
 
               {/* System Configuration */}
               {filteredSystemNavItems.length > 0 && (
@@ -389,6 +440,27 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
                 </>
               )}
 
+              {/* Platform Admins */}
+              {showPlatformAdmins && (
+                <>
+                  <Separator className="my-4" />
+                  {(!isCollapsed || isMobile) && (
+                    <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Platform Admins
+                    </p>
+                  )}
+                  <NavLink
+                    href={platformAdminsNavItem.href}
+                    icon={platformAdminsNavItem.icon}
+                    label={platformAdminsNavItem.title}
+                    isActive={isRouteActive(platformAdminsNavItem.href)}
+                    isCollapsed={isCollapsed && !isMobile}
+                    isMobile={isMobile}
+                    onClick={handleNavClick}
+                  />
+                </>
+              )}
+
               {/* Sandbox */}
               {showSandbox && (
                 <>
@@ -438,7 +510,7 @@ export function AdminSidebar({ isOpen = true, onClose, isCollapsed, onCollapse }
               </div>
             )}
             {(!isCollapsed || isMobile) && (
-              <LogoutDialog callbackUrl="/auth/super-admin/login">
+              <LogoutDialog callbackUrl={isPlatformAdmin ? '/auth/platform-admin/login' : '/auth/super-admin/login'}>
                 <Button
                   variant="ghost"
                   size="icon"
