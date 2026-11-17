@@ -300,8 +300,11 @@ export function FilterBar({
 }
 
 export function FunnelTiles({ funnel, note }: { funnel: MonitoringFunnel; note?: string }) {
+  // `succeeded` is a newer field the backend may not have shipped yet on
+  // every environment — default to 0 instead of crashing on `undefined`.
+  const succeeded = funnel.succeeded ?? 0
   const failedShare = funnel.transmitted > 0 ? funnel.failed / funnel.transmitted : 0
-  const succeededShare = funnel.transmitted > 0 ? funnel.succeeded / funnel.transmitted : 0
+  const succeededShare = funnel.transmitted > 0 ? succeeded / funnel.transmitted : 0
   const tiles: { label: string; value: number; hint?: string }[] = [
     { label: 'Transmitted', value: funnel.transmitted },
     { label: 'Validated', value: funnel.validated },
@@ -316,7 +319,7 @@ export function FunnelTiles({ funnel, note }: { funnel: MonitoringFunnel; note?:
             Succeeded
             <DataCoverageNote text="An invoice counts as succeeded once workflowState.delivered is true and it is not currently failed — the last required stage of the outbound chain." />
           </p>
-          <p className="text-2xl font-semibold font-mono mt-1 text-success">{funnel.succeeded.toLocaleString()}</p>
+          <p className="text-2xl font-semibold font-mono mt-1 text-success">{succeeded.toLocaleString()}</p>
           {funnel.transmitted > 0 && (
             <p className="text-xs text-success/70 mt-0.5">{formatPercent(succeededShare)} of transmitted</p>
           )}
@@ -589,7 +592,15 @@ const TREND_SERIES = [
 
 /** Lightweight inline SVG line chart for the overview's daily trend — no
  * charting library pulled in for four lines and a hover tooltip. */
-export function DailyTrendChart({ data }: { data: Array<{ date: string; transmitted: number; validated: number; failed: number; succeeded: number }> }) {
+export function DailyTrendChart({
+  data: rawData,
+}: {
+  data: Array<{ date: string; transmitted: number; validated: number; failed: number; succeeded?: number }>
+}) {
+  // `succeeded` is a newer field the backend may not have shipped yet on
+  // every environment — normalize to 0 once here instead of crashing (or
+  // silently NaN-ing the chart math) on `undefined` at every usage below.
+  const data = useMemo(() => rawData.map((d) => ({ ...d, succeeded: d.succeeded ?? 0 })), [rawData])
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   const width = 720
@@ -766,7 +777,10 @@ const SUCCESS_STAGE_LABELS: Record<string, string> = {
 /** Renders a `MonitoringSuccessStageRow[]` list — shared between the
  * overview's Breakdown tab and the Company drill-down's own success-stage
  * card, so the two never drift in how they label/order stages. */
-export function SuccessStageList({ stages }: { stages: MonitoringSuccessStageRow[] }) {
+export function SuccessStageList({ stages }: { stages: MonitoringSuccessStageRow[] | undefined }) {
+  // The backend may not have shipped this field yet on every environment —
+  // render the empty state instead of crashing on `undefined`.
+  stages = stages ?? []
   if (stages.length === 0) {
     return (
       <div className="py-8 flex items-center justify-center min-h-[120px]">

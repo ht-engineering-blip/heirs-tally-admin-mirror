@@ -5,5 +5,3 @@ export const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV || 'production'
 // environment, or the URL moving entirely). Empty means the link is hidden
 // rather than pointing nowhere.
 export const SUPPORT_LOGIN_URL = process.env.NEXT_PUBLIC_SUPPORT_LOGIN_URL || ''
-
-console.log('App env: ', APP_ENV);
