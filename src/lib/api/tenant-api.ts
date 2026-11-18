@@ -150,6 +150,15 @@ export function createTenantApi() {
     completeOnboading: (tenantId: string, activationPayload: Record<string, any>) =>
       api.v1.tenants({ tenantId }).onboarding.patch(activationPayload || {}),
 
+    // Tenant-callable — explicitly marks the webhook/ERP-configuration
+    // onboarding step complete. Separate from both webhook generation
+    // (which already flips this as a side effect, kept for backward
+    // compatibility) and tenant activation (still admin-only via
+    // completeOnboading above) — this is the deliberate, idempotent way to
+    // set it rather than relying on that inference.
+    completeErpConfigurationStep: (tenantId: string) =>
+      (api as any).v1.tenants({ tenantId }).onboarding.steps['erp-configuration'].complete.post({}),
+
     // Invoice endpoints (nested under v1.workflow.invoices)
     getOutboundInvoices: (query?: { status?: string; page?: string; limit?: string; from?: string; to?: string }) =>
       api.v1.workflow.invoices.outbound.get({ query: query || {} }),
