@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -9,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Webhook, AlertCircle, Loader2, CheckCircle2, Copy, ArrowRight } from 'lucide-react'
 import { toast } from '@/components/ui/sonner'
 import { createTenantApi } from '@/lib/api/tenant-api'
+import { useTenant } from '@/hooks/use-tenant'
 
 interface WebhookGenerateStepProps {
   tenantId: string
@@ -22,7 +24,9 @@ interface WebhookData {
   instructions: string
 }
 
-export function WebhookGenerateStep({ tenantId, onStepComplete }: WebhookGenerateStepProps) {
+export function WebhookGenerateStep({ tenantId }: WebhookGenerateStepProps) {
+  const router = useRouter()
+  const { refetch } = useTenant()
   const [error, setError] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
@@ -61,26 +65,35 @@ export function WebhookGenerateStep({ tenantId, onStepComplete }: WebhookGenerat
     }
   }
 
-  // Deliberately separate from handleGenerate — onboarding only completes
-  // (and the account goes active) once the user confirms they've saved the
-  // secret, not the instant it's generated, since it's never shown again.
+  // Explicitly marks the erpConfiguration (webhook) step complete via its
+  // own tenant-callable endpoint — deliberately separate from webhook
+  // generation (which still flips it as a side effect, kept only for
+  // backward compatibility) and from tenant activation, which stays an
+  // admin-only action and is never called from here.
+  //
+  // Refetches directly via useTenant() here rather than going through the
+  // parent page's onStepComplete() — that clears its currentStepOverride,
+  // which flips this (the last) step to "complete" and briefly renders the
+  // onboarding page's own "Onboarding Complete" card before the redirect
+  // below takes over. We still need the refetch — without it the dashboard
+  // layout's onboarding guard reads stale cached data and immediately
+  // bounces back here — but not that intermediate screen.
   const handleCompleteOnboarding = async () => {
     setIsCompleting(true)
     setError(null)
 
     try {
       const tenantApi = createTenantApi()
-      const activationResponse = await tenantApi.completeOnboading(tenantId, {
-        status: 'active',
-      })
-      if (activationResponse.error) {
-        const activationError = (activationResponse.error as any)?.value?.error || 'Failed to activate account'
-        setError(activationError)
-        toast.error(activationError)
+      const response = await tenantApi.completeErpConfigurationStep(tenantId)
+      if (response.error) {
+        const errorMessage = (response.error as any)?.value?.error || 'Failed to mark this step complete'
+        setError(errorMessage)
+        toast.error(errorMessage)
         return
       }
 
-      await onStepComplete()
+      await refetch()
+      router.push('/dashboard')
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to complete onboarding'
       setError(errorMessage)
