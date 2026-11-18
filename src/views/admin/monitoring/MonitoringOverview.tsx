@@ -1,17 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createMonitoringApi } from '@/lib/api/monitoring-api'
-import {
-  type FailureCategory,
-  type MonitoringOverview as MonitoringOverviewData,
-} from '@/types/monitoring'
+import { type FailureCategory } from '@/types/monitoring'
 import {
   BreakdownCard,
   DailyTrendChart,
-  DataCoverageFooter,
+  FetchErrorState,
   FilterBar,
   FunnelTiles,
   MonitoringSubNav,
@@ -26,14 +24,15 @@ const api = createMonitoringApi()
 export default function MonitoringOverview() {
   const router = useRouter()
   const [filters, setFilters] = useMonitoringFilters()
-  const [data, setData] = useState<MonitoringOverviewData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const isFirstFetch = useRef(true)
+  const { from, to } = resolveDateRange(filters)
 
-  const fetchOverview = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const { from, to } = resolveDateRange(filters)
+  // keepPreviousData avoids an empty page on first mount when this tab's
+  // data is already cached from a previous visit, but isFetching still
+  // drives the skeleton below — an explicit filter change should visibly
+  // show a fetch is happening, not silently swap the numbers once it's done.
+  const { data, isFetching, error, refetch } = useQuery({
+    queryKey: ['monitoring-overview', from, to, filters.tenantId, filters.erpSystem, filters.documentType, filters.failureCategory],
+    queryFn: async () => {
       const res = await api.getOverview({
         from,
         to,
@@ -42,23 +41,15 @@ export default function MonitoringOverview() {
         documentType: filters.documentType !== 'all' ? filters.documentType : undefined,
         failureCategory: filters.failureCategory !== 'all' ? (filters.failureCategory as FailureCategory) : undefined,
       })
-      setData(res.data)
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to load monitoring overview')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [filters])
+      return res.data
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  })
 
   useEffect(() => {
-    if (isFirstFetch.current) {
-      isFirstFetch.current = false
-      fetchOverview()
-      return
-    }
-    const t = setTimeout(fetchOverview, 350)
-    return () => clearTimeout(t)
-  }, [fetchOverview])
+    if (error) toast.error((error as Error)?.message || 'Failed to load monitoring overview')
+  }, [error])
 
   const handleViewTenant = (tenantId: string) => {
     router.push(`/admin/monitoring/company?tenantId=${encodeURIComponent(tenantId)}`)
@@ -78,8 +69,10 @@ export default function MonitoringOverview() {
         <FilterBar filters={filters} onChange={setFilters} />
       </div>
 
-      {isLoading && !data ? (
+      {isFetching ? (
         <OverviewSkeleton />
+      ) : error ? (
+        <FetchErrorState message={(error as Error)?.message} onRetry={() => refetch()} />
       ) : !data ? null : (
         <div className="space-y-6">
           <FunnelTiles funnel={data.funnel} />
@@ -94,8 +87,6 @@ export default function MonitoringOverview() {
           </Card>
 
           <BreakdownCard data={data} onViewTenant={handleViewTenant} />
-
-          <DataCoverageFooter coverage={data.dataCoverage} />
         </div>
       )}
     </div>

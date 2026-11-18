@@ -320,3 +320,35 @@ export interface ExportJobSummary {
   completedAt: string | null
   createdAt: string
 }
+
+// GET /v1/export/resources and /v1/export/resources/:resource/columns — the
+// column-selection catalog the generic POST /v1/export/ queue endpoint
+// validates `columns` against.
+export type ExportResource = 'outbound_invoices' | 'monitoring_failures' | 'webhook_events' | 'audit_logs'
+
+export interface ExportColumnDescriptor {
+  key: string
+  label: string
+}
+
+export interface ExportResourceDescriptor {
+  resource: ExportResource
+  label: string
+  description: string
+  dateField: string
+  tenantScoped: boolean
+  columns: ExportColumnDescriptor[]
+}
+
+// Body for the generic POST /v1/export/ queue endpoint — lets the caller
+// choose exactly which columns to include, unlike the convenience routes
+// (/monitoring/failures/export, /workflow/invoices/export) which always use
+// the resource's full default column set.
+export interface ExportRequestBody {
+  resource: ExportResource
+  columns: string[]
+  from: string
+  to: string
+  tenantId?: string
+  filters?: Record<string, any>
+}

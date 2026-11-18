@@ -11,13 +11,15 @@ interface EmptyStateProps {
   className?: string
   /** Tighter padding for use inside a tab panel or a card that already has its own header. */
   compact?: boolean
+  /** Optional action rendered below the description — e.g. a "Retry" button on an error state. */
+  action?: React.ReactNode
 }
 
 /** Reusable empty state for any list/table/chart panel — an icon + a
  * human title + an optional explanation, instead of a single muted
  * sentence. Give the wrapping container a min-height so swapping between
  * a populated and an empty view doesn't collapse the layout. */
-export function EmptyState({ icon: Icon = Inbox, title, description, className, compact = false }: EmptyStateProps) {
+export function EmptyState({ icon: Icon = Inbox, title, description, className, compact = false, action }: EmptyStateProps) {
   return (
     <div
       className={cn(
@@ -33,6 +35,7 @@ export function EmptyState({ icon: Icon = Inbox, title, description, className, 
         <p className="text-sm font-medium">{title}</p>
         {description && <p className="text-xs text-muted-foreground max-w-xs">{description}</p>}
       </div>
+      {action && <div className="mt-1">{action}</div>}
     </div>
   )
 }

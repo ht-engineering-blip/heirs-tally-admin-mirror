@@ -1,5 +1,4 @@
 import type {
-  ExportJobSummary,
   MonitoringAlertsResponse,
   MonitoringCompany,
   MonitoringFailuresResponse,
@@ -63,12 +62,6 @@ export function createMonitoringApi() {
 
     getInvoiceDetail: (irn: string) =>
       monitoringFetch<{ success: true; data: OutboundInvoiceDetail }>(`/v1/monitoring/invoices/${encodeURIComponent(irn)}`),
-
-    /** Queues a full-result-set export of the Failure Explorer's current
-     * filters (same params as getFailures, minus page/limit) — returns a
-     * job summary to poll via exportFlow, not the file itself. */
-    queueFailuresExport: (filters: MonitoringFilters): Promise<{ success: true; data: ExportJobSummary }> =>
-      exportFlow.queue('/v1/monitoring/failures/export', filters),
 
     exportFlow,
   }

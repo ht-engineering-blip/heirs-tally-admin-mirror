@@ -1,18 +1,31 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useEffect } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { DataCoverageNote } from '@/components/shared/DataCoverageNote'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { TenantCombobox } from '@/components/shared/TenantCombobox'
 import { createMonitoringApi } from '@/lib/api/monitoring-api'
-import type { MonitoringCompany as MonitoringCompanyData } from '@/types/monitoring'
+import type { MonitoringCompany as MonitoringCompanyData, NrsDocumentTypeCode } from '@/types/monitoring'
+import { NRS_DOCUMENT_TYPE_LABELS } from '@/types/monitoring'
+import { Button } from '@/components/ui/button'
 import { CheckCircle2, SearchX } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { CompanySkeleton, FunnelTiles, MonitoringSubNav, SuccessStageList, formatDate, formatDuration, toIso } from './shared'
+import {
+  CompanySkeleton,
+  FAILURE_CATEGORY_LABELS,
+  FilterBar,
+  FunnelTiles,
+  MonitoringSubNav,
+  SuccessStageList,
+  formatDate,
+  formatDuration,
+  resolveDateRange,
+  useMonitoringFilters,
+} from './shared'
 
 const api = createMonitoringApi()
 
@@ -28,40 +41,36 @@ const SOURCE_LABEL: Record<string, string> = {
 }
 
 export default function MonitoringCompany() {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const tenantId = searchParams.get('tenantId') || ''
+  const [filters, setFilters] = useMonitoringFilters()
+  const tenantId = filters.tenantId
+  const { from, to } = resolveDateRange(filters)
 
-  const [data, setData] = useState<MonitoringCompanyData | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [filters] = useState({ from: '', to: '', erpSystem: '', documentType: 'all' })
-
-  const fetchCompany = useCallback(async (id: string) => {
-    if (!id) return
-    setIsLoading(true)
-    try {
-      const res = await api.getCompany(id, {
-        from: toIso(filters.from),
-        to: toIso(filters.to),
+  // keepPreviousData avoids an empty screen between looking up tenants, but
+  // isFetching still drives the skeleton below — changing a filter on an
+  // already-looked-up tenant should visibly show a fetch is happening.
+  const { data, isFetching, error, refetch } = useQuery<MonitoringCompanyData>({
+    queryKey: ['monitoring-company', tenantId, from, to, filters.erpSystem, filters.documentType],
+    queryFn: async () => {
+      const res = await api.getCompany(tenantId, {
+        from,
+        to,
         erpSystem: filters.erpSystem || undefined,
         documentType: filters.documentType !== 'all' ? filters.documentType : undefined,
       })
-      setData(res.data)
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to load this tenant')
-      setData(null)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [filters])
+      return res.data
+    },
+    enabled: !!tenantId,
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+    retry: false,
+  })
 
   useEffect(() => {
-    if (tenantId) fetchCompany(tenantId)
-  }, [tenantId, fetchCompany])
+    if (error) toast.error((error as Error)?.message || 'Failed to load this tenant')
+  }, [error])
 
   const handleLookup = (id: string) => {
-    router.push(id ? `${pathname}?tenantId=${encodeURIComponent(id)}` : pathname)
+    setFilters({ ...filters, tenantId: id })
   }
 
   return (
@@ -73,7 +82,10 @@ export default function MonitoringCompany() {
         </div>
       </div>
 
-      <MonitoringSubNav />
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <MonitoringSubNav />
+        <FilterBar filters={filters} onChange={setFilters} showFailureCategory={false} showTenant={false} />
+      </div>
 
       <Card>
         <CardHeader>
@@ -90,17 +102,18 @@ export default function MonitoringCompany() {
         </CardContent>
       </Card>
 
-      {isLoading && <CompanySkeleton />}
+      {(isFetching || (tenantId && !data)) && !error && <CompanySkeleton />}
 
-      {!isLoading && !data && tenantId && (
+      {!isFetching && !data && tenantId && error && (
         <EmptyState
           icon={SearchX}
           title="Tenant not found"
-          description={`No monitoring data for "${tenantId}" — check the tenant ID and try again.`}
+          description={(error as Error)?.message || `No monitoring data for "${tenantId}" — check the tenant ID and try again.`}
+          action={<Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>}
         />
       )}
 
-      {!isLoading && data && (
+      {!isFetching && data && (
         <>
           <Card>
             <CardContent className="p-4 flex flex-wrap items-center gap-4">
@@ -135,7 +148,7 @@ export default function MonitoringCompany() {
                   <div className="space-y-2">
                     {data.failureReasons.map((reason) => (
                       <div key={reason.category} className="flex items-center justify-between text-sm">
-                        <span className="capitalize">{reason.category.replace(/_/g, ' ')}</span>
+                        <span>{FAILURE_CATEGORY_LABELS[reason.category] ?? reason.category.replace(/_/g, ' ')}</span>
                         <span className="font-mono text-muted-foreground">{reason.count}</span>
                       </div>
                     ))}
@@ -189,7 +202,7 @@ export default function MonitoringCompany() {
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {data.documentTypeConfiguration.map((dt) => (
                 <div key={dt.documentType} className="flex items-center justify-between p-3 rounded-lg border text-sm">
-                  <span>{dt.documentType.replace(/_/g, ' ')}</span>
+                  <span>{NRS_DOCUMENT_TYPE_LABELS[dt.documentType as NrsDocumentTypeCode] ?? dt.documentType.replace(/_/g, ' ')}</span>
                   <Badge className={cn('text-xs', SOURCE_BADGE[dt.source])}>{SOURCE_LABEL[dt.source]}</Badge>
                 </div>
               ))}
