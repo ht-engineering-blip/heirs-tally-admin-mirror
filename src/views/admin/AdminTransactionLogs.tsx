@@ -53,7 +53,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { getAdminApiClient } from "@/lib/api/client";
-import { createExportFlow, defaultExportRange, pollAndDownloadExport } from "@/lib/api/export-api";
+import { createExportFlow, defaultExportRange } from "@/lib/api/export-api";
+import { ExportDialog } from "@/components/shared/ExportDialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
@@ -190,23 +191,8 @@ export default function AdminTransactionLogs() {
     rejectionReason: "",
   });
 
-  const handleExport = useCallback(async () => {
-    try {
-      const { from, to } = defaultExportRange();
-      const queued = await exportFlow.queue("/v1/workflow/invoices/export", {
-        from,
-        to,
-        ...(activeTab !== "all" && { type: activeTab }),
-        ...(filters.status && filters.status !== "all" && { status: filters.status }),
-        ...(searchQuery && { search: searchQuery }),
-      });
-      toast.info("Preparing export…");
-      await pollAndDownloadExport(exportFlow, queued.data.exportId);
-      toast.success("Export ready — download started");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to export transactions");
-    }
-  }, [activeTab, filters, searchQuery]);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const exportRange = defaultExportRange();
 
   const fetchInvoices = useCallback(async () => {
     abortRef.current?.abort();
@@ -1141,7 +1127,7 @@ export default function AdminTransactionLogs() {
           totalItems={total}
           pageSize={pageSize}
           onPageChange={setPage}
-          onExport={handleExport}
+          onExport={async () => setExportDialogOpen(true)}
           onPageSizeChange={(size) => {
             setPageSize(size);
             setPage(1);
@@ -1161,6 +1147,23 @@ export default function AdminTransactionLogs() {
           emptyMessage={emptyMessage}
         />
       </div>
+
+      <ExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        flow={exportFlow}
+        resource="outbound_invoices"
+        label="transactions export"
+        scope={{
+          from: exportRange.from,
+          to: exportRange.to,
+          filters: {
+            type: activeTab !== "all" ? activeTab : undefined,
+            status: filters.status && filters.status !== "all" ? filters.status : undefined,
+            search: searchQuery || undefined,
+          },
+        }}
+      />
 
       {/* Invoice Details Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>

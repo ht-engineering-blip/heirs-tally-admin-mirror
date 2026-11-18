@@ -30,7 +30,7 @@ interface InvoiceDetailModalProps {
 function formatDate(value: string | null | undefined): string {
   if (!value) return '—'
   try {
-    return format(new Date(value), 'PPpp')
+    return format(new Date(value), 'd MMM yyyy, HH:mm')
   } catch {
     return value
   }

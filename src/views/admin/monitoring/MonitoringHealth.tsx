@@ -1,15 +1,18 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { DataCoverageNote } from '@/components/shared/DataCoverageNote'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { Badge } from '@/components/ui/badge'
 import { createMonitoringApi } from '@/lib/api/monitoring-api'
-import type { MonitoringHealth as MonitoringHealthData } from '@/types/monitoring'
-import { Activity } from 'lucide-react'
+import type { MonitoringAlert, MonitoringHealth as MonitoringHealthData } from '@/types/monitoring'
+import { Activity, AlertTriangle, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
+  FetchErrorState,
   FilterBar,
   HealthSkeleton,
   MonitoringSubNav,
@@ -22,38 +25,36 @@ import {
 
 const api = createMonitoringApi()
 
+const ALERT_SEVERITY_BADGE: Record<MonitoringAlert['severity'], string> = {
+  warning: 'bg-warning/10 text-warning',
+  critical: 'bg-destructive/10 text-destructive',
+}
+
 export default function MonitoringHealth() {
   const [filters, setFilters] = useMonitoringFilters()
-  const [data, setData] = useState<MonitoringHealthData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const isFirstFetch = useRef(true)
+  const { from, to } = resolveDateRange(filters)
 
-  const fetchHealth = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const { from, to } = resolveDateRange(filters)
-      const res = await api.getHealth({
-        from,
-        to,
-        tenantId: filters.tenantId || undefined,
-      })
-      setData(res.data)
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to load system health')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [filters])
+  // keepPreviousData avoids an empty page on a cached revisit, but
+  // isFetching still drives the skeleton below — a filter change should
+  // visibly show a fetch is happening, not silently swap the numbers.
+  const { data: result, isFetching, error, refetch } = useQuery<{ health: MonitoringHealthData; alerts: MonitoringAlert[] }>({
+    queryKey: ['monitoring-health', from, to, filters.tenantId],
+    queryFn: async () => {
+      const [healthRes, alertsRes] = await Promise.all([
+        api.getHealth({ from, to, tenantId: filters.tenantId || undefined }),
+        api.getAlerts({ from, to }),
+      ])
+      return { health: healthRes.data, alerts: alertsRes.data.alerts }
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  })
+  const data = result?.health
+  const alerts = result?.alerts ?? null
 
   useEffect(() => {
-    if (isFirstFetch.current) {
-      isFirstFetch.current = false
-      fetchHealth()
-      return
-    }
-    const t = setTimeout(fetchHealth, 350)
-    return () => clearTimeout(t)
-  }, [fetchHealth])
+    if (error) toast.error((error as Error)?.message || 'Failed to load system health')
+  }, [error])
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -69,10 +70,60 @@ export default function MonitoringHealth() {
         <FilterBar filters={filters} onChange={setFilters} showFailureCategory={false} />
       </div>
 
-      {isLoading && !data ? (
+      {isFetching ? (
         <HealthSkeleton />
+      ) : error ? (
+        <FetchErrorState message={(error as Error)?.message} onRetry={() => refetch()} />
       ) : !data ? null : (
         <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-1.5">
+                Alerts
+                <DataCoverageNote text="Evaluated against the thresholds below for the selected period — this only flags conditions, it does not send email or Slack notifications." />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!alerts || alerts.length === 0 ? (
+                <EmptyState
+                  icon={ShieldCheck}
+                  title="No active alerts"
+                  description="Nothing in this period has crossed a warning or critical threshold."
+                  compact
+                />
+              ) : (
+                <div className="space-y-2">
+                  {alerts.map((alert, i) => (
+                    <div
+                      key={`${alert.key}-${alert.tenantId ?? 'all'}-${i}`}
+                      className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+                    >
+                      <AlertTriangle className={cn(
+                        'h-4 w-4 mt-0.5 shrink-0',
+                        alert.severity === 'critical' ? 'text-destructive' : 'text-warning'
+                      )} />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Badge className={cn('text-xs capitalize', ALERT_SEVERITY_BADGE[alert.severity])}>
+                            {alert.severity}
+                          </Badge>
+                          {alert.tenantId && (
+                            <span className="font-mono text-xs text-muted-foreground">{alert.tenantId}</span>
+                          )}
+                        </div>
+                        <p>{alert.message}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Observed <span className="font-mono font-semibold">{alert.observedValue}</span> vs threshold{' '}
+                          <span className="font-mono font-semibold">{alert.threshold}</span>
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardContent className="p-4">

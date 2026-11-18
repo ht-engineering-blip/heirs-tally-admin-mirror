@@ -16,6 +16,16 @@ interface FilterPopoverProps {
   /** Popover content width — override for forms with more/fewer fields. */
   contentClassName?: string
   triggerLabel?: string
+  /** When set, edits inside the popover only commit when this fires — the
+   * popover renders an "Apply filters" footer button instead of applying on
+   * every field change. Pressing it also closes the popover. */
+  onApply?: () => void
+  applyLabel?: string
+  /** Controlled open state — lets the caller reset its draft fields back to
+   * the committed filters each time the popover opens. Falls back to
+   * internal state when omitted. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 /** A single "Filters" button that opens a popover of filter fields, instead
@@ -29,8 +39,14 @@ export function FilterPopover({
   align = 'start',
   contentClassName,
   triggerLabel = 'Filters',
+  onApply,
+  applyLabel = 'Apply filters',
+  open: openProp,
+  onOpenChange,
 }: FilterPopoverProps) {
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  const open = openProp ?? openState
+  const setOpen = onOpenChange ?? setOpenState
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -48,11 +64,18 @@ export function FilterPopover({
       <PopoverContent align={align} className={cn('w-[min(92vw,420px)] p-4', contentClassName)}>
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-medium">{triggerLabel}</p>
-          {activeCount > 0 && onClear && (
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onClear}>
-              <X className="w-3 h-3 mr-1" /> Clear all
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {activeCount > 0 && onClear && (
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onClear}>
+                <X className="w-3 h-3 mr-1" /> Clear all
+              </Button>
+            )}
+            {onApply && (
+              <Button size="sm" className="h-7 px-2.5 text-xs" onClick={() => { onApply(); setOpen(false) }}>
+                {applyLabel}
+              </Button>
+            )}
+          </div>
         </div>
         <div className="space-y-4">{children}</div>
       </PopoverContent>

@@ -2,7 +2,6 @@ import { getAdminApiClient, getTenantApiClient } from './client';
 import type { InvoiceKeyType } from '@/types/invoice-key-config';
 import type { OnboardingProfilePayload, BusinessSettingsPayload } from '@/types/tenant-profile';
 import type { MappingTemplate } from '@/types/mapping';
-import type { ExportJobSummary } from '@/types/monitoring';
 import { createExportFlow } from './export-api';
 
 const TENANT_BASE_PATH = '/api/v1/tenants'
@@ -166,12 +165,6 @@ export function createTenantApi() {
 
     getInvoices: (query?: { page?: string; limit?: string; type?: string; status?: string; paymentStatus?: string; search?: string; from?: string; to?: string }) =>
       (api as any).v1.workflow.invoices.get({ query: query || {} }),
-
-    /** Queues a full-result-set export of the tenant's own invoices matching
-     * the Transactions table's current filters — from/to are required.
-     * Outbound invoices only (see export-api.ts callers for the caveat). */
-    queueInvoiceExport: (filters: Record<string, string | undefined>): Promise<{ success: true; data: ExportJobSummary }> =>
-      exportFlow.queue('/v1/workflow/invoices/export', filters),
 
     exportFlow,
 

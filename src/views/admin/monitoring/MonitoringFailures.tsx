@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { Column, DataTable } from '@/components/shared/DataTable'
 import { DataCoverageNote } from '@/components/shared/DataCoverageNote'
+import { ExportDialog } from '@/components/shared/ExportDialog'
 import { createMonitoringApi } from '@/lib/api/monitoring-api'
-import { pollAndDownloadExport } from '@/lib/api/export-api'
 import {
   NRS_DOCUMENT_TYPE_LABELS,
   type FailureCategory,
@@ -18,6 +19,7 @@ import { Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   FAILURE_PAGE_SIZE,
+  FetchErrorState,
   FilterBar,
   MonitoringSubNav,
   formatDuration,
@@ -32,11 +34,7 @@ type FailureRow = MonitoringFailureRow & { id: string }
 
 export default function MonitoringFailures() {
   const [filters, setFilters] = useMonitoringFilters()
-  const [rows, setRows] = useState<FailureRow[]>([])
-  const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [isLoading, setIsLoading] = useState(true)
-  const isFirstFetch = useRef(true)
 
   const [selectedIrn, setSelectedIrn] = useState<string | null>(null)
   const [detail, setDetail] = useState<OutboundInvoiceDetail | null>(null)
@@ -63,32 +61,20 @@ export default function MonitoringFailures() {
     fetchDetail(irn)
   }
 
-  const handleExport = async () => {
-    try {
-      const { from, to } = resolveDateRange(filters)
-      const { data: job } = await api.queueFailuresExport({
-        from,
-        to,
-        tenantId: filters.tenantId || undefined,
-        erpSystem: filters.erpSystem || undefined,
-        documentType: filters.documentType !== 'all' ? filters.documentType : undefined,
-        failureCategory: filters.failureCategory !== 'all' ? (filters.failureCategory as FailureCategory) : undefined,
-      })
-      toast.info('Preparing export…')
-      await pollAndDownloadExport(api.exportFlow, job.exportId)
-      toast.success('Export ready — download started')
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to export failures')
-    }
-  }
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const { from: exportFrom, to: exportTo } = resolveDateRange(filters)
 
-  const fetchFailures = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const { from, to } = resolveDateRange(filters)
+  // keepPreviousData keeps the current rows mounted (table stays
+  // interactive) while the next page/filter result loads, but we still
+  // surface isFetching so the table switches to its skeleton rows for the
+  // duration of that fetch — a filter change should visibly look like it's
+  // doing something, not silently swap rows once it finishes.
+  const { data, isFetching, error, refetch } = useQuery({
+    queryKey: ['monitoring-failures', exportFrom, exportTo, filters.tenantId, filters.erpSystem, filters.documentType, filters.failureCategory, page],
+    queryFn: async () => {
       const res = await api.getFailures({
-        from,
-        to,
+        from: exportFrom,
+        to: exportTo,
         tenantId: filters.tenantId || undefined,
         erpSystem: filters.erpSystem || undefined,
         documentType: filters.documentType !== 'all' ? filters.documentType : undefined,
@@ -96,24 +82,17 @@ export default function MonitoringFailures() {
         page,
         limit: FAILURE_PAGE_SIZE,
       })
-      setRows(res.data.map((row) => ({ ...row, id: row.irn })))
-      setTotal(res.meta.total)
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to load failures')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [filters, page])
+      return { rows: res.data.map((row) => ({ ...row, id: row.irn })), total: res.meta.total }
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  })
+  const rows = data?.rows ?? []
+  const total = data?.total ?? 0
 
   useEffect(() => {
-    if (isFirstFetch.current) {
-      isFirstFetch.current = false
-      fetchFailures()
-      return
-    }
-    const t = setTimeout(fetchFailures, 350)
-    return () => clearTimeout(t)
-  }, [fetchFailures])
+    if (error) toast.error((error as Error)?.message || 'Failed to load failures')
+  }, [error])
 
   useEffect(() => { setPage(1) }, [filters])
 
@@ -213,19 +192,23 @@ export default function MonitoringFailures() {
         <FilterBar filters={filters} onChange={setFilters} />
       </div>
 
-      <DataTable
-        data={rows}
-        columns={columns}
-        rowActions={rowActions}
-        onRowClick={(row) => handleViewDetail(row.irn)}
-        isLoading={isLoading}
-        currentPage={page}
-        pageSize={FAILURE_PAGE_SIZE}
-        totalItems={total}
-        onPageChange={setPage}
-        onExport={handleExport}
-        emptyMessage="No failures match these filters"
-      />
+      {!isFetching && error ? (
+        <FetchErrorState message={(error as Error)?.message} onRetry={() => refetch()} />
+      ) : (
+        <DataTable
+          data={rows}
+          columns={columns}
+          rowActions={rowActions}
+          onRowClick={(row) => handleViewDetail(row.irn)}
+          isLoading={isFetching}
+          currentPage={page}
+          pageSize={FAILURE_PAGE_SIZE}
+          totalItems={total}
+          onPageChange={setPage}
+          onExport={async () => setExportDialogOpen(true)}
+          emptyMessage="No failures match these filters"
+        />
+      )}
 
       <InvoiceDetailModal
         irn={selectedIrn}
@@ -234,6 +217,24 @@ export default function MonitoringFailures() {
         error={detailError}
         detail={detail}
         onRetry={() => selectedIrn && fetchDetail(selectedIrn)}
+      />
+
+      <ExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        flow={api.exportFlow}
+        resource="monitoring_failures"
+        label="failures export"
+        scope={{
+          from: exportFrom,
+          to: exportTo,
+          tenantId: filters.tenantId || undefined,
+          filters: {
+            erpSystem: filters.erpSystem || undefined,
+            documentType: filters.documentType !== 'all' ? filters.documentType : undefined,
+            failureCategory: filters.failureCategory !== 'all' ? filters.failureCategory : undefined,
+          },
+        }}
       />
     </div>
   )

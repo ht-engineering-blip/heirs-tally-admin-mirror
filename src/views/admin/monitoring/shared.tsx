@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { FilterPopover } from '@/components/shared/FilterPopover'
 import { TenantCombobox } from '@/components/shared/TenantCombobox'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,7 +33,7 @@ import { format } from 'date-fns'
 import { AlertTriangle, CheckCircle2, Inbox, LineChart, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useMemo, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 
 /** Fixed content height for the daily-trend chart and each breakdown tab
  * panel, in both their loaded and empty states — keeps the layout stable
@@ -57,6 +58,13 @@ export const FAILURE_CATEGORIES: { value: FailureCategory; label: string }[] = [
   { value: 'unknown', label: 'Unknown' },
 ]
 
+/** Human-readable label for a failure category code — shared wherever a raw
+ * `category` string from the API gets rendered, so it never falls back to a
+ * crude underscore-to-space replace of the raw code. */
+export const FAILURE_CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+  FAILURE_CATEGORIES.map((c) => [c.value, c.label])
+)
+
 export const DOCUMENT_TYPE_OPTIONS = Object.entries(NRS_DOCUMENT_TYPE_LABELS) as [NrsDocumentTypeCode, string][]
 
 export const FAILURE_PAGE_SIZE = 20
@@ -70,10 +78,23 @@ export function formatPercent(value: number): string {
   return `${(value * 100).toFixed(1)}%`
 }
 
+/** British-order (day before month) date formatting, used everywhere a
+ * monitoring date/time is displayed. */
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—'
   try {
-    return format(new Date(value), 'MMM d, yyyy HH:mm')
+    return format(new Date(value), 'd MMM yyyy, HH:mm')
+  } catch {
+    return value
+  }
+}
+
+/** Date-only (no time) version of formatDate, for contexts that already
+ * show the time separately — e.g. the trend chart's hover tooltip. */
+export function formatDateOnly(value: string | null | undefined): string {
+  if (!value) return '—'
+  try {
+    return format(new Date(value), 'd MMM yyyy')
   } catch {
     return value
   }
@@ -197,11 +218,22 @@ export function FilterBar({
   filters,
   onChange,
   showFailureCategory = true,
+  showTenant = true,
 }: {
   filters: SharedFilters
   onChange: (next: SharedFilters) => void
   showFailureCategory?: boolean
+  showTenant?: boolean
 }) {
+  const [open, setOpen] = useState(false)
+  // Edits only land in `draft` as the fields change — nothing is applied
+  // until "Apply filters" is pressed. Re-synced from the committed filters
+  // each time the popover opens, so a previous unsaved edit never resurfaces.
+  const [draft, setDraft] = useState(filters)
+  useEffect(() => {
+    if (open) setDraft(filters)
+  }, [open, filters])
+
   const activeCount = countActiveFilters(filters, { includeFailureCategory: showFailureCategory })
   // Default (includeAll: false) already restricts to active ERPs.
   const { erpOptions, isLoading: erpsLoading } = useSupportedErps()
@@ -209,12 +241,19 @@ export function FilterBar({
   // while the popover is open.
   const [defaultRange] = useState(() => ({ from: defaultRangeFrom(), to: defaultRangeTo() }))
 
+  const handleClear = () => {
+    const cleared = showFailureCategory ? EMPTY_FILTERS : { ...EMPTY_FILTERS, failureCategory: filters.failureCategory }
+    setDraft(cleared)
+    onChange(cleared)
+  }
+
   return (
     <FilterPopover
       activeCount={activeCount}
-      onClear={() => onChange(
-        showFailureCategory ? EMPTY_FILTERS : { ...EMPTY_FILTERS, failureCategory: filters.failureCategory }
-      )}
+      onClear={handleClear}
+      onApply={() => onChange(draft)}
+      open={open}
+      onOpenChange={setOpen}
       align="end"
       contentClassName="w-[min(92vw,460px)]"
     >
@@ -222,41 +261,49 @@ export function FilterBar({
         Defaults to the last 90 days, ending today. Custom ranges are capped at 90 days.
       </p>
       {/* From/To each get a full-width row — a 2-up grid column is too
-          narrow for the rendered "MM/DD/YYYY HH:MM AM" text plus the
-          browser's native calendar-picker icon, which clipped the icon. */}
+          narrow for the rendered "DD/MM/YYYY HH:MM" text plus the
+          browser's native calendar-picker icon, which clipped the icon.
+          lang="en-GB" makes Chromium browsers render the native
+          datetime-local text in day-before-month order regardless of the
+          OS's own locale — Firefox still follows the OS locale, since it
+          doesn't honor this attribute for date/time inputs. */}
       <div className="grid grid-cols-1 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">From</Label>
           <Input
             type="datetime-local"
+            lang="en-GB"
             className="[&::-webkit-calendar-picker-indicator]:ml-1"
-            value={filters.from || defaultRange.from}
-            onChange={(e) => onChange({ ...filters, from: e.target.value })}
+            value={draft.from || defaultRange.from}
+            onChange={(e) => setDraft({ ...draft, from: e.target.value })}
           />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">To</Label>
           <Input
             type="datetime-local"
+            lang="en-GB"
             className="[&::-webkit-calendar-picker-indicator]:ml-1"
-            value={filters.to || defaultRange.to}
-            onChange={(e) => onChange({ ...filters, to: e.target.value })}
+            value={draft.to || defaultRange.to}
+            onChange={(e) => setDraft({ ...draft, to: e.target.value })}
           />
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Tenant</Label>
-          <TenantCombobox
-            value={filters.tenantId}
-            onChange={(tenantId) => onChange({ ...filters, tenantId })}
-          />
-        </div>
+        {showTenant && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Tenant</Label>
+            <TenantCombobox
+              value={draft.tenantId}
+              onChange={(tenantId) => setDraft({ ...draft, tenantId })}
+            />
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label className="text-xs">ERP system</Label>
           <Select
-            value={filters.erpSystem || 'all'}
-            onValueChange={(v) => onChange({ ...filters, erpSystem: v === 'all' ? '' : v })}
+            value={draft.erpSystem || 'all'}
+            onValueChange={(v) => setDraft({ ...draft, erpSystem: v === 'all' ? '' : v })}
             disabled={erpsLoading}
           >
             <SelectTrigger><SelectValue placeholder={erpsLoading ? 'Loading…' : undefined} /></SelectTrigger>
@@ -270,7 +317,7 @@ export function FilterBar({
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Document type</Label>
-          <Select value={filters.documentType} onValueChange={(v) => onChange({ ...filters, documentType: v })}>
+          <Select value={draft.documentType} onValueChange={(v) => setDraft({ ...draft, documentType: v })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All document types</SelectItem>
@@ -283,7 +330,7 @@ export function FilterBar({
         {showFailureCategory && (
           <div className="space-y-1.5">
             <Label className="text-xs">Failure category</Label>
-            <Select value={filters.failureCategory} onValueChange={(v) => onChange({ ...filters, failureCategory: v })}>
+            <Select value={draft.failureCategory} onValueChange={(v) => setDraft({ ...draft, failureCategory: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
@@ -306,10 +353,10 @@ export function FunnelTiles({ funnel, note }: { funnel: MonitoringFunnel; note?:
   const failedShare = funnel.transmitted > 0 ? funnel.failed / funnel.transmitted : 0
   const succeededShare = funnel.transmitted > 0 ? succeeded / funnel.transmitted : 0
   const tiles: { label: string; value: number; hint?: string }[] = [
-    { label: 'Transmitted', value: funnel.transmitted },
-    { label: 'Validated', value: funnel.validated },
-    { label: 'Rectified', value: funnel.rectified },
-    { label: 'Retries', value: funnel.retries },
+    { label: 'Transmitted', value: funnel.transmitted, hint: 'Invoices sent out to the tax authority (NRS) in this period, whether or not they went on to succeed.' },
+    { label: 'Validated', value: funnel.validated, hint: 'Of those transmitted, how many passed NRS\'s own validation checks.' },
+    { label: 'Rectified', value: funnel.rectified, hint: 'Invoices that first failed, then were corrected and successfully resent in this period.' },
+    { label: 'Retries', value: funnel.retries, hint: 'How many times an invoice send was automatically retried after a temporary failure (e.g. a timeout), in this period.' },
   ]
   return (
     <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
@@ -317,7 +364,7 @@ export function FunnelTiles({ funnel, note }: { funnel: MonitoringFunnel; note?:
         <CardContent className="p-4">
           <p className="text-xs text-success/80 flex items-center gap-1 font-medium">
             Succeeded
-            <DataCoverageNote text="An invoice counts as succeeded once workflowState.delivered is true and it is not currently failed — the last required stage of the outbound chain." />
+            <DataCoverageNote text="Invoices in the selected date range (and matching your other filters) that have been fully delivered and aren't currently stuck in a failed state — the final step of sending it out." />
           </p>
           <p className="text-2xl font-semibold font-mono mt-1 text-success">{succeeded.toLocaleString()}</p>
           {funnel.transmitted > 0 && (
@@ -329,7 +376,7 @@ export function FunnelTiles({ funnel, note }: { funnel: MonitoringFunnel; note?:
         <CardContent className="p-4">
           <p className="text-xs text-destructive/80 flex items-center gap-1 font-medium">
             Failed (open)
-            <DataCoverageNote text="Current count of all open failures, regardless of the date range selected above — unlike the other tiles, this isn't limited to that period." />
+            <DataCoverageNote text="Invoices in the selected date range (and matching your other filters) that failed and are still unresolved." />
           </p>
           <p className="text-2xl font-semibold font-mono mt-1 text-destructive">{funnel.failed.toLocaleString()}</p>
           {funnel.transmitted > 0 && (
@@ -530,6 +577,23 @@ export function CompanySkeleton() {
   )
 }
 
+/** Shared "this fetch failed" state — used in place of a page's normal
+ * content (and instead of leaving it stuck on its loading skeleton forever)
+ * whenever a monitoring query errors out, across every tab. Offers a Retry
+ * button when the caller has a refetch function to hand it. */
+export function FetchErrorState({ message, onRetry }: { message?: string; onRetry?: () => void }) {
+  return (
+    <EmptyState
+      icon={AlertTriangle}
+      title="Couldn't load this data"
+      description={message || "Something went wrong while fetching this. Please try again."}
+      action={onRetry && (
+        <Button variant="outline" size="sm" onClick={onRetry}>Retry</Button>
+      )}
+    />
+  )
+}
+
 /** Only occupies space when there's something to say — unlike a permanently
  * visible "Alerts" card, this renders nothing while clean so it doesn't push
  * the rest of the page down on every load. */
@@ -605,7 +669,7 @@ export function DailyTrendChart({
 
   const width = 720
   const height = 280
-  const padding = { top: 12, right: 12, bottom: 28, left: 40 }
+  const padding = { top: 12, right: 12, bottom: 40, left: 52 }
   const plotWidth = width - padding.left - padding.right
   const plotHeight = height - padding.top - padding.bottom
 
@@ -706,7 +770,7 @@ export function DailyTrendChart({
                 className="fill-muted-foreground"
                 fontSize={10}
               >
-                {format(new Date(d.date), 'MMM d')}
+                {format(new Date(d.date), 'd MMM')}
               </text>
             ) : null
           )}
@@ -748,10 +812,31 @@ export function DailyTrendChart({
                 strokeWidth={1.5}
               />
             ))}
+          {/* Axis titles — what the two axes actually represent, not just
+              their tick values. */}
+          <text
+            x={(padding.left + width - padding.right) / 2}
+            y={height - 2}
+            textAnchor="middle"
+            className="fill-muted-foreground"
+            fontSize={10}
+          >
+            Date
+          </text>
+          <text
+            x={-((padding.top + height - padding.bottom) / 2)}
+            y={14}
+            textAnchor="middle"
+            transform="rotate(-90)"
+            className="fill-muted-foreground"
+            fontSize={10}
+          >
+            Invoice count
+          </text>
         </svg>
         {hovered && (
           <div className="pointer-events-none absolute top-0 right-0 bg-popover border rounded-md shadow-sm px-3 py-2 text-xs space-y-1">
-            <p className="font-medium">{formatDate(hovered.date).split(' ').slice(0, 3).join(' ')}</p>
+            <p className="font-medium">{formatDateOnly(hovered.date)}</p>
             {TREND_SERIES.map((s) => (
               <p key={s.key} className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
@@ -859,7 +944,7 @@ export function BreakdownCard({
                 </div>
                 {data.topFailureReasons.map((reason) => (
                   <div key={reason.category} className="flex items-center justify-between text-sm py-1 border-b last:border-b-0">
-                    <span className="capitalize">{reason.category.replace(/_/g, ' ')}</span>
+                    <span>{FAILURE_CATEGORY_LABELS[reason.category] ?? reason.category.replace(/_/g, ' ')}</span>
                     <span className="font-mono font-semibold text-destructive">{reason.count}</span>
                   </div>
                 ))}
@@ -870,7 +955,7 @@ export function BreakdownCard({
           <TabsContent value="successStages">
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
               The furthest workflow stage non-failed invoices in this period reached.
-              <DataCoverageNote text="Only 'Delivered' is terminal; the rest are still in flight, not successes. Failed invoices are excluded, so this never double-counts against the failure breakdown." />
+              <DataCoverageNote text="Only 'Delivered' is a finished success — the other stages just mean the invoice is still on its way through. Invoices that failed are left out here, so they're never counted twice against the failure breakdown." />
             </p>
             <SuccessStageList stages={data.topSuccessStages} />
           </TabsContent>
@@ -963,28 +1048,6 @@ export function BreakdownCard({
         </Tabs>
       </CardContent>
     </Card>
-  )
-}
-
-/** Renders a page's `dataCoverage` map (backend-authored caveats per metric,
- * e.g. "rectified: legacy resolution history is incomplete") as a labeled
- * list instead of one run-on " · "-joined sentence — each entry gets its own
- * line so the key and caveat are easy to tell apart and scan. */
-export function DataCoverageFooter({ coverage }: { coverage: Record<string, string> }) {
-  const entries = Object.entries(coverage)
-  if (entries.length === 0) return null
-  return (
-    <div className="rounded-lg border bg-muted/30 p-4">
-      <p className="text-base font-medium text-foreground mb-2">Data Coverage Notes</p>
-      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
-        {entries.map(([key, value]) => (
-          <div key={key} className="flex gap-1.5 text-xs text-muted-foreground min-w-0">
-            <dt className="shrink-0 font-medium text-foreground capitalize">{key}:</dt>
-            <dd className="min-w-0">{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
   )
 }
 
