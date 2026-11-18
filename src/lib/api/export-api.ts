@@ -74,6 +74,28 @@ export function createExportFlow(basePath: string) {
 
 export type ExportFlow = ReturnType<typeof createExportFlow>
 
+/** Maps known infrastructure error signatures (IAM/S3 access denials, raw
+ * AWS ARNs, or any other unbroken technical string) to plain language a
+ * non-technical user can act on — the export worker surfaces these as-is
+ * from AWS, and they're meaningless without that context. Anything else
+ * (a normal, readable backend message) passes through unchanged. The raw
+ * message is never lost — callers that want it for support/debugging
+ * purposes keep their own reference to the original (e.g. a tooltip). */
+export function humanizeExportError(message: string | null | undefined): string {
+  const fallback = 'Something went wrong while generating this export. Please try again, or contact support if this keeps happening.'
+  if (!message) return fallback
+  if (/is not authorized to perform|AccessDenied|identity-based policy/i.test(message)) {
+    return "This export couldn't be saved due to a backend configuration issue. Our team has been notified — please try again shortly, or contact support if it persists."
+  }
+  if (/arn:aws|NoSuchBucket|RequestTimeout|s3:\/\//i.test(message)) {
+    return 'A storage error occurred while generating this export. Please try again, or contact support if this keeps happening.'
+  }
+  // Long and/or space-free text reads as a stack trace or raw system
+  // output rather than a sentence meant for a user.
+  if (message.length > 160 || !/\s/.test(message)) return fallback
+  return message
+}
+
 function triggerBlobDownload(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -124,7 +146,7 @@ export async function pollAndDownloadExport(
     opts?.onStatus?.(job)
 
     if (job.status === 'failed') {
-      throw new Error(job.error || 'Export failed')
+      throw new Error(humanizeExportError(job.error))
     }
     if (job.status === 'completed' && job.downloadUrl) {
       const blob = await flow.download(exportId)
@@ -165,6 +187,8 @@ export async function exportWithToast(
     const rows = job.rowCount === 1 ? '1 row' : `${job.rowCount.toLocaleString()} rows`
     toast.success(`Export ready — ${rows} downloaded`, { id: toastId })
   } catch (error: any) {
+    // pollAndDownloadExport already humanizes a 'failed' job's error; this
+    // fallback only covers network/unexpected failures that bypassed that.
     toast.error(error?.message || `Failed to generate your ${label}`, { id: toastId })
   }
 }

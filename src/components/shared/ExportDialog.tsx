@@ -19,6 +19,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import {
   downloadCompletedJob,
   exportWithToast,
+  humanizeExportError,
   type ExportFlow,
 } from '@/lib/api/export-api'
 import type {
@@ -269,7 +270,9 @@ export function ExportDialog({ open, onOpenChange, flow, resource, label, scope 
                           {job.status === 'completed' && ` · ${job.rowCount.toLocaleString()} rows`}
                         </p>
                         {job.status === 'failed' && job.error && (
-                          <p className="text-xs text-destructive break-all line-clamp-2" title={job.error}>{job.error}</p>
+                          <p className="text-xs text-destructive break-words line-clamp-2" title={job.error}>
+                            {humanizeExportError(job.error)}
+                          </p>
                         )}
                       </div>
                       <Button
