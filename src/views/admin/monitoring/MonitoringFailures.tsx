@@ -86,6 +86,11 @@ export default function MonitoringFailures() {
     },
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
+    // See the same note in MonitoringOverview — without this, a failing
+    // request retries 3x with backoff before isFetching ever goes false,
+    // so a real outage looked like an indefinite skeleton instead of
+    // FetchErrorState.
+    retry: false,
   })
   const rows = data?.rows ?? []
   const total = data?.total ?? 0

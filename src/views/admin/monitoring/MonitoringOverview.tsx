@@ -45,6 +45,11 @@ export default function MonitoringOverview() {
     },
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
+    // React Query's default retries 3 times with growing backoff before
+    // settling into an error — isFetching stays true the whole time, so
+    // without this a real outage (e.g. a 504) looked like the page was
+    // stuck loading for 20+ seconds instead of showing FetchErrorState.
+    retry: false,
   })
 
   useEffect(() => {
