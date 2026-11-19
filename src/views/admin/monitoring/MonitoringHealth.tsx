@@ -48,6 +48,11 @@ export default function MonitoringHealth() {
     },
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
+    // See the same note in MonitoringOverview — without this, a failing
+    // request retries 3x with backoff before isFetching ever goes false,
+    // so a real outage looked like an indefinite skeleton instead of
+    // FetchErrorState.
+    retry: false,
   })
   const data = result?.health
   const alerts = result?.alerts ?? null
